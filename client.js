@@ -683,23 +683,26 @@ window.__ModuleLoader__.load({
   background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary);
   font-size:14px; line-height:1.65; box-sizing:border-box; }
 .kd-page *, .kd-page *::before, .kd-page *::after { box-sizing:border-box; }
-.kd-header { padding:18px 22px 14px; border-bottom:1px solid var(--dsw-alias-border-l1); display:flex;
-  gap:20px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; }
+.kd-header { padding:16px 22px 10px; border-bottom:1px solid var(--dsw-alias-border-l1);
+  display:flex; flex-direction:column; gap:8px; }
+.kd-header-top { display:flex; gap:20px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; }
 .kd-header-left { min-width:0; flex:1 1 320px; }
 .kd-title { margin:0; font-size:19px; font-weight:650; letter-spacing:.01em; }
 .kd-sub { margin-top:4px; font-size:12px; color:var(--dsw-alias-label-secondary); }
-.kd-yearline { margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:12px;
-  color:var(--dsw-alias-label-secondary); }
 .kd-select { height:30px; padding:0 8px; border-radius:8px; font-size:13px;
   border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
   color:var(--dsw-alias-label-primary); }
-.kd-countdown { text-align:right; min-width:0; flex:0 1 auto; display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+.kd-select-sm { height:26px; font-size:12px; padding:0 6px; }
+.kd-cd-lines { min-width:0; flex:0 1 auto; display:flex; flex-direction:column; align-items:flex-end;
+  gap:1px; text-align:right; }
 .kd-cd-primary { font-size:24px; font-weight:700; letter-spacing:.01em; line-height:1.25; }
 .kd-cd-secondary { font-size:12px; color:var(--dsw-alias-label-secondary); }
 .kd-cd-target { font-size:14px; font-weight:500; }
-.kd-cd-meta { margin-top:6px; display:flex; gap:8px; align-items:center; justify-content:flex-end;
-  flex-wrap:wrap; font-size:11px; color:var(--dsw-alias-label-secondary); max-width:420px; }
-.kd-cd-warn { margin-top:6px; font-size:12px; color:var(--dsw-alias-state-warn-primary); max-width:380px; text-align:right; }
+.kd-exam-strip { display:flex; align-items:center; gap:4px 12px; flex-wrap:wrap; padding-top:7px;
+  border-top:1px dashed var(--dsw-alias-border-l1); font-size:11.5px;
+  color:var(--dsw-alias-label-secondary); }
+.kd-strip-item { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+.kd-strip-warn { color:var(--dsw-alias-state-warn-primary); white-space:normal; text-align:left; }
 .kd-shell { flex:1 1 auto; min-height:0; display:flex; }
 .kd-nav { width:200px; flex:0 0 200px; border-right:1px solid var(--dsw-alias-border-l1); padding:14px 10px;
   overflow:auto; display:flex; flex-direction:column; gap:12px; }
@@ -873,10 +876,12 @@ window.__ModuleLoader__.load({
   font-feature-settings: 'ss01' 0;
   letter-spacing: 0;
 }
-.kd-frac { display:inline-flex; flex-direction:column; vertical-align:-0.5em; text-align:center;
-  margin:0 .18em; }
-.kd-frac-n { padding:0 .2em; }
-.kd-frac-d { border-top:1px solid currentColor; padding:0 .2em; }
+/* 分式：整块按“垂直中线”对齐到父级数学轴线（约基线上方 .25em），
+   而不是下压半个字高；分子分母固定行高，保证分数线正好落在中线上。 */
+.kd-frac { display:inline-flex; flex-direction:column; align-items:stretch; vertical-align:middle;
+  text-align:center; margin:0 .18em; line-height:1.15; }
+.kd-frac-n { padding:0 .25em .03em; }
+.kd-frac-d { border-top:1px solid currentColor; padding:.03em .25em 0; }
 .kd-sup, .kd-sub { font-size:.72em; }
 .kd-sup { vertical-align:super; }
 .kd-sub { vertical-align:sub; }
@@ -916,9 +921,9 @@ window.__ModuleLoader__.load({
   .kd-nav { display:none; }
   .kd-mobilebar { display:flex; }
   .kd-main { padding:14px 14px 32px; }
-  .kd-header { padding:14px 14px 12px; }
-  .kd-countdown { text-align:left; align-items:flex-start; }
-  .kd-cd-warn, .kd-cd-meta { text-align:left; justify-content:flex-start; }
+  .kd-header { padding:14px 14px 10px; }
+  .kd-cd-lines { align-items:flex-start; text-align:left; }
+  .kd-strip-item { white-space:normal; }
 }
 `
 
@@ -1036,40 +1041,75 @@ window.__ModuleLoader__.load({
       footer ? h('div', { className: 'kd-modal-foot' }, footer) : null))
     }
 
-    function Countdown({ boot, onRefresh, onYearChange, busy }) {
+    function hostOf(url) {
+      try {
+        return new URL(url).host.replace(/^www\./, '')
+      } catch {
+        return ''
+      }
+    }
+
+    function formatShort(iso) {
+      const date = new Date(iso)
+      if (Number.isNaN(date.getTime())) return String(iso || '')
+      const pad = (value) => String(value).padStart(2, '0')
+      return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+    }
+
+    /** 严格的三行倒计时。 */
+    function CountdownLines({ countdown }) {
+      const lines = (countdown || {}).lines || {}
+      return h('div', { className: 'kd-cd-lines' },
+        h('div', { className: 'kd-cd-primary' }, lines.primary || ''),
+        h('div', { className: 'kd-cd-secondary' }, lines.secondary || ''),
+        h('div', { className: 'kd-cd-target' }, lines.target || ''))
+    }
+
+    /** 年份、日期口径与来源：一条紧凑的状态带，横跨整个头部。 */
+    function ExamStrip({ boot, busy, onRefresh, onYearChange }) {
       const cd = boot.countdown || {}
-      const lines = cd.lines || {}
+      const basis = cd.basis
       const statusTone = cd.status === 'official' ? 'ok' : cd.status === 'estimated' ? 'warn' : 'bad'
       const statusText = cd.status === 'official' ? '官方公布'
         : cd.status === 'estimated' ? '官方未公布 · 估算' : '尚未核实'
-      return h('div', { className: 'kd-countdown' },
-        h('div', { className: 'kd-cd-primary' }, lines.primary || ''),
-        h('div', { className: 'kd-cd-secondary' }, lines.secondary || ''),
-        h('div', { className: 'kd-cd-target' }, lines.target || ''),
-        cd.expired ? h('div', { className: 'kd-cd-warn' },
-          `目标日期已过，请重新选择考研年份后再继续倒计时。`) : null,
-        h('div', { className: 'kd-cd-meta' },
-          h(Badge, { tone: statusTone }, statusText),
-          cd.source
-            ? h('span', { title: cd.source }, cd.sourceUrl
-              ? h('a', { className: 'kd-link', href: cd.sourceUrl, target: '_blank', rel: 'noreferrer noopener' }, cd.source)
-              : cd.source)
-            : h('span', null, '无来源记录'),
-          cd.verifiedAt ? h('span', null, `核验于 ${formatDateTime(cd.verifiedAt)}`) : null,
-          h(Btn, {
-            small: true,
-            variant: 'ghost',
-            disabled: busy,
-            title: '联网核验官方公布的考试日期',
-            onClick: onRefresh,
-          }, busy ? h('span', { className: 'kd-spinner' }) : h(Icon, { name: 'refresh', size: 13 }), '核验日期'),
+      const sourceUrl = cd.sourceUrl || (basis && basis.sourceUrl) || ''
+      const sourceLabel = cd.status === 'official'
+        ? `来源 ${hostOf(sourceUrl) || '官方'}`
+        : basis ? `依据 ${basis.year} 官方（${hostOf(basis.sourceUrl) || '官方'}）` : '无来源记录'
+      const noteText = cd.status === 'estimated' && basis
+        ? `按 ${basis.year} 官方日期推后一年估算`
+        : cd.status === 'unverified' ? '官方日期尚未核实' : (cd.note || '')
+
+      return h('div', { className: 'kd-exam-strip' },
+        h('label', { className: 'kd-strip-item' },
+          h('span', null, T.year),
           h('select', {
-            className: 'kd-select',
+            className: 'kd-select kd-select-sm',
             value: boot.settings.targetYear,
             'aria-label': T.year,
             onChange: (event) => onYearChange(Number(event.target.value)),
           }, (boot.yearOptions || []).map((year) => h('option', { key: year, value: year }, `${year} 考研`)))),
-        cd.note ? h('div', { className: 'kd-cd-warn' }, cd.note) : null)
+        h('span', { className: 'kd-strip-item' }, h(Badge, { tone: statusTone }, statusText)),
+        h('span', {
+          className: 'kd-strip-item',
+          title: cd.source ? `${cd.source}${sourceUrl ? `\n${sourceUrl}` : ''}` : '',
+        }, sourceUrl
+          ? h('a', { className: 'kd-link', href: sourceUrl, target: '_blank', rel: 'noreferrer noopener' }, sourceLabel)
+          : h('span', null, sourceLabel)),
+        cd.verifiedAt
+          ? h('span', { className: 'kd-strip-item', title: formatDateTime(cd.verifiedAt) },
+            `核验 ${formatShort(cd.verifiedAt)}`)
+          : null,
+        h(Btn, {
+          small: true,
+          variant: 'ghost',
+          disabled: busy,
+          title: '联网核验官方公布的考试日期',
+          onClick: onRefresh,
+        }, busy ? h('span', { className: 'kd-spinner' }) : h(Icon, { name: 'refresh', size: 13 }), '核验'),
+        cd.expired
+          ? h('span', { className: 'kd-strip-item kd-strip-warn' }, '目标日期已过，请重新选择考研年份')
+          : (noteText ? h('span', { className: 'kd-strip-item kd-strip-warn', title: cd.note || '' }, noteText) : null))
     }
 
     /* ============================== 导航 ============================== */
@@ -1111,7 +1151,7 @@ window.__ModuleLoader__.load({
         }, label, count ? h('span', { className: 'kd-nav-count' }, String(count)) : null)))
     }
 
-    function MobileBar({ boot, subjectId, kind, onPick, onTab }) {
+    function MobileBar({ boot, subjectId, kind, onPick, onTab, onManage, onBanks }) {
       const enabled = (boot.subjects || []).filter((subject) => subject.enabled)
       return h('div', { className: 'kd-mobilebar' },
         h('select', {
@@ -1126,7 +1166,10 @@ window.__ModuleLoader__.load({
           className: `kd-nav-item${kind === value ? ' is-active' : ''}`,
           style: { width: 'auto' },
           onClick: () => onTab(value),
-        }, T.tabs[value])))
+        }, T.tabs[value])),
+        // 窄屏隐藏了左侧栏，科目的增删与题库入口必须在这里保留。
+        h(Btn, { small: true, variant: 'ghost', onClick: onManage }, h(Icon, { name: 'plus', size: 13 }), T.manageSubjects),
+        h(Btn, { small: true, variant: 'ghost', onClick: onBanks }, h(Icon, { name: 'book', size: 13 }), T.manageBanks))
     }
 
     /* ============================== 题目详情 ============================== */
@@ -2129,18 +2172,15 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'kd-page' },
         styleInjected ? null : h('style', null, CSS),
         h('div', { className: 'kd-header' },
-          h('div', { className: 'kd-header-left' },
-            h('h1', { className: 'kd-title' }, T.title),
-            h('div', { className: 'kd-sub' },
-              boot?.today ? `${formatDate(boot.today)} · ` : '',
-              boot ? `已启用 ${boot.settings.subjects.length} 个科目 · ` : '',
-              T.subtitle),
-            h('div', { className: 'kd-yearline' },
-              h('span', null, `${T.year}：`),
-              h(Btn, { small: true, disabled: !boot, onClick: () => setModal({ kind: 'subjects' }) }, h(Icon, { name: 'plus', size: 13 }), T.manageSubjects),
-              h(Btn, { small: true, disabled: !boot, onClick: () => setModal({ kind: 'banks' }) }, h(Icon, { name: 'book', size: 13 }), T.manageBanks),
-              boot?.dataFile ? h('span', { title: boot.dataFile }, '数据已本地保存') : null)),
-          boot ? h(Countdown, {
+          h('div', { className: 'kd-header-top' },
+            h('div', { className: 'kd-header-left' },
+              h('h1', { className: 'kd-title' }, T.title),
+              h('div', { className: 'kd-sub' },
+                boot?.today ? `${formatDate(boot.today)} · ` : '',
+                boot ? `已启用 ${boot.settings.subjects.length} 个科目 · ` : '',
+                T.subtitle)),
+            boot ? h(CountdownLines, { countdown: boot.countdown }) : null),
+          boot ? h(ExamStrip, {
             boot,
             busy: busy === 'exam',
             onRefresh: refreshExam,
@@ -2151,6 +2191,8 @@ window.__ModuleLoader__.load({
           subjectId,
           kind,
           onPick: pickSubject,
+          onManage: () => setModal({ kind: 'subjects' }),
+          onBanks: () => setModal({ kind: 'banks' }),
           onTab: (value) => {
             if (value === 'today') loadToday(subjectId)
             else loadList(subjectId, value)
