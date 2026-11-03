@@ -42,7 +42,7 @@ plugin_manager install_bundle  <本仓库目录的绝对路径>
 
 安装后**刷新一次页面**，左侧栏会出现「考研每日一题」的图标（在「插件」「日程」旁边）。
 
-卸载：`plugin_manager remove_bundle @local/kaoyan-daily`。
+卸载：`plugin_manager remove_bundle daily-question`。
 
 ## 首次使用
 
