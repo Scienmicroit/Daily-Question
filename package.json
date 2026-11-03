@@ -1,0 +1,47 @@
+{
+  "name": "@local/kaoyan-daily",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "考研每日一题 — DSH 插件：每科每天一道独立校验过的考研题，含倒计时、错题本、收藏与按题隔离的追问。",
+  "icon": "./icon.svg",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "kaoyan",
+    "考研",
+    "每日一题",
+    "study"
+  ],
+  "engines": {
+    "node": ">=20.3.0"
+  },
+  "scripts": {
+    "test": "node test/check.mjs && node test/service-check.mjs && node test/render-check.mjs"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "lib/*.js",
+    "assets/*"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="考研每日一题">
+  <defs>
+    <linearGradient id="kdGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4d6bfe"/>
+      <stop offset="1" stop-color="#7a4dfe"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#kdGrad)" d="M4.6 2h14.8A2.6 2.6 0 0 1 22 4.6v14.8A2.6 2.6 0 0 1 19.4 22H4.6A2.6 2.6 0 0 1 2 19.4V4.6A2.6 2.6 0 0 1 4.6 2Z"/>
+  <path fill="#fff" d="M7 5.2c.5 0 .9.4.9.9v.9h8.2v-.9a.9.9 0 0 1 1.8 0v.9h.3c.9 0 1.6.7 1.6 1.6v8.6c0 .9-.7 1.6-1.6 1.6H5.8c-.9 0-1.6-.7-1.6-1.6V8.6c0-.9.7-1.6 1.6-1.6h.3v-.9c0-.5.4-.9.9-.9Zm10.9 4.4H6.1v6.9c0 .1 0 .1.1.1h11.6c.1 0 .1 0 .1-.1V9.6Z"/>
+  <path fill="#fff" d="M10.3 13.6a.8.8 0 0 1 1.1 0l.9.9 2.1-2.1a.8.8 0 0 1 1.1 1.1l-2.6 2.6a.8.8 0 0 1-1.1 0l-1.5-1.5a.8.8 0 0 1 0-1Z"/>
+</svg>
