@@ -34,15 +34,44 @@
 
 ## 安装
 
-需要可用的 DeepSeek Harness（Web GUI）以及一个能用的默认模型（在线出题要用）。
+需要可用的 DeepSeek Harness，以及一个能用的默认模型（在线出题要用）。三种方式任选其一。
 
-```text
-plugin_manager install_bundle  <本仓库目录的绝对路径>
+### 1. DSH Desktop（图形界面）
+
+插件面板 → 添加 → 选择本仓库目录（克隆后的本地目录）。装好后**刷新一次页面**，左侧栏会出现「考研每日一题」的图标（在「插件」「日程」旁边）。
+
+### 2. 命令行（CLI / TUI profile）
+
+`dsh plugin` 会把参数原样转发给 pnpm，所以本机需要先有 pnpm（`corepack enable pnpm`，或 `npm i -g pnpm`）。
+
+```bash
+# 直接从 GitHub 装（推荐）
+dsh plugin --profile <你的 profile> add github:Scienmicroit/Daily-Question
+
+# 或者先克隆，再按本地目录装
+git clone https://github.com/Scienmicroit/Daily-Question
+dsh plugin --profile <你的 profile> add ./Daily-Question
+
+# 或者用 Release 里附带的 tgz
+dsh plugin --profile <你的 profile> add ./daily-question-1.0.0.tgz
 ```
 
-安装后**刷新一次页面**，左侧栏会出现「考研每日一题」的图标（在「插件」「日程」旁边）。
+装完这条命令会把包里 `dsh.bundle.patch` 声明的那一行自动叠加进 profile（`package.json` 的 `dsh.profile.bundles` 里会出现 `daily-question`），下次启动该 profile 即生效。
 
-卸载：`plugin_manager remove_bundle daily-question`。
+> **注意**：DSH Desktop 内置的 `desktop` profile 由应用独占管理，命令行会拒绝（`profile "desktop" is managed exclusively by the Electron application`），请走上面的图形界面方式。
+
+### 3. 让 Agent 装
+
+已经装好 DSH 的话，把仓库路径告诉 Agent，让它调用 `plugin_manager install_bundle <绝对路径>` 即可。
+
+### 升级与卸载
+
+```bash
+dsh plugin --profile <profile> add github:Scienmicroit/Daily-Question   # 重新装一次即为升级
+dsh plugin --profile <profile> remove daily-question                    # 卸载
+```
+
+卸载不会删除学习数据（`~/.dsh/kaoyan-daily/data.json`）。
 
 ## 首次使用
 
