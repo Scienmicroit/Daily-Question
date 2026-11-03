@@ -84,6 +84,17 @@ window.__ModuleLoader__.load({
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
     }
 
+    /** 把内部方法串换成可读说法，避免面板里出现英文流水账。 */
+    function methodLabel(method) {
+      const value = String(method || '')
+      if (!value) return '独立校验'
+      if (value.startsWith('two-step')) return '两步：出题 → 独立视角校验'
+      if (value === 'import-parse') return '题库导入解析'
+      if (value === 'online-search') return '官方渠道联网核验'
+      if (value === 'catalog') return '内置官方日期表'
+      return value
+    }
+
     function formatClock(iso) {
       const d = new Date(iso)
       if (Number.isNaN(d.getTime())) return ''
@@ -1235,7 +1246,7 @@ window.__ModuleLoader__.load({
               onClick: onRevise,
             }, revising ? h('span', { className: 'kd-spinner' }) : null, T.revision)),
           answer.verification?.summary
-            ? h('div', null, `校验：${answer.verification.summary}（${answer.verification.method || '独立校验'}${answer.verification.at ? `，${formatDateTime(answer.verification.at)}` : ''}）`)
+            ? h('div', null, `校验：${answer.verification.summary}（${methodLabel(answer.verification.method)}${answer.verification.at ? `，${formatDateTime(answer.verification.at)}` : ''}）`)
             : null,
           (() => {
             const trail = answer.verification?.trail
@@ -1335,11 +1346,15 @@ window.__ModuleLoader__.load({
               h(Btn, { variant: 'primary', disabled: busy === 'judge', onClick: () => onJudge('correct') }, T.correct),
               h(Btn, { variant: 'danger', disabled: busy === 'judge', onClick: () => onJudge('wrong') }, T.wrong))
             : null),
-        q.publishVerification?.summary
+        q.publishVerification
           ? h('div', { className: 'kd-verify', style: { marginTop: '12px' } },
             h(Badge, { tone: q.publishVerification.status === 'passed' ? 'ok' : 'warn' },
               q.publishVerification.status === 'passed' ? '试题发布前已通过独立校验' : '试题发布状态：待核验'),
-            ` ${q.publishVerification.summary}（${q.publishVerification.method || ''}${q.publishVerification.at ? `，${formatDateTime(q.publishVerification.at)}` : ''}）`)
+            // 校验结论里通常写着答案与关键推导，提交答案前不能展示，否则等于泄题。
+            q.answerState === 'revealed'
+              ? ` ${q.publishVerification.summary}`
+              : ' 结论在提交答案后显示',
+            `（${methodLabel(q.publishVerification.method)}${q.publishVerification.at ? `，${formatDateTime(q.publishVerification.at)}` : ''}）`)
           : null)
     }
 

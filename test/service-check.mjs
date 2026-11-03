@@ -6,6 +6,7 @@ const tmpRoot = await mkdtemp(join(tmpdir(), 'kaoyan-service-'))
 process.env.DSH_PROFILE_DIR = join(tmpRoot, 'profile')
 
 const { KaoyanService } = await import('../lib/service.js')
+const { daysBetween, todayISO } = await import('../lib/exam-dates.js')
 
 let failures = 0
 function check(name, condition, detail = '') {
@@ -36,7 +37,9 @@ check('初始没有科目', boot0.settings.subjects.length === 0)
 
 const saved = await service.saveSettings({ subjects: ['math1', 'cs408'], targetYear: 2028 })
 check('保存科目与年份', saved.settings.subjects.length === 2 && saved.settings.targetYear === 2028)
-check('倒计时使用估算日期', saved.countdown.status === 'estimated' && saved.countdown.days === 411, JSON.stringify(saved.countdown.lines))
+check('倒计时使用估算日期', saved.countdown.status === 'estimated'
+  && saved.countdown.days === daysBetween(todayISO(), '2027-12-19'),
+  JSON.stringify(saved.countdown.lines))
 
 await service.saveSettings({ subjectSource: { math1: 'bank' } })
 const imported = await service.importBank({ name: '数学一题库', kind: 'md', text: bankMarkdown, fileName: 'math.md' })
@@ -52,8 +55,18 @@ const qid1 = daily1.question.id
 const daily1b = await service.ensureDaily('math1')
 check('同一天重复进入不换题', daily1b.question.id === qid1)
 
+// 提交答案前，任何带答案的文本（校验结论、独立求解结果）都不能下发。
+const lockedVerification = daily1b.question.publishVerification || {}
+check('未作答时不泄露校验结论',
+  Boolean(lockedVerification.status)
+  && lockedVerification.summary === ''
+  && (lockedVerification.trail || []).length === 0,
+  JSON.stringify(lockedVerification).slice(0, 160))
+check('未作答时题干里不含"标准答案"', !JSON.stringify(daily1b.question).includes('标准答案'))
+
 const wrong = await service.reveal({ qid: qid1, mode: 'submit', choice: 'A', attemptId: 'a1' })
 check('提交后公布答案', wrong.question.answerState === 'revealed' && Boolean(wrong.question.answer))
+check('提交后才给出校验结论', Boolean(wrong.question.publishVerification.summary))
 check('错误提交判定为错', wrong.question.lastAttempt.result === 'wrong' && wrong.question.wrongEver)
 check('作答次数为 1', wrong.question.attemptCount === 1)
 
