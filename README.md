@@ -40,20 +40,25 @@
 
 插件面板 → 添加 → 选择本仓库目录（克隆后的本地目录）。装好后**刷新一次页面**，左侧栏会出现「考研每日一题」的图标（在「插件」「日程」旁边）。
 
-### 2. 命令行（CLI / TUI profile）
+### 2. 命令行（`dsh web` 这类 CLI 用法）
+
+profile 名就是你启动 DSH 时用的那个：跑 `dsh web` 就是 `--profile web`，跑 `dsh --profile headless …` 就是 `--profile headless`。下面的命令以 `web` 为例，换成你自己的 profile 名即可。
 
 `dsh plugin` 会把参数原样转发给 pnpm，所以本机需要先有 pnpm（`corepack enable pnpm`，或 `npm i -g pnpm`）。
 
+**从 GitHub 装**（推荐）：
+
 ```bash
-# 直接从 GitHub 装（推荐）
-dsh plugin --profile <你的 profile> add github:Scienmicroit/Daily-Question
+dsh plugin --profile web add github:Scienmicroit/Daily-Question#v1.0.2
+dsh plugin --profile web add github:Scienmicroit/Daily-Question   # 不写 #tag 取默认分支最新提交
+```
 
-# 或者先克隆，再按本地目录装
+**从本地目录 / tgz 装**：
+
+```bash
 git clone https://github.com/Scienmicroit/Daily-Question
-dsh plugin --profile <你的 profile> add ./Daily-Question
-
-# 或者用 Release 里附带的 tgz
-dsh plugin --profile <你的 profile> add ./daily-question-1.0.0.tgz
+dsh plugin --profile web add ./Daily-Question
+dsh plugin --profile web add ./daily-question-1.0.2.tgz
 ```
 
 装完这条命令会把包里 `dsh.bundle.patch` 声明的那一行自动叠加进 profile（`package.json` 的 `dsh.profile.bundles` 里会出现 `daily-question`），下次启动该 profile 即生效。
@@ -67,11 +72,23 @@ dsh plugin --profile <你的 profile> add ./daily-question-1.0.0.tgz
 ### 升级与卸载
 
 ```bash
-dsh plugin --profile <profile> add github:Scienmicroit/Daily-Question   # 重新装一次即为升级
-dsh plugin --profile <profile> remove daily-question                    # 卸载
+dsh plugin --profile web add github:Scienmicroit/Daily-Question   # 重新装一次即为升级（可加 #新tag 锁版本）
+dsh plugin --profile web remove daily-question                    # 卸载
 ```
 
 卸载不会删除学习数据（`~/.dsh/kaoyan-daily/data.json`）。
+
+### 发新版本（维护者）
+
+```bash
+git tag v1.0.3 && git push --tags
+```
+
+打了 tag 之后，别人就能用 `github:Scienmicroit/Daily-Question#v1.0.3` 锁定版本；
+不打 tag 则安装默认分支的最新提交。
+
+> 本插件不发布到 npm，安装统一走 GitHub 或本地目录。
+> 若以后想发 npm，需要把 `package.json` 的 `private` 改为 `false`，再 `npm publish`。
 
 ## 首次使用
 
