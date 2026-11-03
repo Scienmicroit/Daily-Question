@@ -6,6 +6,7 @@ import { parseBankText } from '../lib/bank.js'
 import { Store } from '../lib/store.js'
 import { findSubject, subjectTypes } from '../lib/subjects.js'
 import { normalizeCandidate, structuralProblems } from '../lib/generate.js'
+import { parseJsonLoose } from '../lib/llm-json.js'
 
 let failures = 0
 function check(name, condition, detail = '') {
@@ -81,6 +82,36 @@ check('缺少答案时标记缺答案', (() => {
   const r = parseBankText('1. 求 $1+1$ 的值。\n\n解析：略')
   return r.items[0].answerStatus === 'missing' && r.items[0].issues.some((i) => i.includes('参考答案'))
 })())
+
+// ---- 模型回复的 JSON 修复 ----
+const jsonBadEscape = '{"explanation": "由 $\\sqrt{2}$ 得 $\\alpha$，故 $a \\to 0$"}'
+const repaired = parseJsonLoose(jsonBadEscape)
+check('非法 JSON 转义（\\sqrt / \\alpha / \\to）自动修复',
+  repaired.explanation.includes('\\sqrt{2}') && repaired.explanation.includes('\\alpha') && repaired.explanation.includes('\\to 0'),
+  repaired.explanation)
+
+const jsonFrac = '{"explanation": "即 $\\frac{1}{2}$ 与 $\\theta$、$\\beta$、$\\times$"}'
+const repairedFrac = parseJsonLoose(jsonFrac)
+check('合法转义被吃掉后还原为 LaTeX 命令',
+  ['\\frac', '\\theta', '\\beta', '\\times'].every((cmd) => repairedFrac.explanation.includes(cmd)),
+  repairedFrac.explanation)
+
+const jsonNewline = '{"stem": "第一行\\n第二行"}'
+check('字符串内的换行保持为换行', parseJsonLoose(jsonNewline).stem === '第一行\n第二行', JSON.stringify(parseJsonLoose(jsonNewline).stem))
+
+const jsonRealNewline = '{"stem": "第一行\nStep two"}'
+check('裸换行 + 英文保持为换行', parseJsonLoose(jsonRealNewline).stem.includes('\nStep'), JSON.stringify(parseJsonLoose(jsonRealNewline).stem))
+
+const jsonDoubled = '{"stem": "写成 \\\\frac{1}{2} 与 \\\\alpha"}'
+const doubled = parseJsonLoose(jsonDoubled)
+check('已正确转义的反斜杠不被二次修改', doubled.stem.includes('\\frac{1}{2}') && doubled.stem.includes('\\alpha'), doubled.stem)
+
+const jsonFenced = '```json\n{"a": 1, "b": [1, 2,],}\n```'
+check('代码围栏与尾逗号仍可解析', parseJsonLoose(jsonFenced).b.length === 2, JSON.stringify(parseJsonLoose(jsonFenced)))
+
+const jsonStrayQuote = '{"stem": "求 "x+1" 的值", "options": [{"key": "A", "text": "1"}]}'
+const stray = parseJsonLoose(jsonStrayQuote)
+check('字符串内未转义的引号被保留', stray.stem === '求 "x+1" 的值' && stray.options[0].text === '1', JSON.stringify(stray))
 
 // ---- 候选归一化 ----
 const cand = normalizeCandidate({

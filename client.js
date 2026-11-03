@@ -709,8 +709,9 @@ window.__ModuleLoader__.load({
   padding:7px 9px; border-radius:8px; border:1px solid transparent; background:transparent; cursor:pointer;
   color:var(--dsw-alias-label-primary); font-size:13px; text-align:left; }
 .kd-nav-item:hover { background:var(--dsw-alias-bg-layer-2); }
+.kd-nav-item > span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .kd-nav-item.is-active { background:var(--dsw-alias-bg-layer-2); border-color:var(--dsw-alias-border-l2); font-weight:600; }
-.kd-nav-item .kd-nav-count { font-size:11px; color:var(--dsw-alias-label-secondary); }
+.kd-nav-item .kd-nav-count { flex:0 0 auto; white-space:nowrap; font-size:11px; color:var(--dsw-alias-label-secondary); }
 .kd-nav-spacer { flex:1 1 auto; }
 .kd-main { flex:1 1 auto; min-width:0; overflow:auto; padding:18px 22px 40px; }
 .kd-thread { width:330px; flex:0 0 330px; border-left:1px solid var(--dsw-alias-border-l1);
