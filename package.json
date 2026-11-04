@@ -1,6 +1,6 @@
 {
   "name": "daily-question",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": true,
   "type": "module",
   "description": "考研每日一题 — DSH 插件：每科每天一道独立校验过的考研题，含倒计时、错题本、收藏与按题隔离的追问。",

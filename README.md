@@ -30,7 +30,7 @@
 区分报名年份与实际考试日期：2028 考研 = 2027 年 12 月初试。已公布的用官方日期（不带「约」）；未公布的以上一年同一考试的官方日期推后一年估算，并在三行倒计时里都标「约」；查不到依据就明确写「尚未核实」，不编日期。页面上的「核验日期」会联网只采信 `moe.gov.cn` / `chsi.com.cn` / `neea.edu.cn`。
 
 **渲染**
-题干、选项、答案、解析均支持 Markdown：标题、列表、引用、表格、代码块（保留缩进与换行）、图片、行内与独立 LaTeX 公式。公式字体为 **Latin Modern Math**（随包附带），变量使用真正的数学斜体码位，数字与 `\sin` 等函数名保持直立。无法渲染的内容会以原文 + 提示保留，不会静默丢弃。
+题干、选项、答案、解析均支持 Markdown：标题、列表、引用、表格、代码块（保留缩进与换行）、图片、行内与独立 LaTeX 公式。公式字体为 **Latin Modern Math**（随包附带）。排版细节按 LaTeX 数学模式处理：变量使用真正的数学斜体码位、数字与 `\sin` 等函数名保持直立、减号用 U+2212（不是连字符）、导数撇号用 U+2032 起的 prime（`'`→′、`''`→″，中文输入法的 `’` 也会归一）；`\text{…}` 里保持普通文本，连字符不会被当成减号。无法渲染的内容会以原文 + 提示保留，不会静默丢弃。
 
 ## 安装
 
@@ -49,7 +49,7 @@ profile 名就是你启动 DSH 时用的那个：跑 `dsh web` 就是 `--profile
 **从 GitHub 装**（推荐）：
 
 ```bash
-dsh plugin --profile web add github:Scienmicroit/Daily-Question#v1.0.4
+dsh plugin --profile web add github:Scienmicroit/Daily-Question#v1.0.5
 dsh plugin --profile web add github:Scienmicroit/Daily-Question   # 不写 #tag 取默认分支最新提交
 ```
 
@@ -58,7 +58,7 @@ dsh plugin --profile web add github:Scienmicroit/Daily-Question   # 不写 #tag 
 ```bash
 git clone https://github.com/Scienmicroit/Daily-Question
 dsh plugin --profile web add ./Daily-Question
-dsh plugin --profile web add ./daily-question-1.0.4.tgz
+dsh plugin --profile web add ./daily-question-1.0.5.tgz
 ```
 
 装完这条命令会把包里 `dsh.bundle.patch` 声明的那一行自动叠加进 profile（`package.json` 的 `dsh.profile.bundles` 里会出现 `daily-question`），下次启动该 profile 即生效。
@@ -84,7 +84,7 @@ dsh plugin --profile web remove daily-question                    # 卸载
 git tag v1.0.3 && git push --tags
 ```
 
-打了 tag 之后，别人就能用 `github:Scienmicroit/Daily-Question#v1.0.4` 锁定版本；
+打了 tag 之后，别人就能用 `github:Scienmicroit/Daily-Question#v1.0.5` 锁定版本；
 不打 tag 则安装默认分支的最新提交。
 
 > 本插件不发布到 npm，安装统一走 GitHub 或本地目录。

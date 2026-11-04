@@ -111,6 +111,49 @@ check('函数名与数字保持直立', uprightText.includes('sin') && uprightTe
 const italicH = textOf(inlineNodes('$h(t)$'))
 check('斜体 h 使用 U+210E', italicH.includes('\u210E'), italicH)
 
+// 减号与导数记号必须是数学符号，不能是 ASCII 连字符/撇号
+const minus = textOf(inlineNodes('$x-1$'))
+check('减号使用 U+2212 而不是 ASCII 连字符', minus.includes('\u2212') && !minus.includes('-'), minus)
+const prime1 = textOf(inlineNodes("$f'(x)$"))
+check("撇号使用 U+2032 而不是 ASCII '", prime1.includes('\u2032') && !prime1.includes("'"), prime1)
+const prime2 = textOf(inlineNodes("$f''(x)$"))
+check('二阶导使用 U+2033', prime2.includes('\u2033'), prime2)
+const primeCurly = textOf(inlineNodes('$f\u2019(x)$'))
+check('中文输入法的 ’ 也归一为 U+2032', primeCurly.includes('\u2032') && !primeCurly.includes('\u2019'), primeCurly)
+const textHyphen = textOf(inlineNodes('$\\text{a-b}$'))
+check('文本模式保留普通连字符', textHyphen.includes('a-b'), textHyphen)
+
+// 其余符号也必须是数学字符
+const times = textOf(inlineNodes('$a*b$'))
+check('乘号使用 U+2217 而不是 ASCII 星号', times.includes('\u2217') && !times.includes('*'), times)
+const ellipsis = textOf(inlineNodes('$x_1,...$'))
+check('省略号使用 U+2026', ellipsis.includes('\u2026'), ellipsis)
+const norm = textOf(inlineNodes('$\\|x\\|$'))
+check('\\| 渲染为双竖线 U+2016', norm.includes('\u2016'), norm)
+const cond = textOf(inlineNodes('$P(A\\mid B)$'))
+check('\\mid 渲染为条件竖线 U+2223', cond.includes('\u2223'), cond)
+
+// amsmath 常用命令：\boxed / \binom / \overrightarrow
+const boxed = inlineNodes('$\\boxed{x=1}$')
+check('\\boxed 渲染成方框而不是字面量', classes(boxed).some((c) => c.includes('kd-boxed')), JSON.stringify(classes(boxed)))
+check('\\boxed 内部内容正常渲染', textOf(boxed).includes('\u{1D465}=1'), textOf(boxed))
+const binom = inlineNodes('$\\binom{n}{k}$')
+check('\\binom 渲染为堆叠括号', classes(binom).some((c) => c.includes('kd-binom')) && textOf(binom).includes('\u{1D45B}'), textOf(binom))
+const vector = inlineNodes('$\\overrightarrow{AB}$')
+check('\\overrightarrow 渲染为向量箭头', classes(vector).some((c) => c.includes('kd-accent-overrightarrow')) && textOf(vector).includes('\u{1D434}'), JSON.stringify(classes(vector)))
+
+// 常见命令都不应该退化成字面量（会显示成 \xxx 的那种）
+const KNOWN_SNIPPETS = [
+  '\\boxed{x}', '\\binom{n}{k}', '\\lceil x \\rceil', '\\lfloor x \\rfloor',
+  '\\langle a,b \\rangle', '\\ell', '\\Re', '\\Im', '\\hbar',
+  '\\overset{a}{b}', '\\underset{a}{b}', '\\underbrace{1+1}_{=2}', '\\overbrace{a+b}^{c}',
+  '\\big(', '\\Big[', '\\bigl\\{', '\\bmod', '\\pmod{7}', '\\|x\\|', '\\mid', '\\nmid',
+  '\\bullet', '\\ni', '\\Box', '\\bigcirc', '\\dagger', '\\ddagger', '\\backslash', '\\hline',
+]
+const unknownCommands = KNOWN_SNIPPETS.filter((snippet) => classes(inlineNodes(`$${snippet}$`))
+  .some((c) => c.includes('kd-latex-unknown')))
+check('常见 LaTeX 命令都不会退化成字面量', unknownCommands.length === 0, JSON.stringify(unknownCommands))
+
 // ---- Markdown 块级 ----
 const doc = renderBlocks([
   '# 标题',

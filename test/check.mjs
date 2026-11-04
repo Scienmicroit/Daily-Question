@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { resolveExamDate, computeCountdown, calendarDiff, daysBetween, addYears } from '../lib/exam-dates.js'
+import { resolveExamDate, computeCountdown, calendarDiff, daysBetween, addYears, yearOptions } from '../lib/exam-dates.js'
 import { parseBankText } from '../lib/bank.js'
 import { Store } from '../lib/store.js'
 import { CHOICE_TYPES, findSubject, subjectTypes } from '../lib/subjects.js'
@@ -26,6 +26,19 @@ check('倒计时天数 411', cd.days === 411, String(cd.days))
 check('三行都带“约”', cd.lines.primary.includes('约') && cd.lines.secondary.includes('约') && cd.lines.target.includes('约'))
 check('日历差 1年1个月16天', cd.calendar.years === 1 && cd.calendar.months === 1 && cd.calendar.days === 16, JSON.stringify(cd.calendar))
 check('天数与日历差一致', daysBetween('2026-11-03', '2027-11-03') + 46 === 411)
+
+// ---- 可选年份窗口 ----
+check('初试前：今年+1 起三年', JSON.stringify(yearOptions('2026-11-04')) === JSON.stringify([2027, 2028, 2029]),
+  JSON.stringify(yearOptions('2026-11-04')))
+check('初试当天仍保留当前场次', yearOptions('2026-12-19')[0] === 2027, JSON.stringify(yearOptions('2026-12-19')))
+check('初试后：整体后移一年', JSON.stringify(yearOptions('2026-12-20')) === JSON.stringify([2028, 2029, 2030]),
+  JSON.stringify(yearOptions('2026-12-20')))
+check('跨年后窗口连续', JSON.stringify(yearOptions('2027-01-05')) === JSON.stringify([2028, 2029, 2030]),
+  JSON.stringify(yearOptions('2027-01-05')))
+check('任何时刻都只有 3 个选项', yearOptions('2027-06-01').length === 3 && yearOptions('2030-12-25').length === 3)
+check('窗口内每个年份的初试都还没结束', yearOptions('2026-11-04')
+  .every((year) => daysBetween('2026-11-04', resolveExamDate(year).date) >= 0),
+  JSON.stringify(yearOptions('2026-11-04').map((year) => [year, resolveExamDate(year).date])))
 
 const cd2027 = computeCountdown(2027, y2027, '2026-11-03')
 check('2027 正式日期不带“约”', !cd2027.lines.primary.includes('约'), cd2027.lines.primary)

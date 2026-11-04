@@ -124,9 +124,14 @@ window.__ModuleLoader__.load({
       partial: '∂', nabla: '∇', forall: '∀', exists: '∃', nexists: '∄', neg: '¬', in: '∈', notin: '∉',
       subset: '⊂', subseteq: '⊆', supset: '⊃', supseteq: '⊇', cup: '∪', cap: '∩', emptyset: '∅',
       varnothing: '∅', setminus: '∖', land: '∧', lor: '∨',
+      mid: '∣', nmid: '∤', vert: '|', lvert: '|', rvert: '|',
+      Vert: '‖', lVert: '‖', rVert: '‖', colon: ':', '|': '‖',
       ldots: '…', cdots: '⋯', vdots: '⋮', ddots: '⋱', dots: '…',
       angle: '∠', perp: '⊥', parallel: '∥', circ: '∘', degree: '°', prime: '′',
+      lceil: '⌈', rceil: '⌉', lfloor: '⌊', rfloor: '⌋', langle: '⟨', rangle: '⟩',
+      ell: 'ℓ', Re: 'ℜ', Im: 'ℑ', hbar: 'ℏ',
       therefore: '∴', because: '∵', triangle: '△', square: '□',
+      bullet: '∙', ni: '∋', backslash: '\\', Box: '□', bigcirc: '○', dagger: '†', ddagger: '‡',
       quad: '\u2003', qquad: '\u2003\u2003',
       '%': '%', '&': '&', '#': '#', '_': '_', '{': '{', '}': '}',
       ' ': ' ', ',': '\u2009', ';': '\u2005', ':': '\u2005', '!': '',
@@ -140,19 +145,36 @@ window.__ModuleLoader__.load({
     }
     const DOUBLE_STRUCK = { R: 'ℝ', N: 'ℕ', Z: 'ℤ', Q: 'ℚ', C: 'ℂ', P: 'ℙ' }
 
+    /** 连写撇号对应的 prime 字符（1～4 阶，更多阶用 4 阶 + 单撇补）。 */
+    const PRIME_CHARS = { 1: '\u2032', 2: '\u2033', 3: '\u2034', 4: '\u2057' }
+
     /**
-     * 数学斜体只在变量上使用：把 ASCII 字母换成 Unicode 数学斜体码位
-     * （U+1D434… 大写、U+1D44E… 小写，唯一的例外是 h → U+210E）。
-     * Latin Modern Math 与 Cambria Math 都完整覆盖这一区块，因此变量是真斜体，
-     * 而数字、运算符、函数名（\sin 等）保持直立 —— 与 LaTeX 的排版规则一致。
+     * 数学模式里的字符修正。只处理公式内部的裸文本（\text / \mathrm 走原样，不受影响）：
+     *
+     * 1. 连字符 `-` 在 LaTeX 数学模式里是**减号**，换成 U+2212 MINUS SIGN。
+     *    留成 U+002D 的话，Latin Modern Math 会画成一个短横，看着像分隔符。
+     * 2. 撇号 `'`（含中文输入法常见的 ’）是**导数记号**，换成 U+2032 起的 prime
+     *    连写：' → ′、'' → ″、''' → ‴、'''' → ⁗。
+     * 3. ASCII 字母换成 Unicode 数学斜体码位（U+1D434… 大写、U+1D44E… 小写，
+     *    例外 h → U+210E），Latin Modern Math 与 Cambria Math 都完整覆盖，
+     *    因此变量是真斜体，而数字、运算符、函数名（\sin 等）保持直立。
      */
-    function toMathItalic(text) {
-      return String(text).replace(/[A-Za-z]/g, (ch) => {
-        if (ch === 'h') return '\u210E'
-        const code = ch.charCodeAt(0)
-        if (code >= 97 && code <= 122) return String.fromCodePoint(0x1d44e + (code - 97))
-        return String.fromCodePoint(0x1d434 + (code - 65))
-      })
+    function toMathText(text) {
+      return String(text)
+        .replace(/['\u2018\u2019]+/g, (run) => {
+          const count = [...run].length
+          if (count <= 4) return PRIME_CHARS[count]
+          return '\u2057' + '\u2032'.repeat(count - 4)
+        })
+        .replace(/-/g, '\u2212')
+        .replace(/\*/g, '\u2217')
+        .replace(/\.{3,}/g, '\u2026')
+        .replace(/[A-Za-z]/g, (ch) => {
+          if (ch === 'h') return '\u210E'
+          const code = ch.charCodeAt(0)
+          if (code >= 97 && code <= 122) return String.fromCodePoint(0x1d44e + (code - 97))
+          return String.fromCodePoint(0x1d434 + (code - 65))
+        })
     }
 
     function readGroup(cur) {
@@ -252,7 +274,7 @@ window.__ModuleLoader__.load({
       let buf = ''
       const flush = () => {
         if (buf) {
-          out.push(toMathItalic(buf))
+          out.push(toMathText(buf))
           buf = ''
         }
       }
@@ -328,6 +350,21 @@ window.__ModuleLoader__.load({
           h('span', { className: 'kd-frac-n', key: 'n' }, numerator),
           h('span', { className: 'kd-frac-d', key: 'd' }, denominator))
       }
+      // \boxed{...}（amsmath 常用的“把答案框起来”）画一个方框
+      if (name === 'boxed' || name === 'fbox' || name === 'framebox') {
+        return h('span', { className: 'kd-boxed', key: nextKey('bx') }, readArg(cur))
+      }
+      // \binom{n}{k}：无分数线的上下堆叠 + 圆括号
+      if (name === 'binom' || name === 'dbinom' || name === 'tbinom') {
+        const top = readArg(cur)
+        const bottom = readArg(cur)
+        return h('span', { className: 'kd-binom', key: nextKey('bn') },
+          h('span', { className: 'kd-delim', key: 'l' }, '('),
+          h('span', { className: 'kd-frac kd-binom-body', key: 'b' },
+            h('span', { className: 'kd-frac-n', key: 'n' }, top),
+            h('span', { className: 'kd-frac-d', key: 'd' }, bottom)),
+          h('span', { className: 'kd-delim', key: 'r' }, ')'))
+      }
       if (name === 'sqrt') {
         const index = readOptionalGroup(cur)
         const body = readArg(cur)
@@ -352,6 +389,25 @@ window.__ModuleLoader__.load({
         const body = readArg(cur)
         return h('span', { className: `kd-accent kd-accent-${name}`, key: nextKey('ac') }, body)
       }
+      if (name === 'overrightarrow' || name === 'overleftarrow') {
+        return h('span', { className: `kd-accent kd-accent-${name}`, key: nextKey('ac') }, readArg(cur))
+      }
+      // \underbrace{x}_{说明} / \overbrace{x}^{说明}：花括号画不出来，保留内容与标记
+      if (name === 'underbrace' || name === 'overbrace') {
+        return h('span', { className: 'kd-group', key: nextKey('grp') }, readArg(cur))
+      }
+      // \overset{上}{基} / \underset{下}{基}：上下堆叠
+      if (name === 'overset' || name === 'underset') {
+        const mark = readArg(cur)
+        const base = readArg(cur)
+        return h('span', {
+          className: `kd-stack kd-stack-${name === 'overset' ? 'over' : 'under'}`,
+          key: nextKey('st'),
+        },
+        name === 'overset' ? h('span', { className: 'kd-stack-mark', key: 'm' }, mark) : null,
+        h('span', { className: 'kd-stack-base', key: 'b' }, base),
+        name === 'underset' ? h('span', { className: 'kd-stack-mark', key: 'm' }, mark) : null)
+      }
       if (name === 'left' || name === 'right' || name === 'middle') {
         while (cur.i < cur.src.length && cur.src[cur.i] === ' ') cur.i += 1
         const rest = cur.src.slice(cur.i)
@@ -365,9 +421,21 @@ window.__ModuleLoader__.load({
         const env = readGroup(cur).trim()
         return readMatrix(cur, env)
       }
-      if (name === 'displaystyle' || name === 'textstyle' || name === 'limits' || name === 'nolimits' || name === 'notag') {
+      if (name === 'displaystyle' || name === 'textstyle' || name === 'limits' || name === 'nolimits' || name === 'notag'
+        || name === 'nonumber' || name === 'label' || name === 'tag') {
+        // \tag{...} 之类的排版修饰我们不实现，但也不能把内容原样吐到公式里
+        if (name === 'tag' || name === 'label') readGroup(cur)
         return null
       }
+      // \big( \Big[ \bigl\{ … 只是放大定界符，实际字符由后面的记号自己渲染
+      if (/^(?:big|Big|bigg|Bigg)[lrm]?$/.test(name)) return null
+      if (name === 'bmod') return h('span', { className: 'kd-roman', key: nextKey('bm') }, 'mod')
+      if (name === 'pmod') {
+        return h('span', { className: 'kd-roman', key: nextKey('pm') }, '(', 'mod ',
+          ...readArg(cur), ')')
+      }
+      // \hline 只用于表格横线；矩阵里没有对应结构，直接忽略而不是吐字面量
+      if (name === 'hline') return null
       if (name === 'space' || name === 'newline') return h('br', { key: nextKey('br') })
       if (LATEX_FUNCS.has(name)) return h('span', { className: 'kd-roman', key: nextKey('fn') }, name)
       if (LATEX_SYMBOLS[name] !== undefined) return LATEX_SYMBOLS[name]
@@ -692,161 +760,236 @@ window.__ModuleLoader__.load({
 }
 .kd-page { height:100%; min-height:0; display:flex; flex-direction:column; position:relative;
   background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary);
-  font-size:14px; line-height:1.65; box-sizing:border-box; }
+  font-size:14px; line-height:1.65; -webkit-font-smoothing:antialiased; box-sizing:border-box; }
 .kd-page *, .kd-page *::before, .kd-page *::after { box-sizing:border-box; }
-.kd-header { padding:16px 22px 10px; border-bottom:1px solid var(--dsw-alias-border-l1);
-  display:flex; flex-direction:column; gap:8px; }
-.kd-header-top { display:flex; gap:20px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; }
-.kd-header-left { min-width:0; flex:1 1 320px; }
-.kd-title { margin:0; font-size:19px; font-weight:650; letter-spacing:.01em; }
-.kd-sub { margin-top:4px; font-size:12px; color:var(--dsw-alias-label-secondary); }
-.kd-select { height:30px; padding:0 8px; border-radius:8px; font-size:13px;
+.kd-page :focus-visible { outline:2px solid var(--dsw-alias-brand-primary); outline-offset:2px; }
+.kd-header { padding:18px 24px 14px; border-bottom:1px solid var(--dsw-alias-border-l1);
+  display:flex; flex-direction:column; gap:12px; }
+.kd-header-top { display:flex; gap:24px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; }
+.kd-header-left { min-width:0; flex:1 1 320px; display:flex; gap:12px; align-items:flex-start; }
+.kd-brand { flex:0 0 34px; width:34px; height:34px; border-radius:10px; display:flex; align-items:center;
+  justify-content:center; border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
+  color:var(--dsw-alias-brand-primary); }
+.kd-title { margin:0; font-size:18px; font-weight:650; letter-spacing:.01em; line-height:1.4; }
+.kd-sub { margin-top:3px; font-size:12px; color:var(--dsw-alias-label-secondary); line-height:1.6; }
+.kd-select { height:30px; padding:0 10px; border-radius:8px; font-size:13px; font-family:inherit;
   border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
-  color:var(--dsw-alias-label-primary); }
+  color:var(--dsw-alias-label-primary); transition:border-color .15s; }
+.kd-select:hover { border-color:var(--dsw-alias-brand-primary); }
 .kd-select-sm { height:26px; font-size:12px; padding:0 6px; }
 .kd-cd-lines { min-width:0; flex:0 1 auto; display:flex; flex-direction:column; align-items:flex-end;
-  gap:1px; text-align:right; }
+  gap:2px; text-align:right; }
 .kd-cd-primary { font-size:24px; font-weight:700; letter-spacing:.01em; line-height:1.25; }
 .kd-cd-secondary { font-size:12px; color:var(--dsw-alias-label-secondary); }
-.kd-cd-target { font-size:14px; font-weight:500; }
-.kd-exam-strip { display:flex; align-items:center; gap:4px 12px; flex-wrap:wrap; padding-top:7px;
-  border-top:1px dashed var(--dsw-alias-border-l1); font-size:11.5px;
-  color:var(--dsw-alias-label-secondary); }
-.kd-strip-item { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+.kd-cd-target { font-size:13.5px; font-weight:500; }
+.kd-exam-strip { display:flex; align-items:center; gap:6px 14px; flex-wrap:wrap; padding:8px 12px;
+  border:1px solid var(--dsw-alias-border-l1); border-radius:10px; background:var(--dsw-alias-bg-layer-1);
+  font-size:11.5px; color:var(--dsw-alias-label-secondary); }
+.kd-strip-item { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
 .kd-strip-warn { color:var(--dsw-alias-state-warn-primary); white-space:normal; text-align:left; }
 .kd-shell { flex:1 1 auto; min-height:0; display:flex; }
-.kd-nav { width:200px; flex:0 0 200px; border-right:1px solid var(--dsw-alias-border-l1); padding:14px 10px;
-  overflow:auto; display:flex; flex-direction:column; gap:12px; }
-.kd-nav-group-label { font-size:11px; letter-spacing:.08em; text-transform:uppercase;
-  color:var(--dsw-alias-label-secondary); padding:0 6px; }
-.kd-nav-item { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%;
-  padding:7px 9px; border-radius:8px; border:1px solid transparent; background:transparent; cursor:pointer;
-  color:var(--dsw-alias-label-primary); font-size:13px; text-align:left; }
+.kd-nav { width:212px; flex:0 0 212px; border-right:1px solid var(--dsw-alias-border-l1);
+  padding:16px 12px; overflow:auto; display:flex; flex-direction:column; gap:18px; }
+.kd-nav-group { display:flex; flex-direction:column; gap:4px; }
+.kd-nav-group-label { font-size:10.5px; letter-spacing:.1em; color:var(--dsw-alias-label-secondary);
+  padding:0 8px 4px; }
+.kd-nav-item { position:relative; display:flex; align-items:center; justify-content:space-between; gap:8px;
+  width:100%; padding:8px 10px; border-radius:9px; border:1px solid transparent; background:transparent;
+  cursor:pointer; color:var(--dsw-alias-label-primary); font:inherit; font-size:13px; text-align:left;
+  transition:background-color .15s, border-color .15s, color .15s; }
 .kd-nav-item:hover { background:var(--dsw-alias-bg-layer-2); }
 .kd-nav-item > span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.kd-nav-item.is-active { background:var(--dsw-alias-bg-layer-2); border-color:var(--dsw-alias-border-l2); font-weight:600; }
-.kd-nav-item .kd-nav-count { flex:0 0 auto; white-space:nowrap; font-size:11px; color:var(--dsw-alias-label-secondary); }
+.kd-nav-item.is-active { background:var(--dsw-alias-bg-layer-2); border-color:var(--dsw-alias-border-l2);
+  font-weight:600; box-shadow:inset 2px 0 0 var(--dsw-alias-brand-primary); }
+.kd-nav-item .kd-nav-count { flex:0 0 auto; white-space:nowrap; font-size:11px;
+  color:var(--dsw-alias-label-secondary); }
+.kd-nav-status { flex:0 0 auto; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+  font-size:10.5px; color:var(--dsw-alias-label-secondary); }
+.kd-dot { width:6px; height:6px; border-radius:50%; background:var(--dsw-alias-state-success-primary); }
+.kd-dot-idle { background:var(--dsw-alias-state-idle-primary); }
 .kd-nav-spacer { flex:1 1 auto; }
-.kd-main { flex:1 1 auto; min-width:0; overflow:auto; padding:18px 22px 40px; }
-.kd-thread { width:330px; flex:0 0 330px; border-left:1px solid var(--dsw-alias-border-l1);
+.kd-main { flex:1 1 auto; min-width:0; overflow:auto; padding:20px 24px 48px; }
+.kd-main-inner { max-width:900px; margin:0 auto; }
+.kd-thread { width:340px; flex:0 0 340px; border-left:1px solid var(--dsw-alias-border-l1);
   display:flex; flex-direction:column; min-height:0; background:var(--dsw-alias-bg-layer-1); }
-.kd-thread-head { padding:12px 14px; border-bottom:1px solid var(--dsw-alias-border-l1);
+.kd-thread-head { padding:13px 16px; border-bottom:1px solid var(--dsw-alias-border-l1);
   display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .kd-thread-title { font-size:13px; font-weight:600; }
-.kd-thread-hint { padding:8px 14px 0; font-size:11px; color:var(--dsw-alias-label-secondary); }
-.kd-thread-scroll { flex:1 1 auto; min-height:0; overflow:auto; padding:12px 14px; display:flex;
-  flex-direction:column; gap:10px; }
-.kd-msg { max-width:100%; border-radius:10px; padding:8px 10px; font-size:13px; }
-.kd-msg-user { align-self:flex-end; background:var(--dsw-alias-bg-layer-2); border:1px solid var(--dsw-alias-border-l1); }
-.kd-msg-assistant { align-self:stretch; border:1px solid var(--dsw-alias-border-l1); }
+.kd-thread-hint { padding:10px 16px 0; font-size:11px; line-height:1.6;
+  color:var(--dsw-alias-label-secondary); }
+.kd-thread-scroll { flex:1 1 auto; min-height:0; overflow:auto; padding:14px 16px; display:flex;
+  flex-direction:column; gap:12px; }
+.kd-msg { max-width:100%; border-radius:12px; padding:10px 12px; font-size:13px; line-height:1.72; }
+.kd-msg-user { align-self:flex-end; background:color-mix(in srgb, var(--dsw-alias-brand-primary) 9%, transparent);
+  border:1px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 26%, transparent); }
+.kd-msg-assistant { align-self:stretch; border:1px solid var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-base); }
 .kd-msg-meta { font-size:10px; color:var(--dsw-alias-label-secondary); margin-top:6px; }
 .kd-msg-failed { border-color:var(--dsw-alias-state-error-primary); }
-.kd-thread-foot { border-top:1px solid var(--dsw-alias-border-l1); padding:10px 14px; }
-.kd-textarea { width:100%; min-height:62px; max-height:180px; resize:vertical; padding:8px 10px;
-  border-radius:8px; border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-base);
-  color:var(--dsw-alias-label-primary); font:inherit; font-size:13px; }
-.kd-card { border:1px solid var(--dsw-alias-border-l1); border-radius:12px; background:var(--dsw-alias-bg-layer-1);
-  padding:16px 18px; }
+.kd-thread-foot { border-top:1px solid var(--dsw-alias-border-l1); padding:12px 16px; }
+.kd-composer { border:1px solid var(--dsw-alias-border-l2); border-radius:12px;
+  background:var(--dsw-alias-bg-base); padding:6px; transition:border-color .15s, box-shadow .15s; }
+.kd-composer:focus-within { border-color:var(--dsw-alias-brand-primary);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, transparent); }
+.kd-textarea { width:100%; min-height:58px; max-height:180px; resize:vertical; padding:6px 8px;
+  border:0; background:transparent; color:var(--dsw-alias-label-primary); font:inherit; font-size:13px; }
+.kd-textarea:focus { outline:none; }
+.kd-tabs { display:flex; gap:2px; margin-bottom:16px; border-bottom:1px solid var(--dsw-alias-border-l1); }
+.kd-tab { position:relative; display:inline-flex; align-items:center; gap:6px; padding:8px 12px 11px;
+  border:0; background:transparent; color:var(--dsw-alias-label-secondary); font:inherit; font-size:13px;
+  cursor:pointer; border-radius:8px 8px 0 0; transition:color .15s, background-color .15s; }
+.kd-tab:hover { color:var(--dsw-alias-label-primary); background:var(--dsw-alias-bg-layer-2); }
+.kd-tab.is-active { color:var(--dsw-alias-label-primary); font-weight:600; }
+.kd-tab.is-active::after { content:''; position:absolute; left:10px; right:10px; bottom:-1px; height:2px;
+  border-radius:2px; background:var(--dsw-alias-brand-primary); }
+.kd-tab-count { min-width:17px; padding:0 5px; border-radius:999px; font-size:10.5px; line-height:17px;
+  text-align:center; background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-secondary); }
+.kd-tab.is-active .kd-tab-count { color:var(--dsw-alias-brand-primary); }
+.kd-card { border:1px solid var(--dsw-alias-border-l1); border-radius:14px;
+  background:var(--dsw-alias-bg-layer-1); padding:20px 22px; }
 .kd-card + .kd-card { margin-top:14px; }
 .kd-meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:12px;
   color:var(--dsw-alias-label-secondary); }
 .kd-meta-dot::before { content:'·'; margin-right:8px; }
-.kd-badge { display:inline-flex; align-items:center; gap:4px; padding:1px 7px; border-radius:999px;
+.kd-chips { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.kd-tag { display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:6px;
+  font-size:11.5px; line-height:1.7; white-space:nowrap;
+  color:var(--dsw-alias-label-secondary); background:var(--dsw-alias-bg-layer-2); }
+.kd-tag-brand { color:var(--dsw-alias-brand-primary);
+  background:color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent); }
+.kd-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px;
   font-size:11px; line-height:1.6; border:1px solid var(--dsw-alias-border-l2);
-  color:var(--dsw-alias-label-secondary); white-space:nowrap; }
-.kd-badge-ok { color:var(--dsw-alias-state-success-primary); border-color:var(--dsw-alias-state-success-primary); }
-.kd-badge-bad { color:var(--dsw-alias-state-error-primary); border-color:var(--dsw-alias-state-error-primary); }
-.kd-badge-warn { color:var(--dsw-alias-state-warn-primary); border-color:var(--dsw-alias-state-warn-primary); }
-.kd-badge-brand { color:var(--dsw-alias-brand-primary); border-color:var(--dsw-alias-brand-primary); }
-.kd-stem { margin:12px 0 16px; font-size:15px; }
-.kd-options { display:flex; flex-direction:column; gap:8px; margin:12px 0 4px; }
-.kd-option { display:flex; gap:10px; align-items:flex-start; padding:9px 12px; border-radius:10px;
-  border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-base); cursor:pointer;
-  text-align:left; color:var(--dsw-alias-label-primary); font:inherit; font-size:14px; }
-.kd-option:hover:not(:disabled) { border-color:var(--dsw-alias-brand-primary); }
+  color:var(--dsw-alias-label-secondary); background:var(--dsw-alias-bg-layer-1); white-space:nowrap; }
+.kd-badge-ok { color:var(--dsw-alias-state-success-primary);
+  border-color:color-mix(in srgb, var(--dsw-alias-state-success-primary) 34%, transparent);
+  background:color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, transparent); }
+.kd-badge-bad { color:var(--dsw-alias-state-error-primary);
+  border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 34%, transparent);
+  background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
+.kd-badge-warn { color:var(--dsw-alias-state-warn-primary);
+  border-color:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 34%, transparent);
+  background:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent); }
+.kd-badge-brand { color:var(--dsw-alias-brand-primary);
+  border-color:color-mix(in srgb, var(--dsw-alias-brand-primary) 34%, transparent);
+  background:color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent); }
+.kd-stem { margin:14px 0 18px; font-size:15px; line-height:1.85; }
+.kd-options { display:flex; flex-direction:column; gap:8px; margin:0 0 4px; }
+.kd-option { display:flex; gap:12px; align-items:flex-start; padding:12px 14px; border-radius:10px;
+  border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-base); cursor:pointer;
+  text-align:left; color:var(--dsw-alias-label-primary); font:inherit; font-size:14px;
+  transition:background-color .15s, border-color .15s; }
+.kd-option:hover:not(:disabled) { border-color:var(--dsw-alias-border-l2);
+  background:var(--dsw-alias-bg-layer-2); }
 .kd-option:disabled { cursor:default; }
-.kd-option.is-selected { border-color:var(--dsw-alias-brand-primary); background:var(--dsw-alias-bg-layer-2); }
-.kd-option.is-correct { border-color:var(--dsw-alias-state-success-primary); }
-.kd-option.is-wrong { border-color:var(--dsw-alias-state-error-primary); }
-.kd-option-key { flex:0 0 auto; width:22px; height:22px; border-radius:999px; display:inline-flex;
+.kd-option.is-selected { border-color:var(--dsw-alias-brand-primary);
+  background:color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, transparent); }
+.kd-option.is-correct { border-color:var(--dsw-alias-state-success-primary);
+  background:color-mix(in srgb, var(--dsw-alias-state-success-primary) 8%, transparent); }
+.kd-option.is-wrong { border-color:var(--dsw-alias-state-error-primary);
+  background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent); }
+.kd-option-key { flex:0 0 auto; width:24px; height:24px; border-radius:999px; display:inline-flex;
   align-items:center; justify-content:center; font-size:12px; font-weight:600;
-  border:1px solid var(--dsw-alias-border-l2); }
+  border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-base); }
 .kd-option.is-selected .kd-option-key { color:var(--dsw-alias-brand-primary); border-color:var(--dsw-alias-brand-primary); }
 .kd-option.is-correct .kd-option-key { color:var(--dsw-alias-state-success-primary); border-color:var(--dsw-alias-state-success-primary); }
 .kd-option.is-wrong .kd-option-key { color:var(--dsw-alias-state-error-primary); border-color:var(--dsw-alias-state-error-primary); }
 .kd-option-text { min-width:0; flex:1 1 auto; }
-.kd-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:14px; }
-.kd-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:8px;
-  font-size:13px; font-family:inherit; cursor:pointer; border:1px solid var(--dsw-alias-border-l2);
-  background:transparent; color:var(--dsw-alias-label-primary); }
+.kd-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:16px; }
+.kd-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:32px;
+  padding:0 14px; border-radius:8px; font-family:inherit; font-size:13px; font-weight:500; cursor:pointer;
+  border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
+  color:var(--dsw-alias-label-primary);
+  transition:background-color .15s, border-color .15s, color .15s; }
 .kd-btn:hover:not(:disabled) { background:var(--dsw-alias-bg-layer-2); }
-.kd-btn:disabled { opacity:.55; cursor:not-allowed; }
+.kd-btn:disabled { opacity:.5; cursor:not-allowed; }
 .kd-btn-primary { background:var(--dsw-alias-brand-primary); border-color:var(--dsw-alias-brand-primary); color:#fff; }
-.kd-btn-primary:hover:not(:disabled) { filter:brightness(1.06); background:var(--dsw-alias-brand-primary); }
-.kd-btn-ghost { border-color:transparent; color:var(--dsw-alias-label-secondary); }
-.kd-btn-danger { color:var(--dsw-alias-state-error-primary); border-color:var(--dsw-alias-state-error-primary); }
-.kd-btn-sm { padding:3px 9px; font-size:12px; }
+.kd-btn-primary:hover:not(:disabled) { background:var(--dsw-alias-brand-primary); filter:brightness(1.07); }
+.kd-btn-ghost { border-color:transparent; background:transparent; color:var(--dsw-alias-label-secondary); }
+.kd-btn-ghost:hover:not(:disabled) { background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-primary); }
+.kd-btn-danger { color:var(--dsw-alias-state-error-primary); background:transparent;
+  border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 40%, transparent); }
+.kd-btn-danger:hover:not(:disabled) { background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
+.kd-btn-sm { min-height:26px; padding:0 9px; font-size:12px; }
 .kd-iconbtn { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px;
-  border-radius:6px; border:0; background:transparent; color:var(--dsw-alias-label-secondary); cursor:pointer; }
+  border-radius:6px; border:0; background:transparent; color:var(--dsw-alias-label-secondary); cursor:pointer;
+  transition:background-color .15s, color .15s; }
 .kd-iconbtn:hover { background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-primary); }
-.kd-answer { margin-top:16px; border-top:1px dashed var(--dsw-alias-border-l2); padding-top:14px; }
-.kd-answer-block + .kd-answer-block { margin-top:14px; }
-.kd-answer-label { font-size:12px; letter-spacing:.06em; text-transform:uppercase;
-  color:var(--dsw-alias-label-secondary); margin-bottom:4px; }
-.kd-verify { margin-top:12px; padding:10px 12px; border-radius:10px; font-size:12px;
+.kd-answer { margin-top:6px; }
+.kd-answer-panel { margin-top:18px; border:1px solid var(--dsw-alias-border-l1); border-radius:14px;
+  background:var(--dsw-alias-bg-layer-1); overflow:hidden; }
+.kd-answer-panel-head { display:flex; align-items:center; justify-content:space-between; gap:10px;
+  flex-wrap:wrap; padding:11px 18px; border-bottom:1px solid var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-layer-2); font-size:13px; font-weight:600; }
+.kd-answer-panel-head .kd-tag { background:var(--dsw-alias-bg-layer-1); font-weight:400; }
+.kd-answer-panel-body { padding:18px; }
+.kd-answer-block + .kd-answer-block { margin-top:18px; padding-top:16px;
+  border-top:1px solid var(--dsw-alias-border-l1); }
+.kd-answer-label { font-size:10.5px; letter-spacing:.1em; color:var(--dsw-alias-label-secondary);
+  margin-bottom:6px; }
+.kd-verify { margin-top:14px; padding:11px 13px; border-radius:10px; font-size:12px; line-height:1.7;
   border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-2);
   color:var(--dsw-alias-label-secondary); }
 .kd-verify ul { margin:6px 0 0; padding-left:18px; }
-.kd-list-row { display:flex; gap:12px; align-items:flex-start; width:100%; text-align:left;
-  padding:11px 13px; border-radius:10px; border:1px solid var(--dsw-alias-border-l1);
-  background:var(--dsw-alias-bg-layer-1); cursor:pointer; color:var(--dsw-alias-label-primary); font:inherit; }
+.kd-list-row { display:flex; gap:14px; align-items:flex-start; width:100%; text-align:left;
+  padding:14px 16px; border-radius:12px; border:1px solid var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-layer-1); cursor:pointer; color:var(--dsw-alias-label-primary);
+  font:inherit; transition:background-color .15s, border-color .15s; }
 .kd-list-row + .kd-list-row { margin-top:8px; }
 .kd-list-row:hover { border-color:var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-2); }
 .kd-list-body { min-width:0; flex:1 1 auto; }
-.kd-list-summary { font-size:13px; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2;
-  -webkit-box-orient:vertical; }
-.kd-list-meta { margin-top:5px; display:flex; gap:8px; flex-wrap:wrap; font-size:11px;
+.kd-list-summary { font-size:13.5px; line-height:1.7; overflow:hidden; display:-webkit-box;
+  -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.kd-list-meta { margin-top:7px; display:flex; gap:6px; flex-wrap:wrap; font-size:11px;
   color:var(--dsw-alias-label-secondary); align-items:center; }
-.kd-empty { padding:44px 20px; text-align:center; color:var(--dsw-alias-label-secondary); }
+.kd-empty { padding:56px 24px; text-align:center; color:var(--dsw-alias-label-secondary); }
+.kd-empty-icon { width:44px; height:44px; margin:0 auto 14px; border-radius:50%; display:flex;
+  align-items:center; justify-content:center; border:1px solid var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-layer-1); color:var(--dsw-alias-label-secondary); }
 .kd-empty-title { font-size:15px; font-weight:600; color:var(--dsw-alias-label-primary); margin-bottom:6px; }
-.kd-empty-body { font-size:13px; max-width:520px; margin:0 auto; line-height:1.75; }
+.kd-empty-body { font-size:13px; max-width:460px; margin:0 auto; line-height:1.8; }
 .kd-empty .kd-actions { justify-content:center; }
-.kd-overlay { position:absolute; inset:0; background:rgba(0,0,0,.34); display:flex; align-items:center;
-  justify-content:center; padding:24px; z-index:40; }
-.kd-modal { width:min(560px,100%); max-height:100%; display:flex; flex-direction:column;
+.kd-overlay { position:absolute; inset:0; background:rgba(0,0,0,.38); display:flex; align-items:center;
+  justify-content:center; padding:24px; z-index:40; backdrop-filter:blur(2px); }
+.kd-modal { width:min(580px,100%); max-height:100%; display:flex; flex-direction:column;
   background:var(--dsw-alias-bg-overlay); color:var(--dsw-alias-label-primary);
-  border:1px solid var(--dsw-alias-border-l2); border-radius:14px; overflow:hidden; }
-.kd-modal-wide { width:min(860px,100%); }
-.kd-modal-head { padding:14px 16px; border-bottom:1px solid var(--dsw-alias-border-l1);
+  border:1px solid var(--dsw-alias-border-l2); border-radius:16px; overflow:hidden;
+  box-shadow:0 16px 48px rgba(0,0,0,.24); }
+.kd-modal-wide { width:min(880px,100%); }
+.kd-modal-head { padding:16px 20px; border-bottom:1px solid var(--dsw-alias-border-l1);
   display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.kd-modal-title { font-size:15px; font-weight:600; }
-.kd-modal-body { padding:16px; overflow:auto; min-height:0; }
-.kd-modal-foot { padding:12px 16px; border-top:1px solid var(--dsw-alias-border-l1);
+.kd-modal-title { font-size:15px; font-weight:650; letter-spacing:.01em; }
+.kd-modal-body { padding:18px 20px; overflow:auto; min-height:0; }
+.kd-modal-foot { padding:14px 20px; border-top:1px solid var(--dsw-alias-border-l1);
   display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
-.kd-field { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
-.kd-field-label { font-size:12px; color:var(--dsw-alias-label-secondary); }
-.kd-input { height:32px; padding:0 10px; border-radius:8px; border:1px solid var(--dsw-alias-border-l2);
-  background:var(--dsw-alias-bg-base); color:var(--dsw-alias-label-primary); font:inherit; font-size:13px; }
+.kd-field { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+.kd-field-label { font-size:12px; font-weight:500; color:var(--dsw-alias-label-secondary); }
+.kd-input { height:34px; padding:0 11px; border-radius:8px; border:1px solid var(--dsw-alias-border-l2);
+  background:var(--dsw-alias-bg-base); color:var(--dsw-alias-label-primary); font:inherit; font-size:13px;
+  transition:border-color .15s, box-shadow .15s; }
+.kd-input:focus { outline:none; border-color:var(--dsw-alias-brand-primary);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, transparent); }
+.kd-input::placeholder { color:var(--dsw-alias-label-secondary); }
 .kd-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .kd-row-between { display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-.kd-divider { height:1px; background:var(--dsw-alias-border-l1); margin:14px 0; }
-.kd-preview-item { border:1px solid var(--dsw-alias-border-l1); border-radius:10px; padding:10px 12px; }
+.kd-divider { height:1px; background:var(--dsw-alias-border-l1); margin:16px 0; }
+.kd-preview-item { border:1px solid var(--dsw-alias-border-l1); border-radius:12px; padding:12px 14px;
+  background:var(--dsw-alias-bg-base); }
 .kd-preview-item + .kd-preview-item { margin-top:8px; }
-.kd-warn-text { color:var(--dsw-alias-state-warn-primary); font-size:12px; }
-.kd-error-text { color:var(--dsw-alias-state-error-primary); font-size:12px; }
-.kd-toast { position:absolute; left:50%; bottom:22px; transform:translateX(-50%); z-index:60;
-  padding:8px 16px; border-radius:999px; font-size:13px; max-width:80%;
+.kd-warn-text { color:var(--dsw-alias-state-warn-primary); font-size:12px; line-height:1.7; }
+.kd-error-text { color:var(--dsw-alias-state-error-primary); font-size:12px; line-height:1.7; }
+.kd-toast { position:absolute; left:50%; bottom:24px; transform:translateX(-50%); z-index:60;
+  padding:9px 18px; border-radius:999px; font-size:13px; max-width:80%;
   background:var(--dsw-alias-bg-overlay); border:1px solid var(--dsw-alias-border-l2);
-  box-shadow:0 6px 20px rgba(0,0,0,.16); }
+  box-shadow:0 8px 24px rgba(0,0,0,.18); }
 .kd-toast-bad { color:var(--dsw-alias-state-error-primary); }
 .kd-toast-ok { color:var(--dsw-alias-state-success-primary); }
 .kd-toast-warn { color:var(--dsw-alias-state-warn-primary); }
-.kd-loading { padding:40px 0; text-align:center; color:var(--dsw-alias-label-secondary); font-size:13px; }
+.kd-loading { padding:48px 0; text-align:center; color:var(--dsw-alias-label-secondary); font-size:13px; }
 .kd-spinner { display:inline-block; width:14px; height:14px; border-radius:50%; vertical-align:-2px;
   border:2px solid var(--dsw-alias-border-l2); border-top-color:var(--dsw-alias-brand-primary);
   animation:kd-spin .8s linear infinite; margin-right:8px; }
 @keyframes kd-spin { to { transform:rotate(360deg); } }
-.kd-mobilebar { display:none; gap:8px; padding:8px 14px; border-bottom:1px solid var(--dsw-alias-border-l1);
+.kd-mobilebar { display:none; gap:8px; padding:10px 14px; border-bottom:1px solid var(--dsw-alias-border-l1);
   overflow:auto; }
 .kd-md { line-height:1.78; overflow-wrap:anywhere; }
 .kd-md > *:first-child { margin-top:0; }
@@ -893,6 +1036,19 @@ window.__ModuleLoader__.load({
   text-align:center; margin:0 .18em; line-height:1.15; }
 .kd-frac-n { padding:0 .25em .03em; }
 .kd-frac-d { border-top:1px solid currentColor; padding:.03em .25em 0; }
+/* boxed：把最终答案框起来 */
+.kd-boxed { display:inline-flex; align-items:center; padding:.06em .38em; margin:0 .12em;
+  border:1px solid currentColor; border-radius:3px; }
+/* overset / underset：在基座上方或下方叠一行小字 */
+.kd-stack { display:inline-flex; flex-direction:column; align-items:center; vertical-align:middle;
+  line-height:1.1; }
+.kd-stack-mark { font-size:.72em; }
+.kd-stack-base { line-height:1.2; }
+/* underbrace / overbrace 的花括号暂不绘制，只保留内容分组 */
+.kd-group { display:inline; }
+/* binom：没有分数线的上下堆叠 */
+.kd-binom { display:inline-flex; align-items:center; vertical-align:middle; margin:0 .1em; }
+.kd-binom .kd-frac-d { border-top:0; padding-top:0; }
 .kd-sup, .kd-sub { font-size:.72em; }
 .kd-sup { vertical-align:super; }
 .kd-sub { vertical-align:sub; }
@@ -905,6 +1061,9 @@ window.__ModuleLoader__.load({
 .kd-op-sym { font-size:1.35em; line-height:1; }
 .kd-op-lim { font-size:.62em; }
 .kd-roman { font-style:normal; }
+.kd-bold { font-weight:700; font-style:normal; }
+.kd-blackboard { font-style:normal; }
+.kd-colsep { display:inline-block; width:.5em; }
 .kd-matrixbox { display:inline-flex; align-items:center; vertical-align:middle; }
 .kd-matrix { border-collapse:collapse; }
 .kd-matrix td { padding:2px 7px; text-align:center; border:0; }
@@ -914,6 +1073,12 @@ window.__ModuleLoader__.load({
 .kd-accent-underline { border-bottom:1px solid currentColor; }
 .kd-accent-vec { position:relative; }
 .kd-accent-vec::before { content:'→'; position:absolute; top:-.75em; left:50%; transform:translateX(-50%); font-size:.7em; }
+.kd-accent-overrightarrow { position:relative; }
+.kd-accent-overrightarrow::before { content:'→'; position:absolute; top:-.85em; left:0; right:0;
+  text-align:center; font-size:.72em; line-height:1; }
+.kd-accent-overleftarrow { position:relative; }
+.kd-accent-overleftarrow::before { content:'←'; position:absolute; top:-.85em; left:0; right:0;
+  text-align:center; font-size:.72em; line-height:1; }
 .kd-accent-hat::before, .kd-accent-widehat::before { content:'^'; position:absolute; top:-.5em; left:50%; transform:translateX(-50%); font-size:.8em; }
 .kd-accent-hat, .kd-accent-widehat { position:relative; }
 .kd-accent-tilde { position:relative; }
@@ -929,16 +1094,19 @@ window.__ModuleLoader__.load({
 .kd-chip .kd-checkline { padding:0; }
 .kd-chip .kd-iconbtn { width:20px; height:20px; }
 @media (max-width: 1180px) {
-  .kd-thread { position:absolute; right:0; top:0; bottom:0; width:min(360px,90vw); z-index:30;
-    box-shadow:-8px 0 24px rgba(0,0,0,.18); }
+  .kd-thread { position:absolute; right:0; top:0; bottom:0; width:min(370px,92vw); z-index:30;
+    box-shadow:-12px 0 32px rgba(0,0,0,.22); }
 }
 @media (max-width: 860px) {
   .kd-nav { display:none; }
   .kd-mobilebar { display:flex; }
-  .kd-main { padding:14px 14px 32px; }
-  .kd-header { padding:14px 14px 10px; }
+  .kd-main { padding:16px 14px 40px; }
+  .kd-header { padding:14px 14px 12px; gap:10px; }
   .kd-cd-lines { align-items:flex-start; text-align:left; }
   .kd-strip-item { white-space:normal; }
+  .kd-card { padding:16px 14px; }
+  .kd-answer-panel-body { padding:14px; }
+  .kd-exam-strip { padding:8px 10px; }
 }
 `
 
@@ -1030,6 +1198,15 @@ window.__ModuleLoader__.load({
 
     function Badge({ children, tone = 'neutral' }) {
       return h('span', { className: `kd-badge kd-badge-${tone}` }, children)
+    }
+
+    /** 统一的空状态：图标 + 标题 + 说明 + 操作。 */
+    function EmptyState({ icon = 'spark', title, body, actions }) {
+      return h('div', { className: 'kd-empty' },
+        h('div', { className: 'kd-empty-icon' }, h(Icon, { name: icon, size: 20 })),
+        title ? h('div', { className: 'kd-empty-title' }, title) : null,
+        body ? h('div', { className: 'kd-empty-body' }, body) : null,
+        actions ? h('div', { className: 'kd-actions' }, actions) : null)
     }
 
     function Modal({ title, children, footer, onClose, wide }) {
@@ -1131,22 +1308,29 @@ window.__ModuleLoader__.load({
     function SubjectNav({ boot, subjectId, onPick, onManage, onBanks }) {
       const enabled = (boot.subjects || []).filter((subject) => subject.enabled)
       return h('div', { className: 'kd-nav' },
-        h('div', { className: 'kd-nav-group-label' }, '科目'),
-        enabled.length
-          ? enabled.map((subject) => h('button', {
-            key: subject.id,
-            type: 'button',
-            className: `kd-nav-item${subject.id === subjectId ? ' is-active' : ''}`,
-            onClick: () => onPick(subject.id),
-            title: subject.name,
-          },
-          h('span', null, subject.name),
-          h('span', { className: 'kd-nav-count' }, boot.todayMap?.[subject.id] ? '今日已出' : '待出题')))
-          : h('div', { className: 'kd-empty-body' }, '还没有启用科目'),
+        h('div', { className: 'kd-nav-group' },
+          h('div', { className: 'kd-nav-group-label' }, '科目'),
+          enabled.length
+            ? enabled.map((subject) => {
+              const done = Boolean(boot.todayMap?.[subject.id])
+              return h('button', {
+                key: subject.id,
+                type: 'button',
+                className: `kd-nav-item${subject.id === subjectId ? ' is-active' : ''}`,
+                onClick: () => onPick(subject.id),
+                title: subject.name,
+              },
+              h('span', null, subject.name),
+              h('span', { className: 'kd-nav-status' },
+                h('span', { className: `kd-dot${done ? '' : ' kd-dot-idle'}` }),
+                done ? '今日已出' : '待出题'))
+            })
+            : h('div', { className: 'kd-msg-meta', style: { padding: '4px 8px' } }, '还没有启用科目')),
         h('div', { className: 'kd-nav-spacer' }),
-        h('div', { className: 'kd-nav-group-label' }, '设置'),
-        h(Btn, { variant: 'ghost', onClick: onManage }, h(Icon, { name: 'plus' }), T.manageSubjects),
-        h(Btn, { variant: 'ghost', onClick: onBanks }, h(Icon, { name: 'book' }), T.manageBanks))
+        h('div', { className: 'kd-nav-group' },
+          h('div', { className: 'kd-nav-group-label' }, '设置'),
+          h(Btn, { variant: 'ghost', onClick: onManage }, h(Icon, { name: 'plus' }), T.manageSubjects),
+          h(Btn, { variant: 'ghost', onClick: onBanks }, h(Icon, { name: 'book' }), T.manageBanks)))
     }
 
     function TabBar({ kind, counts, onPick }) {
@@ -1156,14 +1340,13 @@ window.__ModuleLoader__.load({
         ['favorite', T.tabs.favorite, counts?.favorite],
         ['wrong', T.tabs.wrong, counts?.wrong],
       ]
-      return h('div', { className: 'kd-tabs', style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' } },
+      return h('div', { className: 'kd-tabs' },
         items.map(([value, label, count]) => h('button', {
           key: value,
           type: 'button',
-          className: `kd-nav-item${kind === value ? ' is-active' : ''}`,
-          style: { width: 'auto' },
+          className: `kd-tab${kind === value ? ' is-active' : ''}`,
           onClick: () => onPick(value),
-        }, label, count ? h('span', { className: 'kd-nav-count' }, String(count)) : null)))
+        }, label, count ? h('span', { className: 'kd-tab-count' }, String(count)) : null)))
     }
 
     function MobileBar({ boot, subjectId, kind, onPick, onTab, onManage, onBanks }) {
@@ -1207,62 +1390,68 @@ window.__ModuleLoader__.load({
       }
       const answer = question.answer
       return h('div', { className: 'kd-answer' },
-        answer.verified
-          ? null
-          : h('div', { className: 'kd-verify' },
-            h(Badge, { tone: 'warn' }, answer.basis === 'imported' ? T.unverified : T.missing),
-            ' 这份答案来自导入题库，尚未经过独立校验，请自行核对。'),
-        h('div', { className: 'kd-answer-block' },
-          h('div', { className: 'kd-answer-label' }, T.answer),
-          h(Markdown, { text: answer.answer || '（题库未提供参考答案）' })),
-        h('div', { className: 'kd-answer-block' },
-          h('div', { className: 'kd-answer-label' }, T.explanation),
-          h(Markdown, { text: answer.explanation || '（题库未提供解析）' })),
-        h('div', { className: 'kd-answer-block' },
-          h('div', { className: 'kd-answer-label' }, '作答历史'),
-          h('div', {
-            className: 'kd-meta',
-            style: { flexDirection: 'column', alignItems: 'flex-start', gap: '2px' },
-          },
-          question.attempts.map((attempt, index) => h('div', { key: attempt.id },
-            `${index + 1}. ${formatDateTime(attempt.at)} · ${statusLabel(attempt.result).text}`
-            + `${attempt.mode === 'giveup' ? ' · 未能作答' : attempt.mode === 'done' ? ' · 作答完毕' : ''}`
-            + `${attempt.choice ? ` · 选择 ${attempt.choice}` : ''}`))),
-          question.wrongEver
-            ? h(Btn, {
-              small: true,
-              variant: 'ghost',
-              title: '只把这道题移出错题本，历史上的错误作答记录仍然保留',
-              onClick: onRemoveWrong,
-            }, '移出错题本')
-            : null),
-        h('div', { className: 'kd-verify' },
-          h('div', { className: 'kd-row-between' },
-            h('span', null,
-              h(Badge, { tone: answer.verified ? 'ok' : 'warn' }, answer.verified ? T.verified : T.unverified),
-              ` 版本 ${answer.versionId}${answer.firstShownAt ? ` · 首次展示 ${formatDateTime(answer.firstShownAt)}` : ''}`,
-              answer.superseded ? ` · 已有 ${answer.superseded} 个历史版本` : ''),
-            h(Btn, {
-              small: true,
-              variant: 'ghost',
-              disabled: revising,
-              title: '生成候选新版本并重新做独立校验；只有校验通过才能替换正式版本',
-              onClick: onRevise,
-            }, revising ? h('span', { className: 'kd-spinner' }) : null, T.revision)),
-          answer.verification?.summary
-            ? h('div', null, `校验：${answer.verification.summary}（${methodLabel(answer.verification.method)}${answer.verification.at ? `，${formatDateTime(answer.verification.at)}` : ''}）`)
-            : null,
-          (() => {
-            const trail = answer.verification?.trail
-            if (!Array.isArray(trail)) return null
-            const passes = trail.filter((entry) => entry && entry.independentAnswer)
-            if (!passes.length) return null
-            return h('div', null, passes.map((entry, index) => h('div', { key: index },
-              `校验视角独立求解：${entry.independentAnswer}${entry.attempt ? `（第 ${entry.attempt} 次命题）` : ''}`)))
-          })(),
-          answer.verification?.issues?.length
-            ? h('ul', null, answer.verification.issues.map((issue, index) => h('li', { key: index }, issue)))
-            : null))
+        h('div', { className: 'kd-answer-panel' },
+          h('div', { className: 'kd-answer-panel-head' },
+            h('span', null, '答案与解析'),
+            h('span', { className: 'kd-tag' }, `版本 ${answer.versionId}`)),
+          h('div', { className: 'kd-answer-panel-body' },
+            answer.verified
+              ? null
+              : h('div', { className: 'kd-verify', style: { marginTop: 0 } },
+                h(Badge, { tone: 'warn' }, answer.basis === 'imported' ? T.unverified : T.missing),
+                ' 这份答案来自导入题库，尚未经过独立校验，请自行核对。'),
+            h('div', { className: 'kd-answer-block' },
+              h('div', { className: 'kd-answer-label' }, T.answer),
+              h(Markdown, { text: answer.answer || '（题库未提供参考答案）' })),
+            h('div', { className: 'kd-answer-block' },
+              h('div', { className: 'kd-answer-label' }, T.explanation),
+              h(Markdown, { text: answer.explanation || '（题库未提供解析）' })),
+            h('div', { className: 'kd-answer-block' },
+              h('div', { className: 'kd-answer-label' }, '作答历史'),
+              h('div', {
+                className: 'kd-meta',
+                style: { flexDirection: 'column', alignItems: 'flex-start', gap: '3px' },
+              },
+              question.attempts.map((attempt, index) => h('div', { key: attempt.id },
+                `${index + 1}. ${formatDateTime(attempt.at)} · ${statusLabel(attempt.result).text}`
+                + `${attempt.mode === 'giveup' ? ' · 未能作答' : attempt.mode === 'done' ? ' · 作答完毕' : ''}`
+                + `${attempt.choice ? ` · 选择 ${attempt.choice}` : ''}`))),
+              question.wrongEver
+                ? h('div', { className: 'kd-actions', style: { marginTop: '10px' } },
+                  h(Btn, {
+                    small: true,
+                    variant: 'ghost',
+                    title: '只把这道题移出错题本，历史上的错误作答记录仍然保留',
+                    onClick: onRemoveWrong,
+                  }, '移出错题本'))
+                : null),
+            h('div', { className: 'kd-verify' },
+              h('div', { className: 'kd-row-between' },
+                h('span', null,
+                  h(Badge, { tone: answer.verified ? 'ok' : 'warn' }, answer.verified ? T.verified : T.unverified),
+                  ` 首次展示 ${answer.firstShownAt ? formatDateTime(answer.firstShownAt) : '—'}`,
+                  answer.superseded ? ` · 已有 ${answer.superseded} 个历史版本` : ''),
+                h(Btn, {
+                  small: true,
+                  variant: 'ghost',
+                  disabled: revising,
+                  title: '生成候选新版本并重新做独立校验；只有校验通过才能替换正式版本',
+                  onClick: onRevise,
+                }, revising ? h('span', { className: 'kd-spinner' }) : null, T.revision)),
+              answer.verification?.summary
+                ? h('div', null, `校验：${answer.verification.summary}（${methodLabel(answer.verification.method)}${answer.verification.at ? `，${formatDateTime(answer.verification.at)}` : ''}）`)
+                : null,
+              (() => {
+                const trail = answer.verification?.trail
+                if (!Array.isArray(trail)) return null
+                const passes = trail.filter((entry) => entry && entry.independentAnswer)
+                if (!passes.length) return null
+                return h('div', null, passes.map((entry, index) => h('div', { key: index },
+                  `校验视角独立求解：${entry.independentAnswer}${entry.attempt ? `（第 ${entry.attempt} 次命题）` : ''}`)))
+              })(),
+              answer.verification?.issues?.length
+                ? h('ul', null, answer.verification.issues.map((issue, index) => h('li', { key: index }, issue)))
+                : null))))
     }
 
     function QuestionPane({
@@ -1278,15 +1467,13 @@ window.__ModuleLoader__.load({
       const meta = [q.subjectName, q.typeLabel]
       return h('div', null,
         h('div', { className: 'kd-card' },
-          h('div', { className: 'kd-meta' },
-            h(Badge, { tone: 'brand' }, q.typeLabel),
-            h('span', null, q.subjectName),
-            h('span', { className: 'kd-meta-dot' }, `难度 ${q.difficulty}/5`),
-            h('span', { className: 'kd-meta-dot' }, `出题日期 ${formatDate(q.assignedDate)}`),
-            h('span', { className: 'kd-meta-dot' }, `作答次数 ${q.attemptCount}`),
-            q.source?.kind === 'bank'
-              ? h('span', { className: 'kd-meta-dot' }, q.source.label)
-              : h('span', { className: 'kd-meta-dot' }, '在线出题'),
+          h('div', { className: 'kd-chips' },
+            h('span', { className: 'kd-tag kd-tag-brand' }, q.typeLabel),
+            h('span', { className: 'kd-tag' }, q.subjectName),
+            h('span', { className: 'kd-tag' }, `难度 ${q.difficulty}/5`),
+            h('span', { className: 'kd-tag' }, formatDate(q.assignedDate)),
+            h('span', { className: 'kd-tag' }, `作答 ${q.attemptCount} 次`),
+            h('span', { className: 'kd-tag' }, q.source?.kind === 'bank' ? q.source.label : '在线出题'),
             q.answerStatus === 'verified'
               ? h(Badge, { tone: 'ok' }, T.verified)
               : h(Badge, { tone: 'warn' }, q.answerStatus === 'missing' ? T.missing : T.unverified),
@@ -1294,7 +1481,7 @@ window.__ModuleLoader__.load({
             q.favorite ? h(Badge, { tone: 'brand' }, '已收藏') : null,
             q.wrongEver ? h(Badge, { tone: 'bad' }, '在错题本') : null),
           q.knowledge?.length
-            ? h('div', { className: 'kd-meta', style: { marginTop: '8px' } },
+            ? h('div', { className: 'kd-meta', style: { marginTop: '10px' } },
               h('span', null, `${T.knowledge}：${q.knowledge.join('、')}`))
             : null,
           h('div', { className: 'kd-stem' }, h(Markdown, { text: q.stem })),
@@ -1366,9 +1553,12 @@ window.__ModuleLoader__.load({
     function ListPane({ list, kind, subjectName, onOpen }) {
       if (!list) return h('div', { className: 'kd-loading' }, h('span', { className: 'kd-spinner' }), '加载中…')
       if (!list.items.length) {
-        return h('div', { className: 'kd-empty' },
-          h('div', { className: 'kd-empty-title' }, `${subjectName} · ${T.tabs[kind]}`),
-          h('div', { className: 'kd-empty-body' }, T.tabEmpty[kind] || '暂无内容'))
+        const icon = kind === 'favorite' ? 'star' : kind === 'wrong' ? 'check' : kind === 'all' ? 'book' : 'spark'
+        return h(EmptyState, {
+          icon,
+          title: `${subjectName} · ${T.tabs[kind]}`,
+          body: T.tabEmpty[kind] || '暂无内容',
+        })
       }
       return h('div', null,
         h('div', { className: 'kd-meta', style: { marginBottom: '10px' } },
@@ -1475,25 +1665,27 @@ window.__ModuleLoader__.load({
           rows.length ? rows : h('div', { className: 'kd-empty-body' }, '还没有追问。可以问某一步推导为什么成立、某个知识点怎么理解，或有没有别的解法。')),
         localError ? h('div', { className: 'kd-error-text', style: { padding: '0 14px' } }, localError) : null,
         h('div', { className: 'kd-thread-foot' },
-          h('textarea', {
-            className: 'kd-textarea',
-            value: draft,
-            placeholder: '围绕这道题继续追问…（Ctrl+Enter 发送）',
-            disabled: sending,
-            onChange: (event) => setDraft(event.target.value),
-            onKeyDown: (event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                event.preventDefault()
-                send(draft, newAttemptId())
-              }
-            },
-          }),
-          h('div', { className: 'kd-actions', style: { marginTop: '8px', justifyContent: 'flex-end' } },
-            h(Btn, {
-              variant: 'primary',
-              disabled: sending || !draft.trim(),
-              onClick: () => send(draft, newAttemptId()),
-            }, h(Icon, { name: 'send', size: 13 }), T.send))))
+          h('div', { className: 'kd-composer' },
+            h('textarea', {
+              className: 'kd-textarea',
+              value: draft,
+              placeholder: '围绕这道题继续追问…（Ctrl+Enter 发送）',
+              disabled: sending,
+              onChange: (event) => setDraft(event.target.value),
+              onKeyDown: (event) => {
+                if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                  event.preventDefault()
+                  send(draft, newAttemptId())
+                }
+              },
+            }),
+            h('div', { className: 'kd-row', style: { justifyContent: 'flex-end', marginTop: '2px' } },
+              h(Btn, {
+                variant: 'primary',
+                small: true,
+                disabled: sending || !draft.trim(),
+                onClick: () => send(draft, newAttemptId()),
+              }, h(Icon, { name: 'send', size: 13 }), T.send)))))
     }
 
     /* ============================== 弹窗 ============================== */
@@ -1690,9 +1882,11 @@ window.__ModuleLoader__.load({
             `${bank.itemCount} 道 · ${bank.kind === 'pdf' ? 'PDF' : 'Markdown'} · 导入于 ${formatDateTime(bank.importedAt)}`,
             bank.pendingAnswers ? ` · ${bank.pendingAnswers} 道答案待核验` : '')),
         h(Btn, { small: true, variant: 'danger', onClick: () => onDelete(bank) }, h(Icon, { name: 'trash', size: 13 }), T.deleteBank)))
-        : h('div', { className: 'kd-empty' },
-          h('div', { className: 'kd-empty-title' }, '还没有导入题库'),
-          h('div', { className: 'kd-empty-body' }, '题库用于「题库出题」来源：每道题会被分配唯一题目 ID，同一题反复出现也不会在列表里产生重复记录。')))
+        : h(EmptyState, {
+          icon: 'upload',
+          title: '还没有导入题库',
+          body: '题库用于「题库出题」来源：每道题会被分配唯一题目 ID，同一题反复出现也不会在列表里产生重复记录。',
+        }))
     }
 
     function RevisionModal({ question, onClose, onConfirm, onDiscard, busy }) {
@@ -1778,6 +1972,8 @@ window.__ModuleLoader__.load({
 
       const loadToday = useCallback(async (sid) => {
         if (!sid) return
+        // 高亮必须跟着视图走：从「全部 / 收藏 / 错题本」切回今日题目时要一起复位
+        setKind('today')
         setView('detail')
         setBusy('daily')
         setFail('')
@@ -2144,20 +2340,28 @@ window.__ModuleLoader__.load({
 
       const mainContent = (() => {
         if (error) {
-          return h('div', { className: 'kd-empty' },
-            h('div', { className: 'kd-empty-title' }, '插件后端没有响应'),
-            h('div', { className: 'kd-empty-body' }, error),
-            h('div', { className: 'kd-actions' },
-              h(Btn, { onClick: () => window.location.reload() }, '重新加载页面')))
+          return h(EmptyState, {
+            icon: 'x',
+            title: '插件后端没有响应',
+            body: error,
+            actions: h(Btn, { onClick: () => window.location.reload() }, '重新加载页面'),
+          })
         }
         if (loading) return h('div', { className: 'kd-loading' }, h('span', { className: 'kd-spinner' }), '正在读取学习数据…')
         if (!boot?.settings?.subjects?.length) {
-          return h('div', { className: 'kd-empty' },
-            h('div', { className: 'kd-empty-title' }, T.noSubjects),
-            h('div', { className: 'kd-empty-body' }, T.noSubjectsHint),
-            h('div', { className: 'kd-actions' },
-              h(Btn, { variant: 'primary', onClick: () => setModal({ kind: 'subjects' }) }, h(Icon, { name: 'plus', size: 13 }), T.addSubject),
-              h(Btn, { onClick: () => setModal({ kind: 'banks' }) }, T.manageBanks)))
+          return h(EmptyState, {
+            icon: 'plus',
+            title: T.noSubjects,
+            body: T.noSubjectsHint,
+            actions: [
+              h(Btn, {
+                key: 'add',
+                variant: 'primary',
+                onClick: () => setModal({ kind: 'subjects' }),
+              }, h(Icon, { name: 'plus', size: 13 }), T.addSubject),
+              h(Btn, { key: 'bank', onClick: () => setModal({ kind: 'banks' }) }, T.manageBanks),
+            ],
+          })
         }
         if (busy === 'daily' && !question) {
           return h('div', { className: 'kd-loading' },
@@ -2167,18 +2371,27 @@ window.__ModuleLoader__.load({
               '题目会先生成，再由另一个独立视角重新求解并校验；校验不通过就不会发布。首次出题可能需要几十秒。'))
         }
         if (fail) {
-          return h('div', { className: 'kd-empty' },
-            h('div', { className: 'kd-empty-title' }, T.generateFailed),
-            h('div', { className: 'kd-empty-body' }, fail),
-            h('div', { className: 'kd-actions' },
-              h(Btn, { variant: 'primary', onClick: () => loadToday(subjectId) }, h(Icon, { name: 'refresh', size: 13 }), T.retry),
-              h(Btn, { onClick: () => setModal({ kind: 'subjects' }) }, '切换出题来源'),
-              h(Btn, { onClick: () => setModal({ kind: 'banks' }) }, T.manageBanks)))
+          return h(EmptyState, {
+            icon: 'refresh',
+            title: T.generateFailed,
+            body: fail,
+            actions: [
+              h(Btn, {
+                key: 'retry',
+                variant: 'primary',
+                onClick: () => loadToday(subjectId),
+              }, h(Icon, { name: 'refresh', size: 13 }), T.retry),
+              h(Btn, { key: 'src', onClick: () => setModal({ kind: 'subjects' }) }, '切换出题来源'),
+              h(Btn, { key: 'bank', onClick: () => setModal({ kind: 'banks' }) }, T.manageBanks),
+            ],
+          })
         }
         if (!subjectId) {
-          return h('div', { className: 'kd-empty' },
-            h('div', { className: 'kd-empty-title' }, '先选择一个科目'),
-            h('div', { className: 'kd-empty-body' }, '左侧列出的科目都可以切换；没有想要的科目就先去「科目管理」添加。'))
+          return h(EmptyState, {
+            icon: 'book',
+            title: '先选择一个科目',
+            body: '左侧列出的科目都可以切换；没有想要的科目就先去「科目管理」添加。',
+          })
         }
         if (kind !== 'today' && view === 'list') {
           return h(ListPane, {
@@ -2229,9 +2442,11 @@ window.__ModuleLoader__.load({
             },
           })
         }
-        return h('div', { className: 'kd-empty' },
-          h('div', { className: 'kd-empty-title' }, '选择一个入口开始'),
-          h('div', { className: 'kd-empty-body' }, '左侧「今日题目 / 全部 / 收藏 / 错题本」分别对应今天这道题、历史题目、收藏和错题。'))
+        return h(EmptyState, {
+          icon: 'spark',
+          title: '选择一个入口开始',
+          body: '左侧「今日题目 / 全部 / 收藏 / 错题本」分别对应今天这道题、历史题目、收藏和错题。',
+        })
       })()
 
       const showThread = view === 'detail' && question && (!narrow || threadOpen)
@@ -2241,11 +2456,13 @@ window.__ModuleLoader__.load({
         h('div', { className: 'kd-header' },
           h('div', { className: 'kd-header-top' },
             h('div', { className: 'kd-header-left' },
-              h('h1', { className: 'kd-title' }, T.title),
-              h('div', { className: 'kd-sub' },
-                boot?.today ? `${formatDate(boot.today)} · ` : '',
-                boot ? `已启用 ${boot.settings.subjects.length} 个科目 · ` : '',
-                T.subtitle)),
+              h('div', { className: 'kd-brand' }, h(SidebarIcon, { size: 18 })),
+              h('div', { style: { minWidth: 0 } },
+                h('h1', { className: 'kd-title' }, T.title),
+                h('div', { className: 'kd-sub' },
+                  boot?.today ? `${formatDate(boot.today)} · ` : '',
+                  boot ? `已启用 ${boot.settings.subjects.length} 个科目 · ` : '',
+                  T.subtitle))),
             boot ? h(CountdownLines, { countdown: boot.countdown }) : null),
           boot ? h(ExamStrip, {
             boot,
@@ -2274,15 +2491,16 @@ window.__ModuleLoader__.load({
             onBanks: () => setModal({ kind: 'banks' }),
           }) : null,
           h('main', { className: 'kd-main' },
-            boot ? h(TabBar, {
-              kind,
-              counts,
-              onPick: (value) => {
-                if (value === 'today') loadToday(subjectId)
-                else loadList(subjectId, value)
-              },
-            }) : null,
-            mainContent),
+            h('div', { className: 'kd-main-inner' },
+              boot ? h(TabBar, {
+                kind,
+                counts,
+                onPick: (value) => {
+                  if (value === 'today') loadToday(subjectId)
+                  else loadList(subjectId, value)
+                },
+              }) : null,
+              mainContent)),
           showThread
             ? h(ThreadPane, {
               thread,

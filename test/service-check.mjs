@@ -6,7 +6,7 @@ const tmpRoot = await mkdtemp(join(tmpdir(), 'daily-question-service-'))
 process.env.DSH_PROFILE_DIR = join(tmpRoot, 'profile')
 
 const { DailyQuestionService } = await import('../lib/service.js')
-const { daysBetween, todayISO } = await import('../lib/exam-dates.js')
+const { daysBetween, resolveExamDate, todayISO, yearOptions } = await import('../lib/exam-dates.js')
 
 let failures = 0
 function check(name, condition, detail = '') {
@@ -35,11 +35,19 @@ D. 4
 const boot0 = await service.bootstrap()
 check('初始没有科目', boot0.settings.subjects.length === 0)
 
-const saved = await service.saveSettings({ subjects: ['math1', 'math2'], targetYear: 2028 })
-check('保存科目与年份', saved.settings.subjects.length === 2 && saved.settings.targetYear === 2028)
-check('倒计时使用估算日期', saved.countdown.status === 'estimated'
-  && saved.countdown.days === daysBetween(todayISO(), '2027-12-19'),
+const yearWindow = yearOptions()
+const targetYear = yearWindow[0]
+const saved = await service.saveSettings({ subjects: ['math1', 'math2'], targetYear })
+check('保存科目与年份', saved.settings.subjects.length === 2 && saved.settings.targetYear === targetYear)
+const targetExam = resolveExamDate(targetYear)
+check('倒计时与目标日期一致',
+  saved.countdown.days === daysBetween(todayISO(), targetExam.date)
+  && saved.countdown.status === targetExam.status,
   JSON.stringify(saved.countdown.lines))
+check('可选年份只有 3 个', yearWindow.length === 3, JSON.stringify(yearWindow))
+
+const outOfWindow = await service.saveSettings({ targetYear: 2001 }).then(() => '').catch((error) => error.message)
+check('窗口外的年份被拒绝', outOfWindow.includes('考研年份只能选'), outOfWindow)
 
 await service.saveSettings({ subjectSource: { math1: 'bank' } })
 const imported = await service.importBank({ name: '数学一题库', kind: 'md', text: bankMarkdown, fileName: 'math.md' })
@@ -119,7 +127,7 @@ check('删除题库后全部列表仍可访问', afterDelete.items.length >= 1)
 const noBank = await service.deleteBank({ bankId: committed.bank.id }).catch((error) => error.message)
 check('重复删除同一题库会报错', typeof noBank === 'string')
 
-const examRefresh = await service.refreshExamDate({ year: 2028 })
+const examRefresh = await service.refreshExamDate({ year: targetYear })
 check('无 web 服务时如实报告未核验', examRefresh.ok === false && typeof examRefresh.reason === 'string', JSON.stringify(examRefresh))
 
 let modelError = ''
