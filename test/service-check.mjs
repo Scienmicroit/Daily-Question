@@ -59,6 +59,10 @@ const daily1 = await service.ensureDaily('math1')
 check('题库出题成功', Boolean(daily1.question?.id), JSON.stringify(daily1).slice(0, 200))
 check('答案在提交前不下发', daily1.question.answer === null && daily1.question.answerState === 'locked')
 const qid1 = daily1.question.id
+check('按当日分配记录识别今日题目', (await service.getQuestion({ qid: qid1 })).isToday === true)
+const previewStem = '完整题干\n\n$$x^2+1$$\n\n```js\n  return 42\n```'
+const preview = service.summaryView(await service.data(), { ...(await service.data()).questions[qid1], stem: previewStem })
+check('列表提供完整 Markdown 题干且不下发答案', preview.stem === previewStem && !Object.hasOwn(preview, 'answer') && !Object.hasOwn(preview, 'currentAnswer'))
 
 const daily1b = await service.ensureDaily('math1')
 check('同一天重复进入不换题', daily1b.question.id === qid1)
@@ -116,6 +120,32 @@ check('判定错误后进入错题本', judged.question.lastAttempt.result === '
 const giveupSource = await service.listQuestions({ subjectId: 'math2', kind: 'wrong' })
 check('错题本可读到该主观题', giveupSource.items.length === 1)
 
+const concurrent = await Promise.all([1, 2].map(() => service.reveal({ qid: qid1, choice: 'B', attemptId: 'concurrent' })))
+check('并发相同作答只计数一次', (await service.getQuestion({ qid: qid1 })).question.attemptCount === 3
+  && concurrent.filter((item) => item.duplicated).length === 1)
+const collision = await service.reveal({ qid: solutionQid, mode: 'done', attemptId: 'concurrent' }).catch((error) => error.message)
+check('拒绝跨题复用作答 ID', typeof collision === 'string' && collision.includes('其他题目')
+  && (await service.getQuestion({ qid: solutionQid })).question.attemptCount === 1)
+
+const bankSubject = { id: 'math1' }
+const selectionData = {
+  customSubjects: [],
+  banks: [{ id: 'selection', subjectId: 'math1', items: ['old', 'recent', 'new'].map((id) => ({ id, stem: id, type: 'single' })) }],
+  questions: {
+    'bank:selection:old': { subjectId: 'math1', lastAssignedDate: '2026-11-01' },
+    'bank:selection:recent': { subjectId: 'math1', lastAssignedDate: '2026-11-03' },
+  },
+}
+const originalRandom = Math.random
+try {
+  Math.random = () => 0.999
+  check('有新题时不会抽到旧题', service.pickFromBank(selectionData, bankSubject, '2026-11-04').item.id === 'new')
+  selectionData.questions['bank:selection:new'] = { subjectId: 'math1', lastAssignedDate: '2026-11-02' }
+  check('新题用完后抽最久未出的题', service.pickFromBank(selectionData, bankSubject, '2026-11-04').item.id === 'old')
+  selectionData.banks[0].items = [selectionData.banks[0].items[0]]
+  check('仅一题时允许重复并标记', service.pickFromBank(selectionData, bankSubject, '2026-11-04').repeated === true)
+} finally { Math.random = originalRandom }
+
 const studentThread = { before: (await service.data()).threads[qid1] }
 check('追问初始为空', !studentThread.before || studentThread.before.messages.length === 0)
 
@@ -157,6 +187,70 @@ check('自定义题型被保存并正确显示',
   JSON.stringify(customView.typeLabels))
 const enabledCustom = await service.addSubject({ subjectId: 'custom_demo' })
 check('自定义科目可启用', enabledCustom.settings.subjects.includes('custom_demo'), JSON.stringify(enabledCustom.settings.subjects))
+
+// 批量管理：标记独立于作答，删除必须原子地清理关联记录。
+await service.store.update((draft) => {
+  for (const id of ['bulk1', 'bulk2', 'bulk3']) {
+    draft.questions[id] = { ...structuredClone(draft.questions[qid1]), id, favoriteAt: null, wrongBookAdded: false, wrongBookRemoved: false }
+  }
+  draft.attempts.push({ id: 'bulk-attempt', questionId: 'bulk2', result: 'wrong' })
+  draft.threads.bulk1 = { messages: [{ text: '保留到确认删除' }] }
+  draft.daily['bulk-test'] = { questionId: 'bulk1' }
+})
+const bulkIds = ['bulk1', 'bulk2']
+check('历史题即使出题日期相同也不是今日题目', (await service.getQuestion({ qid: 'bulk1' })).isToday === false)
+await service.bulkQuestions({ qids: bulkIds, action: 'favorite' })
+check('批量收藏同步到收藏列表', (await service.listQuestions({ subjectId: 'math1', kind: 'favorite' })).items.filter((q) => bulkIds.includes(q.id)).length === 2)
+await service.bulkQuestions({ qids: bulkIds, action: 'unfavorite' })
+check('批量取消收藏', bulkIds.every((id) => !(service.store.data.questions[id].favoriteAt)))
+await service.bulkQuestions({ qids: bulkIds, action: 'wrong' })
+check('手动加入错题本且不伪造作答', (await service.getQuestion({ qid: 'bulk1' })).question.wrongEver
+  && (await service.getQuestion({ qid: 'bulk1' })).question.attemptCount === 0)
+await service.bulkQuestions({ qids: bulkIds, action: 'unwrong' })
+check('批量移除错题且保留历史作答', bulkIds.every((id) => !service.isWrong(service.store.data.questions[id], service.store.data.attempts))
+  && service.store.data.attempts.some((a) => a.id === 'bulk-attempt'))
+await service.bulkQuestions({ qids: bulkIds, action: 'wrong' })
+check('移除后可以重新加入错题本', bulkIds.every((id) => service.isWrong(service.store.data.questions[id], service.store.data.attempts)))
+await service.bulkQuestions({ qids: ['bulk1'], action: 'favorite' })
+const guarded = await service.bulkQuestions({ qids: bulkIds, action: 'delete' })
+check('收藏和错题删除前要求二次确认且不清理数据', guarded.requiresConfirmation && guarded.protectedCount === 2
+  && service.store.data.questions.bulk1 && service.store.data.questions.bulk2 && service.store.data.threads.bulk1)
+const invalidBulk = await service.bulkQuestions({ qids: ['bulk1', 'missing'], action: 'delete', confirmProtected: true }).catch((e) => e.message)
+check('部分题目不存在时整批拒绝且不删除其他题', typeof invalidBulk === 'string' && Boolean(service.store.data.questions.bulk1))
+const removedBulk = await service.bulkQuestions({ qids: [...bulkIds, 'bulk1'], action: 'delete', confirmProtected: true })
+check('确认删除后去重计数并清理题目作答追问和今日引用', removedBulk.affected === 2
+  && !service.store.data.questions.bulk1 && !service.store.data.questions.bulk2 && !service.store.data.threads.bulk1
+  && !service.store.data.daily['bulk-test'] && !service.store.data.attempts.some((a) => bulkIds.includes(a.questionId)))
+check('删除不影响其他题目', Boolean(service.store.data.questions.bulk3) && Boolean(service.store.data.questions[qid1]))
+const savedWrite = service.store.write
+service.store.write = async () => { throw new Error('模拟磁盘失败') }
+const failedDelete = await service.bulkQuestions({ qids: ['bulk3'], action: 'delete' }).then(() => false, () => true)
+service.store.write = savedWrite
+check('批量删除保存失败不改变内存中的题目', failedDelete && Boolean(service.store.data.questions.bulk3))
+
+let started, finishReply
+const replyStarted = new Promise((resolve) => { started = resolve })
+const replyReady = new Promise((resolve) => { finishReply = resolve })
+const savedContext = service.ctx
+service.ctx = { get(name) {
+  if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'test', model: 'test' }) }
+  if (name === 'llm') return { async *stream() {
+    started()
+    await replyReady
+    yield { type: 'text-delta', text: '这条回复不应恢复已经删除的追问。' }
+  } }
+} }
+const lateReply = service.followup({ qid: 'bulk3', message: '请解释', clientMessageId: 'late-reply' }).then(() => false, () => true)
+await replyStarted
+const plainDeletion = await service.bulkQuestions({ qids: ['bulk3'], action: 'delete' })
+check('普通题目无需额外的保护确认', plainDeletion.affected === 1 && !plainDeletion.requiresConfirmation)
+finishReply()
+check('删除时仍在生成的回复不会恢复追问', await lateReply && !service.store.data.threads.bulk3)
+service.ctx = savedContext
+for (const args of [{ qids: [], action: 'delete' }, { qids: [null], action: 'favorite' }, { qids: [qid1], action: 'bad' }]) {
+  const rejected = await service.bulkQuestions(args).then(() => false, () => true)
+  check('非法批量请求被拒绝', rejected)
+}
 
 await rm(tmpRoot, { recursive: true, force: true })
 console.log(failures ? `\n${failures} 个检查未通过` : '\n全部通过')

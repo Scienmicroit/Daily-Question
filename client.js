@@ -133,7 +133,7 @@ window.__ModuleLoader__.load({
       window.MathJax = {
         startup: { typeset: false },
         // 每条公式自带 <defs>，注入 innerHTML 后不依赖全局字体缓存
-        svg: { fontCache: 'local' },
+        svg: { fontCache: 'local', scale: 1, matchFontHeight: false },
       }
       const script = document.createElement('script')
       script.src = MATHJAX_SRC
@@ -543,239 +543,273 @@ window.__ModuleLoader__.load({
     /** 由 apply 用 styles.insert 注入时置位；否则由组件渲染 <style> 兜底。 */
     let styleInjected = false
     const CSS = `
-.kd-page { height:100%; min-height:0; display:flex; flex-direction:column; position:relative;
-  background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary);
+.kd-page {
+  --kd-bg-base:var(--dsw-alias-bg-base, #ffffff);
+  --kd-bg-layer-1:var(--dsw-alias-bg-layer-1, #ffffff);
+  --kd-bg-layer-2:color-mix(in srgb, var(--kd-ink) 5%, var(--kd-surface));
+  --kd-bg-overlay:var(--dsw-alias-bg-overlay, #ffffff);
+  --kd-label-primary:var(--dsw-alias-label-primary, #24332f);
+  --kd-label-secondary:var(--dsw-alias-label-secondary, #66736e);
+  --kd-border-l1:color-mix(in srgb, var(--kd-ink) 9%, var(--kd-surface));
+  --kd-border-l2:color-mix(in srgb, var(--kd-ink) 17%, var(--kd-surface));
+  --kd-brand-primary:#4d6bfe;
+  --kd-state-success-primary:#078443;
+  --kd-state-error-primary:#db3144;
+  --kd-state-warn-primary:#95702b;
+  --kd-state-idle-primary:#85918b;
+  --kd-ink:var(--kd-label-primary); --kd-surface:var(--kd-bg-base);
+  font-family:inherit; isolation:isolate; height:100%; min-height:0; display:flex; flex-direction:column; position:relative;
+  background:color-mix(in srgb, var(--kd-brand-primary) 2%, var(--kd-surface)); color: var(--kd-label-primary);
   font-size:14px; line-height:1.65; -webkit-font-smoothing:antialiased; box-sizing:border-box; }
 .kd-page *, .kd-page *::before, .kd-page *::after { box-sizing:border-box; }
-.kd-page :focus-visible { outline:2px solid var(--dsw-alias-brand-primary); outline-offset:2px; }
-.kd-header { padding:18px 24px 14px; border-bottom:1px solid var(--dsw-alias-border-l1);
+.kd-page :focus-visible { outline:2px solid var(--kd-brand-primary); outline-offset:2px; }
+.kd-header { padding:20px 28px 12px; background:var(--kd-surface); border-bottom:1px solid var(--kd-border-l1);
   display:flex; flex-direction:column; gap:12px; }
-.kd-header-top { display:flex; gap:24px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; }
-.kd-header-left { min-width:0; flex:1 1 320px; display:flex; gap:12px; align-items:flex-start; }
-.kd-brand { flex:0 0 34px; width:34px; height:34px; border-radius:10px; display:flex; align-items:center;
-  justify-content:center; border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
-  color:var(--dsw-alias-brand-primary); }
-.kd-title { margin:0; font-size:18px; font-weight:650; letter-spacing:.01em; line-height:1.4; }
-.kd-sub { margin-top:3px; font-size:12px; color:var(--dsw-alias-label-secondary); line-height:1.6; }
+.kd-header-top { display:flex; gap:20px; justify-content:space-between; align-items:center; flex-wrap:wrap; }
+.kd-header-left { min-width:0; flex:1 1 320px; display:flex; gap:12px; align-items:center; }
+.kd-brand { flex:0 0 40px; width:40px; height:40px; border-radius:12px; display:flex; align-items:center;
+  justify-content:center; border:0; background:color-mix(in srgb, var(--kd-brand-primary) 10%, var(--kd-surface));
+  color:var(--kd-brand-primary); }
+.kd-title { margin:0; font-size:19px; font-weight:650; letter-spacing:.01em; line-height:1.4; }
+.kd-sub { margin-top:3px; font-size:12px; color:var(--kd-label-secondary); line-height:1.6; }
 .kd-select { height:30px; padding:0 10px; border-radius:8px; font-size:13px; font-family:inherit;
-  border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
-  color:var(--dsw-alias-label-primary); transition:border-color .15s; }
-.kd-select:hover { border-color:var(--dsw-alias-brand-primary); }
+  border:1px solid var(--kd-border-l2); background:var(--kd-bg-layer-1);
+  color:var(--kd-label-primary); transition:border-color .15s; }
+.kd-select:hover { border-color:var(--kd-brand-primary); }
 .kd-select-sm { height:26px; font-size:12px; padding:0 6px; }
 .kd-cd-lines { min-width:0; flex:0 1 auto; display:flex; flex-direction:column; align-items:flex-end;
   gap:2px; text-align:right; }
-.kd-cd-primary { font-size:24px; font-weight:700; letter-spacing:.01em; line-height:1.25; }
-.kd-cd-secondary { font-size:12px; color:var(--dsw-alias-label-secondary); }
-.kd-cd-target { font-size:13.5px; font-weight:500; }
-.kd-exam-strip { display:flex; align-items:center; gap:6px 14px; flex-wrap:wrap; padding:8px 12px;
-  border:1px solid var(--dsw-alias-border-l1); border-radius:10px; background:var(--dsw-alias-bg-layer-1);
-  font-size:11.5px; color:var(--dsw-alias-label-secondary); }
+.kd-cd-primary { font-size:21px; font-weight:650; color:var(--kd-brand-primary); font-variant-numeric:tabular-nums; letter-spacing:.01em; line-height:1.25; }
+.kd-cd-secondary { font-size:12px; color:var(--kd-label-secondary); }
+.kd-cd-target { font-size:11px; font-weight:400; color:var(--kd-label-secondary); }
+.kd-exam-strip { display:flex; align-items:center; gap:6px 14px; flex-wrap:wrap; padding:8px 0 0;
+  border:0; border-top:1px solid var(--kd-border-l1); background:transparent;
+  font-size:11.5px; color:var(--kd-label-secondary); }
 .kd-strip-item { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
-.kd-strip-warn { color:var(--dsw-alias-state-warn-primary); white-space:normal; text-align:left; }
+.kd-strip-warn { color:var(--kd-state-warn-primary); white-space:normal; text-align:left; }
 .kd-shell { flex:1 1 auto; min-height:0; display:flex; }
-.kd-nav { width:212px; flex:0 0 212px; border-right:1px solid var(--dsw-alias-border-l1);
-  padding:16px 12px; overflow:auto; display:flex; flex-direction:column; gap:18px; }
+.kd-nav { width:204px; flex:0 0 204px; background:var(--kd-surface); border-right:1px solid var(--kd-border-l1);
+  padding:24px 14px; overflow:auto; display:flex; flex-direction:column; gap:18px; }
 .kd-nav-group { display:flex; flex-direction:column; gap:4px; }
-.kd-nav-group-label { font-size:10.5px; letter-spacing:.1em; color:var(--dsw-alias-label-secondary);
+.kd-nav-group-label { font-size:10.5px; letter-spacing:.1em; color:var(--kd-label-secondary);
   padding:0 8px 4px; }
-.kd-nav-item { position:relative; display:flex; align-items:center; justify-content:space-between; gap:8px;
-  width:100%; padding:8px 10px; border-radius:9px; border:1px solid transparent; background:transparent;
-  cursor:pointer; color:var(--dsw-alias-label-primary); font:inherit; font-size:13px; text-align:left;
+.kd-nav-item { position:relative; display:flex; align-items:center; justify-content:space-between; gap:7px; flex-direction:column; align-items:flex-start;
+  width:100%; padding:12px; border-radius:9px; border:1px solid transparent; background:transparent;
+  cursor:pointer; color:var(--kd-label-primary); font:inherit; font-size:13px; text-align:left;
   transition:background-color .15s, border-color .15s, color .15s; }
-.kd-nav-item:hover { background:var(--dsw-alias-bg-layer-2); }
-.kd-nav-item > span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.kd-nav-item.is-active { background:var(--dsw-alias-bg-layer-2); border-color:var(--dsw-alias-border-l2);
-  font-weight:600; box-shadow:inset 2px 0 0 var(--dsw-alias-brand-primary); }
+.kd-nav-item:hover { background:var(--kd-bg-layer-2); }
+.kd-nav-item > span:first-child { min-width:0; overflow-wrap:anywhere; line-height:1.6; }
+.kd-nav-item.is-active { background:color-mix(in srgb, var(--kd-brand-primary) 9%, var(--kd-surface)); border-color:transparent;
+  color:var(--kd-brand-primary); font-weight:600; }
 .kd-nav-item .kd-nav-count { flex:0 0 auto; white-space:nowrap; font-size:11px;
-  color:var(--dsw-alias-label-secondary); }
+  color:var(--kd-label-secondary); }
 .kd-nav-status { flex:0 0 auto; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
-  font-size:10.5px; color:var(--dsw-alias-label-secondary); }
-.kd-dot { width:6px; height:6px; border-radius:50%; background:var(--dsw-alias-state-success-primary); }
-.kd-dot-idle { background:var(--dsw-alias-state-idle-primary); }
+  font-size:10.5px; color:var(--kd-label-secondary); }
+.kd-dot { width:6px; height:6px; border-radius:50%; background:var(--kd-state-success-primary); }
+.kd-dot-idle { background:var(--kd-state-idle-primary); }
 .kd-nav-spacer { flex:1 1 auto; }
-.kd-main { flex:1 1 auto; min-width:0; overflow:auto; padding:20px 24px 48px; }
-.kd-main-inner { max-width:900px; margin:0 auto; }
-.kd-thread { width:340px; flex:0 0 340px; border-left:1px solid var(--dsw-alias-border-l1);
-  display:flex; flex-direction:column; min-height:0; background:var(--dsw-alias-bg-layer-1); }
-.kd-thread-head { padding:13px 16px; border-bottom:1px solid var(--dsw-alias-border-l1);
+.kd-main { flex:1 1 auto; min-width:0; overflow:hidden; display:flex; flex-direction:column; }
+.kd-main-toolbar { flex:none; padding:24px 28px 20px; display:flex; align-items:center; gap:12px; }
+.kd-main-toolbar > .kd-btn { flex:none; align-self:stretch; aspect-ratio:1; padding:0; min-height:0; white-space:nowrap; border-radius:12px; }
+.kd-main-scroll { flex:1; min-height:0; overflow:auto; padding:0 28px 48px; scrollbar-gutter:stable; }
+.kd-main-inner { width:100%; margin:0; }
+.kd-thread { position:relative; width:clamp(280px,calc((100% - 204px) * var(--kd-thread-ratio, .33)),55%); flex:0 0 auto; border-left:1px solid var(--kd-border-l1);
+  display:flex; flex-direction:column; min-height:0; background:var(--kd-bg-layer-1); }
+.kd-thread-resize { position:absolute; left:-5px; top:0; bottom:0; width:10px; cursor:col-resize; touch-action:none; z-index:2; }
+.kd-thread-resize:hover, .kd-thread-resize:focus-visible { background:color-mix(in srgb,var(--kd-brand-primary) 20%,transparent); }
+.kd-thread-head { padding:20px; border-bottom:1px solid var(--kd-border-l1);
   display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .kd-thread-title { font-size:13px; font-weight:600; }
-.kd-thread-hint { padding:10px 16px 0; font-size:11px; line-height:1.6;
-  color:var(--dsw-alias-label-secondary); }
-.kd-thread-scroll { flex:1 1 auto; min-height:0; overflow:auto; padding:14px 16px; display:flex;
+.kd-thread-hint { padding:12px 20px 0; font-size:11px; line-height:1.6;
+  color:var(--kd-label-secondary); }
+.kd-thread-scroll { flex:1 1 auto; min-height:0; overflow:auto; padding:18px 20px; display:flex;
   flex-direction:column; gap:12px; }
 .kd-msg { max-width:100%; border-radius:12px; padding:10px 12px; font-size:13px; line-height:1.72; }
-.kd-msg-user { align-self:flex-end; background:color-mix(in srgb, var(--dsw-alias-brand-primary) 9%, transparent);
-  border:1px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 26%, transparent); }
-.kd-msg-assistant { align-self:stretch; border:1px solid var(--dsw-alias-border-l1);
-  background:var(--dsw-alias-bg-base); }
-.kd-msg-meta { font-size:10px; color:var(--dsw-alias-label-secondary); margin-top:6px; }
-.kd-msg-failed { border-color:var(--dsw-alias-state-error-primary); }
-.kd-thread-foot { border-top:1px solid var(--dsw-alias-border-l1); padding:12px 16px; }
-.kd-composer { border:1px solid var(--dsw-alias-border-l2); border-radius:12px;
-  background:var(--dsw-alias-bg-base); padding:6px; transition:border-color .15s, box-shadow .15s; }
-.kd-composer:focus-within { border-color:var(--dsw-alias-brand-primary);
-  box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, transparent); }
+.kd-msg-user { align-self:flex-end; background:color-mix(in srgb, var(--kd-brand-primary) 9%, transparent);
+  border:1px solid color-mix(in srgb, var(--kd-brand-primary) 26%, transparent); }
+.kd-msg-assistant { align-self:stretch; padding:0; border:0; background:transparent; }
+.kd-msg-meta { font-size:10px; color:var(--kd-label-secondary); margin-top:6px; }
+.kd-msg-failed { border-color:var(--kd-state-error-primary); }
+.kd-thread-foot { border-top:1px solid var(--kd-border-l1); padding:12px 16px; }
+.kd-composer { border:1px solid var(--kd-border-l2); border-radius:12px;
+  background:var(--kd-bg-base); padding:6px; transition:border-color .15s, box-shadow .15s; }
+.kd-composer:focus-within { border-color:var(--kd-brand-primary);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--kd-brand-primary) 14%, transparent); }
 .kd-textarea { width:100%; min-height:58px; max-height:180px; resize:vertical; padding:6px 8px;
-  border:0; background:transparent; color:var(--dsw-alias-label-primary); font:inherit; font-size:13px; }
+  border:0; background:transparent; color:var(--kd-label-primary); font:inherit; font-size:13px; }
 .kd-textarea:focus { outline:none; }
-.kd-tabs { display:flex; gap:2px; margin-bottom:16px; border-bottom:1px solid var(--dsw-alias-border-l1); }
-.kd-tab { position:relative; display:inline-flex; align-items:center; gap:6px; padding:8px 12px 11px;
-  border:0; background:transparent; color:var(--dsw-alias-label-secondary); font:inherit; font-size:13px;
-  cursor:pointer; border-radius:8px 8px 0 0; transition:color .15s, background-color .15s; }
-.kd-tab:hover { color:var(--dsw-alias-label-primary); background:var(--dsw-alias-bg-layer-2); }
-.kd-tab.is-active { color:var(--dsw-alias-label-primary); font-weight:600; }
-.kd-tab.is-active::after { content:''; position:absolute; left:10px; right:10px; bottom:-1px; height:2px;
-  border-radius:2px; background:var(--dsw-alias-brand-primary); }
+.kd-tabs { display:flex; gap:4px; width:fit-content; max-width:100%; min-width:0; overflow-x:auto; padding:4px; border:1px solid var(--kd-border-l1); border-radius:12px; background:var(--kd-surface); }
+.kd-tab { position:relative; display:inline-flex; align-items:center; gap:6px; padding:7px 14px; white-space:nowrap;
+  border:0; background:transparent; color:var(--kd-label-secondary); font:inherit; font-size:13px;
+  cursor:pointer; border-radius:8px; transition:color .15s, background-color .15s; }
+.kd-tab:hover { color:var(--kd-label-primary); background:var(--kd-bg-layer-2); }
+.kd-tab.is-active { color:var(--kd-brand-primary); font-weight:600; background:color-mix(in srgb, var(--kd-brand-primary) 10%, var(--kd-surface)); }
+
 .kd-tab-count { min-width:17px; padding:0 5px; border-radius:999px; font-size:10.5px; line-height:17px;
-  text-align:center; background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-secondary); }
-.kd-tab.is-active .kd-tab-count { color:var(--dsw-alias-brand-primary); }
-.kd-card { border:1px solid var(--dsw-alias-border-l1); border-radius:14px;
-  background:var(--dsw-alias-bg-layer-1); padding:20px 22px; }
+  text-align:center; background:var(--kd-bg-layer-2); color:var(--kd-label-secondary); }
+.kd-tab.is-active .kd-tab-count { color:var(--kd-brand-primary); }
+.kd-card { border:1px solid var(--kd-border-l1); border-radius:14px;
+  background:var(--kd-bg-layer-1); padding:28px; box-shadow:0 4px 24px rgb(20 45 35 / 3%); }
 .kd-card + .kd-card { margin-top:14px; }
 .kd-meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:12px;
-  color:var(--dsw-alias-label-secondary); }
+  color:var(--kd-label-secondary); }
 .kd-meta-dot::before { content:'·'; margin-right:8px; }
 .kd-chips { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
 .kd-tag { display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:6px;
   font-size:11.5px; line-height:1.7; white-space:nowrap;
-  color:var(--dsw-alias-label-secondary); background:var(--dsw-alias-bg-layer-2); }
-.kd-tag-brand { color:var(--dsw-alias-brand-primary);
-  background:color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent); }
+  color:var(--kd-label-secondary); background:var(--kd-bg-layer-2); }
+.kd-tag-brand { color:var(--kd-brand-primary);
+  background:color-mix(in srgb, var(--kd-brand-primary) 10%, transparent); }
 .kd-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px;
-  font-size:11px; line-height:1.6; border:1px solid var(--dsw-alias-border-l2);
-  color:var(--dsw-alias-label-secondary); background:var(--dsw-alias-bg-layer-1); white-space:nowrap; }
-.kd-badge-ok { color:var(--dsw-alias-state-success-primary);
-  border-color:color-mix(in srgb, var(--dsw-alias-state-success-primary) 34%, transparent);
-  background:color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, transparent); }
-.kd-badge-bad { color:var(--dsw-alias-state-error-primary);
-  border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 34%, transparent);
-  background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
-.kd-badge-warn { color:var(--dsw-alias-state-warn-primary);
-  border-color:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 34%, transparent);
-  background:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent); }
-.kd-badge-brand { color:var(--dsw-alias-brand-primary);
-  border-color:color-mix(in srgb, var(--dsw-alias-brand-primary) 34%, transparent);
-  background:color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent); }
-.kd-stem { margin:14px 0 18px; font-size:15px; line-height:1.85; }
+  font-size:11px; line-height:1.6; border:1px solid var(--kd-border-l2);
+  color:var(--kd-label-secondary); background:var(--kd-bg-layer-1); white-space:nowrap; }
+.kd-badge-ok { color:var(--kd-state-success-primary);
+  border-color:color-mix(in srgb, var(--kd-state-success-primary) 34%, transparent);
+  background:color-mix(in srgb, var(--kd-state-success-primary) 10%, transparent); }
+.kd-badge-bad { color:var(--kd-state-error-primary);
+  border-color:color-mix(in srgb, var(--kd-state-error-primary) 34%, transparent);
+  background:color-mix(in srgb, var(--kd-state-error-primary) 10%, transparent); }
+.kd-badge-warn { color:var(--kd-state-warn-primary);
+  border-color:color-mix(in srgb, var(--kd-state-warn-primary) 34%, transparent);
+  background:color-mix(in srgb, var(--kd-state-warn-primary) 12%, transparent); }
+.kd-badge-brand { color:var(--kd-brand-primary);
+  border-color:color-mix(in srgb, var(--kd-brand-primary) 34%, transparent);
+  background:color-mix(in srgb, var(--kd-brand-primary) 10%, transparent); }
+.kd-stem { margin:24px 0; font-size:16px; line-height:1.85; }
 .kd-options { display:flex; flex-direction:column; gap:8px; margin:0 0 4px; }
-.kd-option { display:flex; gap:12px; align-items:flex-start; padding:12px 14px; border-radius:10px;
-  border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-base); cursor:pointer;
-  text-align:left; color:var(--dsw-alias-label-primary); font:inherit; font-size:14px;
+.kd-option { display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:12px;
+  border:1px solid var(--kd-border-l1); background:var(--kd-bg-base); cursor:pointer;
+  text-align:left; color:var(--kd-label-primary); font:inherit; font-size:14px;
   transition:background-color .15s, border-color .15s; }
-.kd-option:hover:not(:disabled) { border-color:var(--dsw-alias-border-l2);
-  background:var(--dsw-alias-bg-layer-2); }
+.kd-option:hover:not(:disabled) { border-color:var(--kd-border-l2);
+  background:var(--kd-bg-layer-2); }
 .kd-option:disabled { cursor:default; }
-.kd-option.is-selected { border-color:var(--dsw-alias-brand-primary);
-  background:color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, transparent); }
-.kd-option.is-correct { border-color:var(--dsw-alias-state-success-primary);
-  background:color-mix(in srgb, var(--dsw-alias-state-success-primary) 8%, transparent); }
-.kd-option.is-wrong { border-color:var(--dsw-alias-state-error-primary);
-  background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent); }
-.kd-option-key { flex:0 0 auto; width:24px; height:24px; border-radius:999px; display:inline-flex;
+.kd-option.is-selected { border-color:var(--kd-brand-primary);
+  background:color-mix(in srgb, var(--kd-brand-primary) 7%, transparent); }
+.kd-option.is-correct { border-color:color-mix(in srgb, var(--kd-state-success-primary) 45%, var(--kd-surface));
+  background:color-mix(in srgb, var(--kd-state-success-primary) 8%, transparent); }
+.kd-option.is-wrong { border-color:var(--kd-state-error-primary);
+  background:color-mix(in srgb, var(--kd-state-error-primary) 8%, transparent); }
+.kd-option-key { flex:0 0 auto; width:24px; height:24px; border-radius:8px; display:inline-flex;
   align-items:center; justify-content:center; font-size:12px; font-weight:600;
-  border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-base); }
-.kd-option.is-selected .kd-option-key { color:var(--dsw-alias-brand-primary); border-color:var(--dsw-alias-brand-primary); }
-.kd-option.is-correct .kd-option-key { color:var(--dsw-alias-state-success-primary); border-color:var(--dsw-alias-state-success-primary); }
-.kd-option.is-wrong .kd-option-key { color:var(--dsw-alias-state-error-primary); border-color:var(--dsw-alias-state-error-primary); }
+  border:1px solid var(--kd-border-l2); background:var(--kd-bg-base); }
+.kd-option.is-selected .kd-option-key { color:var(--kd-brand-primary); border-color:var(--kd-brand-primary); }
+.kd-option.is-correct .kd-option-key { color:var(--kd-state-success-primary); border-color:var(--kd-state-success-primary); }
+.kd-option.is-wrong .kd-option-key { color:var(--kd-state-error-primary); border-color:var(--kd-state-error-primary); }
 .kd-option-text { min-width:0; flex:1 1 auto; }
 .kd-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:16px; }
-.kd-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:32px;
+.kd-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px;
   padding:0 14px; border-radius:8px; font-family:inherit; font-size:13px; font-weight:500; cursor:pointer;
-  border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
-  color:var(--dsw-alias-label-primary);
+  border:1px solid var(--kd-border-l2); background:var(--kd-bg-layer-1);
+  color:var(--kd-label-primary);
   transition:background-color .15s, border-color .15s, color .15s; }
-.kd-btn:hover:not(:disabled) { background:var(--dsw-alias-bg-layer-2); }
+.kd-btn:hover:not(:disabled) { background:var(--kd-bg-layer-2); }
 .kd-btn:disabled { opacity:.5; cursor:not-allowed; }
-.kd-btn-primary { background:var(--dsw-alias-brand-primary); border-color:var(--dsw-alias-brand-primary); color:#fff; }
-.kd-btn-primary:hover:not(:disabled) { background:var(--dsw-alias-brand-primary); filter:brightness(1.07); }
-.kd-btn-ghost { border-color:transparent; background:transparent; color:var(--dsw-alias-label-secondary); }
-.kd-btn-ghost:hover:not(:disabled) { background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-primary); }
-.kd-btn-danger { color:var(--dsw-alias-state-error-primary); background:transparent;
-  border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 40%, transparent); }
-.kd-btn-danger:hover:not(:disabled) { background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
+.kd-btn-primary { background:var(--kd-brand-primary); border-color:var(--kd-brand-primary); color:#fff; }
+.kd-btn-primary:hover:not(:disabled) { background:var(--kd-brand-primary); filter:brightness(1.07); }
+.kd-btn-ghost { border-color:transparent; background:transparent; color:var(--kd-label-secondary); }
+.kd-btn-ghost:hover:not(:disabled) { background:var(--kd-bg-layer-2); color:var(--kd-label-primary); }
+.kd-btn-danger { color:var(--kd-state-error-primary); background:transparent;
+  border-color:color-mix(in srgb, var(--kd-state-error-primary) 40%, transparent); }
+.kd-btn-danger:hover:not(:disabled) { background:color-mix(in srgb, var(--kd-state-error-primary) 10%, transparent); }
 .kd-btn-sm { min-height:26px; padding:0 9px; font-size:12px; }
 .kd-iconbtn { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px;
-  border-radius:6px; border:0; background:transparent; color:var(--dsw-alias-label-secondary); cursor:pointer;
+  border-radius:6px; border:0; background:transparent; color:var(--kd-label-secondary); cursor:pointer;
   transition:background-color .15s, color .15s; }
-.kd-iconbtn:hover { background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-primary); }
+.kd-iconbtn:hover { background:var(--kd-bg-layer-2); color:var(--kd-label-primary); }
 .kd-answer { margin-top:6px; }
-.kd-answer-panel { margin-top:18px; border:1px solid var(--dsw-alias-border-l1); border-radius:14px;
-  background:var(--dsw-alias-bg-layer-1); overflow:hidden; }
+.kd-answer-panel { margin-top:18px; border:1px solid var(--kd-border-l1); border-radius:14px;
+  background:var(--kd-bg-layer-1); overflow:hidden; }
 .kd-answer-panel-head { display:flex; align-items:center; justify-content:space-between; gap:10px;
-  flex-wrap:wrap; padding:11px 18px; border-bottom:1px solid var(--dsw-alias-border-l1);
-  background:var(--dsw-alias-bg-layer-2); font-size:13px; font-weight:600; }
-.kd-answer-panel-head .kd-tag { background:var(--dsw-alias-bg-layer-1); font-weight:400; }
+  flex-wrap:wrap; padding:11px 18px; border-bottom:1px solid var(--kd-border-l1);
+  background:color-mix(in srgb, var(--kd-brand-primary) 5%, var(--kd-surface)); font-size:13px; font-weight:600; }
+.kd-answer-panel-head .kd-tag { background:var(--kd-bg-layer-1); font-weight:400; }
 .kd-answer-panel-body { padding:18px; }
 .kd-answer-block + .kd-answer-block { margin-top:18px; padding-top:16px;
-  border-top:1px solid var(--dsw-alias-border-l1); }
-.kd-answer-label { font-size:10.5px; letter-spacing:.1em; color:var(--dsw-alias-label-secondary);
+  border-top:1px solid var(--kd-border-l1); }
+.kd-answer-label { font-size:10.5px; letter-spacing:.1em; color:var(--kd-label-secondary);
   margin-bottom:6px; }
 .kd-verify { margin-top:14px; padding:11px 13px; border-radius:10px; font-size:12px; line-height:1.7;
-  border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-2);
-  color:var(--dsw-alias-label-secondary); }
+  border:1px solid var(--kd-border-l1); background:var(--kd-bg-layer-2);
+  color:var(--kd-label-secondary); }
 .kd-verify ul { margin:6px 0 0; padding-left:18px; }
 .kd-list-row { display:flex; gap:14px; align-items:flex-start; width:100%; text-align:left;
-  padding:14px 16px; border-radius:12px; border:1px solid var(--dsw-alias-border-l1);
-  background:var(--dsw-alias-bg-layer-1); cursor:pointer; color:var(--dsw-alias-label-primary);
+  padding:14px 16px; border-radius:12px; border:1px solid var(--kd-border-l1);
+  background:var(--kd-bg-layer-1); color:var(--kd-label-primary);
   font:inherit; transition:background-color .15s, border-color .15s; }
+.kd-list-row > .kd-btn { flex:none; white-space:nowrap; }
+.kd-list-row[role=button] { cursor:pointer; }
+.kd-list-open { flex:none; display:flex; align-items:center; gap:6px; font-size:12px; color:var(--kd-label-secondary); white-space:nowrap; }
 .kd-list-row + .kd-list-row { margin-top:8px; }
-.kd-list-row:hover { border-color:var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-2); }
+.kd-list-row:hover { border-color:var(--kd-border-l2); background:var(--kd-bg-layer-2); }
 .kd-list-body { min-width:0; flex:1 1 auto; }
-.kd-list-summary { font-size:13.5px; line-height:1.7; overflow:hidden; display:-webkit-box;
-  -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.kd-list-summary { --kd-preview-line-height:28px; font-size:14px; line-height:var(--kd-preview-line-height); min-width:0;
+  max-height:calc(2 * var(--kd-preview-line-height)); overflow:hidden; }
+.kd-list-summary .kd-md { line-height:inherit; }
+.kd-list-summary .kd-md > * { display:inline; }
+.kd-list-summary .kd-p, .kd-list-summary .kd-h, .kd-list-summary .kd-mathblock { margin:0; }
+.kd-list-summary .kd-p::after { content:' '; }
+.kd-list-summary .kd-mathblock { display:inline; padding:0; text-align:left; vertical-align:baseline; }
+.kd-list-summary mjx-container[display=true] { margin:0; }
+.kd-list-summary .kd-code-wrap { margin:0; border:0; }
+.kd-list-summary .kd-code-lang { display:none; }
+.kd-list-summary .kd-code { display:inline; padding:0; line-height:inherit; white-space:pre-wrap; }
+.kd-list-summary.is-truncated { mask-image:linear-gradient(#000,#000),linear-gradient(to right,#000 var(--kd-preview-fade-start),transparent var(--kd-preview-fade-end));
+  mask-size:100% var(--kd-preview-fade-top),100% calc(100% - var(--kd-preview-fade-top)); mask-position:top,bottom; mask-repeat:no-repeat; }
 .kd-list-meta { margin-top:7px; display:flex; gap:6px; flex-wrap:wrap; font-size:11px;
-  color:var(--dsw-alias-label-secondary); align-items:center; }
-.kd-empty { padding:56px 24px; text-align:center; color:var(--dsw-alias-label-secondary); }
+  color:var(--kd-label-secondary); align-items:center; }
+.kd-empty { padding:56px 24px; text-align:center; color:var(--kd-label-secondary); }
 .kd-empty-icon { width:44px; height:44px; margin:0 auto 14px; border-radius:50%; display:flex;
-  align-items:center; justify-content:center; border:1px solid var(--dsw-alias-border-l1);
-  background:var(--dsw-alias-bg-layer-1); color:var(--dsw-alias-label-secondary); }
-.kd-empty-title { font-size:15px; font-weight:600; color:var(--dsw-alias-label-primary); margin-bottom:6px; }
+  align-items:center; justify-content:center; border:1px solid var(--kd-border-l1);
+  background:var(--kd-bg-layer-1); color:var(--kd-label-secondary); }
+.kd-empty-title { font-size:15px; font-weight:600; color:var(--kd-label-primary); margin-bottom:6px; }
 .kd-empty-body { font-size:13px; max-width:460px; margin:0 auto; line-height:1.8; }
 .kd-empty .kd-actions { justify-content:center; }
 .kd-overlay { position:absolute; inset:0; background:rgba(0,0,0,.38); display:flex; align-items:center;
   justify-content:center; padding:24px; z-index:40; backdrop-filter:blur(2px); }
 .kd-modal { width:min(580px,100%); max-height:100%; display:flex; flex-direction:column;
-  background:var(--dsw-alias-bg-overlay); color:var(--dsw-alias-label-primary);
-  border:1px solid var(--dsw-alias-border-l2); border-radius:16px; overflow:hidden;
+  background:var(--kd-bg-overlay); color:var(--kd-label-primary);
+  border:1px solid var(--kd-border-l2); border-radius:16px; overflow:hidden;
   box-shadow:0 16px 48px rgba(0,0,0,.24); }
 .kd-modal-wide { width:min(880px,100%); }
-.kd-modal-head { padding:16px 20px; border-bottom:1px solid var(--dsw-alias-border-l1);
+.kd-modal-head { padding:16px 20px; border-bottom:1px solid var(--kd-border-l1);
   display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .kd-modal-title { font-size:15px; font-weight:650; letter-spacing:.01em; }
 .kd-modal-body { padding:18px 20px; overflow:auto; min-height:0; }
-.kd-modal-foot { padding:14px 20px; border-top:1px solid var(--dsw-alias-border-l1);
+.kd-modal-foot { padding:14px 20px; border-top:1px solid var(--kd-border-l1);
   display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
 .kd-field { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
-.kd-field-label { font-size:12px; font-weight:500; color:var(--dsw-alias-label-secondary); }
-.kd-input { height:34px; padding:0 11px; border-radius:8px; border:1px solid var(--dsw-alias-border-l2);
-  background:var(--dsw-alias-bg-base); color:var(--dsw-alias-label-primary); font:inherit; font-size:13px;
+.kd-field-label { font-size:12px; font-weight:500; color:var(--kd-label-secondary); }
+.kd-input { height:34px; padding:0 11px; border-radius:8px; border:1px solid var(--kd-border-l2);
+  background:var(--kd-bg-base); color:var(--kd-label-primary); font:inherit; font-size:13px;
   transition:border-color .15s, box-shadow .15s; }
-.kd-input:focus { outline:none; border-color:var(--dsw-alias-brand-primary);
-  box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, transparent); }
-.kd-input::placeholder { color:var(--dsw-alias-label-secondary); }
+.kd-input:focus { outline:none; border-color:var(--kd-brand-primary);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--kd-brand-primary) 14%, transparent); }
+.kd-input::placeholder { color:var(--kd-label-secondary); }
 .kd-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .kd-row-between { display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-.kd-divider { height:1px; background:var(--dsw-alias-border-l1); margin:16px 0; }
-.kd-preview-item { border:1px solid var(--dsw-alias-border-l1); border-radius:12px; padding:12px 14px;
-  background:var(--dsw-alias-bg-base); }
+.kd-divider { height:1px; background:var(--kd-border-l1); margin:16px 0; }
+.kd-preview-item { border:1px solid var(--kd-border-l1); border-radius:12px; padding:12px 14px;
+  background:var(--kd-bg-base); }
 .kd-preview-item + .kd-preview-item { margin-top:8px; }
-.kd-warn-text { color:var(--dsw-alias-state-warn-primary); font-size:12px; line-height:1.7; }
-.kd-error-text { color:var(--dsw-alias-state-error-primary); font-size:12px; line-height:1.7; }
+.kd-warn-text { color:var(--kd-state-warn-primary); font-size:12px; line-height:1.7; }
+.kd-error-text { color:var(--kd-state-error-primary); font-size:12px; line-height:1.7; }
 .kd-toast { position:absolute; left:50%; bottom:24px; transform:translateX(-50%); z-index:60;
   padding:9px 18px; border-radius:999px; font-size:13px; max-width:80%;
-  background:var(--dsw-alias-bg-overlay); border:1px solid var(--dsw-alias-border-l2);
+  background:var(--kd-bg-overlay); border:1px solid var(--kd-border-l2);
   box-shadow:0 8px 24px rgba(0,0,0,.18); }
-.kd-toast-bad { color:var(--dsw-alias-state-error-primary); }
-.kd-toast-ok { color:var(--dsw-alias-state-success-primary); }
-.kd-toast-warn { color:var(--dsw-alias-state-warn-primary); }
-.kd-loading { padding:48px 0; text-align:center; color:var(--dsw-alias-label-secondary); font-size:13px; }
+.kd-toast-bad { color:var(--kd-state-error-primary); }
+.kd-toast-ok { color:var(--kd-state-success-primary); }
+.kd-toast-warn { color:var(--kd-state-warn-primary); }
+.kd-loading { padding:48px 0; text-align:center; color:var(--kd-label-secondary); font-size:13px; }
 .kd-spinner { display:inline-block; width:14px; height:14px; border-radius:50%; vertical-align:-2px;
-  border:2px solid var(--dsw-alias-border-l2); border-top-color:var(--dsw-alias-brand-primary);
+  border:2px solid var(--kd-border-l2); border-top-color:var(--kd-brand-primary);
   animation:kd-spin .8s linear infinite; margin-right:8px; }
 @keyframes kd-spin { to { transform:rotate(360deg); } }
-.kd-mobilebar { display:none; gap:8px; padding:10px 14px; border-bottom:1px solid var(--dsw-alias-border-l1);
+.kd-mobilebar { display:none; gap:8px; padding:10px 14px; border-bottom:1px solid var(--kd-border-l1);
   overflow:auto; }
+.kd-mobilebar > * { flex:0 0 auto; white-space:nowrap; }
+.kd-mobilebar .kd-select { max-width:180px; }
 .kd-md { line-height:1.78; overflow-wrap:anywhere; }
 .kd-md > *:first-child { margin-top:0; }
 .kd-md > *:last-child { margin-bottom:0; }
@@ -785,57 +819,105 @@ window.__ModuleLoader__.load({
 .kd-h4, .kd-h5, .kd-h6 { font-size:14px; }
 .kd-list { margin:8px 0; padding-left:22px; }
 .kd-list li { margin:3px 0; }
-.kd-quote { margin:10px 0; padding:6px 12px; border-left:3px solid var(--dsw-alias-border-l2);
-  color:var(--dsw-alias-label-secondary); }
-.kd-hr { border:0; border-top:1px solid var(--dsw-alias-border-l1); margin:14px 0; }
-.kd-link { color:var(--dsw-alias-brand-primary); text-decoration:underline; text-underline-offset:2px; }
+.kd-quote { margin:10px 0; padding:6px 12px; border-left:3px solid var(--kd-border-l2);
+  color:var(--kd-label-secondary); }
+.kd-hr { border:0; border-top:1px solid var(--kd-border-l1); margin:14px 0; }
+.kd-link { color:var(--kd-brand-primary); text-decoration:underline; text-underline-offset:2px; }
 .kd-inline-code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.9em;
-  padding:1px 5px; border-radius:5px; background:var(--dsw-alias-bg-layer-2);
-  border:1px solid var(--dsw-alias-border-l1); }
-.kd-code-wrap { margin:10px 0; border-radius:10px; overflow:hidden; border:1px solid var(--dsw-alias-border-l1);
-  background:var(--dsw-alias-bg-layer-2); }
-.kd-code-lang { padding:3px 10px; font-size:11px; color:var(--dsw-alias-label-secondary);
-  border-bottom:1px solid var(--dsw-alias-border-l1); }
+  padding:1px 5px; border-radius:5px; background:var(--kd-bg-layer-2);
+  border:1px solid var(--kd-border-l1); }
+.kd-code-wrap { margin:10px 0; border-radius:10px; overflow:hidden; border:1px solid var(--kd-border-l1);
+  background:var(--kd-bg-layer-2); }
+.kd-code-lang { padding:3px 10px; font-size:11px; color:var(--kd-label-secondary);
+  border-bottom:1px solid var(--kd-border-l1); }
 .kd-code { margin:0; padding:10px 12px; overflow:auto; font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
   font-size:12.5px; line-height:1.6; white-space:pre; tab-size:2; }
 .kd-code code { font:inherit; }
 .kd-table-wrap { overflow:auto; margin:10px 0; }
 .kd-table { border-collapse:collapse; font-size:13px; min-width:0; }
-.kd-table th, .kd-table td { border:1px solid var(--dsw-alias-border-l1); padding:5px 10px; text-align:left; }
-.kd-table th { background:var(--dsw-alias-bg-layer-2); font-weight:600; }
+.kd-table th, .kd-table td { border:1px solid var(--kd-border-l1); padding:5px 10px; text-align:left; }
+.kd-table th { background:var(--kd-bg-layer-2); font-weight:600; }
 .kd-image { max-width:100%; height:auto; border-radius:8px; display:block; margin:8px 0; }
 .kd-image-fallback { display:inline-block; font-family:ui-monospace,monospace; font-size:12px;
-  color:var(--dsw-alias-state-warn-primary); border:1px dashed var(--dsw-alias-state-warn-primary);
+  color:var(--kd-state-warn-primary); border:1px dashed var(--kd-state-warn-primary);
   border-radius:6px; padding:2px 6px; }
-.kd-math { display:inline-block; vertical-align:middle; max-width:100%; }
-.kd-math mjx-container { color:currentColor; }
-.kd-mathblock { display:block; margin:10px 0; padding:.35em .2em; overflow-x:auto; overflow-y:hidden;
+.kd-math, .kd-mathblock { font-size:17px; }
+.kd-math { display:inline-flex; vertical-align:baseline; align-items:baseline; max-width:100%; padding:.25em .1em;
+  overflow-x:auto; overflow-y:hidden; }
+.kd-math mjx-container { color:currentColor; flex:none; }
+.kd-mathblock { display:block; max-width:100%; min-width:0; margin:10px 0; padding:.35em .2em; overflow-x:auto; overflow-y:hidden;
   text-align:center; }
-.kd-mathblock mjx-container { display:inline-block; max-width:100%; }
+.kd-page .kd-math mjx-container, .kd-page .kd-mathblock mjx-container {
+  display:inline-block; font-size:100% !important; max-width:none; }
+.kd-page .kd-math svg, .kd-page .kd-mathblock svg { max-width:none !important; }
 .kd-math-pending { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.9em;
   opacity:.55; white-space:pre-wrap; }
-.kd-math-error { color:var(--dsw-alias-state-error-primary);
+.kd-math-error { color:var(--kd-state-error-primary);
   font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.9em; }
 .kd-checkline { display:flex; gap:8px; align-items:flex-start; padding:5px 0; font-size:13px; }
 .kd-chip { display:inline-flex; align-items:center; gap:2px; padding:0 2px 0 8px; border-radius:999px;
-  border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1); font-size:12px; }
+  border:1px solid var(--kd-border-l2); background:var(--kd-bg-layer-1); font-size:12px; }
 .kd-chip .kd-checkline { padding:0; }
 .kd-chip .kd-iconbtn { width:20px; height:20px; }
+.kd-option.is-correct { border-color:#22c55e; }
+.kd-option.is-wrong { border-color:#f35464; }
+.kd-page input[type=checkbox] { accent-color:var(--kd-brand-primary); width:16px; height:16px; flex:none; }
+.kd-btn, .kd-iconbtn, .kd-tab, .kd-nav-item, .kd-option, .kd-list-row {
+  transition:background-color .16s, border-color .16s, color .16s, box-shadow .16s, transform .16s; }
+.kd-btn:active:not(:disabled), .kd-iconbtn:active, .kd-tab:active, .kd-nav-item:active { transform:scale(.97); }
+.kd-option:active:not(:disabled) { transform:translateY(1px); }
+.kd-view { animation:kd-enter .2s ease-out; }
+.kd-presence { display:contents; }
+.kd-overlay { animation:kd-fade .16s ease-out; background:rgb(18 27 52 / 28%); backdrop-filter:blur(5px); }
+.kd-modal { animation:kd-enter .18s ease-out; box-shadow:0 24px 80px rgb(12 25 60 / 18%); border-radius:20px; }
+.kd-presence.is-leaving .kd-overlay { animation:kd-fade .16s ease-in reverse both; pointer-events:none; }
+.kd-presence.is-leaving .kd-modal { animation:kd-enter .16s ease-in reverse both; }
+.kd-thread { animation:kd-drawer .2s ease-out; }
+.kd-presence.is-leaving .kd-thread { animation:kd-drawer .16s ease-in reverse both; pointer-events:none; }
+.kd-modal-head { padding:22px 24px; }
+.kd-modal-title { font-size:18px; }
+.kd-modal-body { padding:20px 24px; background:color-mix(in srgb, var(--kd-brand-primary) 2%, var(--kd-surface)); }
+.kd-modal-foot { padding:16px 24px; }
+.kd-manage-card { padding:16px; border:1px solid var(--kd-border-l1); border-radius:14px; background:var(--kd-bg-base); margin-bottom:10px; }
+.kd-manage-card.is-enabled { border-color:color-mix(in srgb, var(--kd-brand-primary) 25%, var(--kd-surface)); }
+.kd-manage-card .kd-checkline { font-weight:550; }
+.kd-manage-card .kd-msg-meta { font-weight:400; line-height:1.7; }
+.kd-custom-subject { padding:20px; border-radius:14px; border:1px solid var(--kd-border-l1); background:var(--kd-bg-base); }
+.kd-field-label { font-size:13px; }
+.kd-input { height:38px; }
+.kd-bulkbar { position:sticky; top:0; z-index:5; display:flex; flex-direction:column; gap:10px; padding:14px;
+  margin-bottom:14px; border-radius:14px; border:1px solid color-mix(in srgb, var(--kd-brand-primary) 25%, var(--kd-surface));
+  background:var(--kd-bg-base); box-shadow:0 5px 20px rgb(20 35 70 / 5%); animation:kd-enter .18s ease-out; }
+.kd-list-row.is-selected { border-color:var(--kd-brand-primary); background:color-mix(in srgb, var(--kd-brand-primary) 5%, var(--kd-surface)); }
+.kd-list-row input { margin-top:5px; }
+@keyframes kd-fade { from { opacity:0; } to { opacity:1; } }
+@keyframes kd-enter { from { opacity:0; transform:translateY(8px) scale(.99); } to { opacity:1; transform:none; } }
+@keyframes kd-drawer { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:none; } }
 @media (max-width: 1180px) {
-  .kd-thread { position:absolute; right:0; top:0; bottom:0; width:min(370px,92vw); z-index:30;
+  .kd-thread { position:absolute; right:0; top:0; bottom:0; width:min(370px,92vw); flex-basis:auto; z-index:30;
     box-shadow:-12px 0 32px rgba(0,0,0,.22); }
+  .kd-thread-resize { display:none; }
 }
 @media (max-width: 860px) {
   .kd-nav { display:none; }
   .kd-mobilebar { display:flex; }
-  .kd-main { padding:16px 14px 40px; }
+  .kd-main-toolbar { padding:16px 14px; }
+  .kd-main-scroll { padding:0 14px 40px; }
   .kd-header { padding:14px 14px 12px; gap:10px; }
+  .kd-header-left { flex-basis:100%; }
   .kd-cd-lines { align-items:flex-start; text-align:left; }
+  .kd-cd-primary { font-size:19px; }
+  .kd-tabs { flex:1; }
+  .kd-tab { flex:1 0 auto; justify-content:center; padding:7px 10px; }
   .kd-strip-item { white-space:normal; }
   .kd-card { padding:16px 14px; }
   .kd-answer-panel-body { padding:14px; }
   .kd-exam-strip { padding:8px 10px; }
 }
+@media (prefers-reduced-motion: reduce) {
+  .kd-page *, .kd-page *::before, .kd-page *::after { transition:none !important; animation:none !important; }
+}
+
 `
 
     /* ============================== 接口 ============================== */
@@ -896,6 +978,7 @@ window.__ModuleLoader__.load({
       check: 'M4 12.5l5 5L20 6.5',
       x: 'M6 6l12 12M18 6L6 18',
       chevron: 'M9 6l6 6-6 6',
+      'chevron-left': 'M15 6l-6 6 6 6',
       send: 'M4 12l16-8-6 8 6 8z',
       book: 'M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z',
       plus: 'M12 5v14M5 12h14',
@@ -914,13 +997,14 @@ window.__ModuleLoader__.load({
       }, h('path', { d: path }))
     }
 
-    function Btn({ children, onClick, variant = 'default', disabled, title, small, type = 'button' }) {
+    function Btn({ children, onClick, variant = 'default', disabled, title, small, type = 'button', ariaLabel }) {
       return h('button', {
         type,
         className: `kd-btn kd-btn-${variant}${small ? ' kd-btn-sm' : ''}`,
         onClick,
         disabled,
         title,
+        'aria-label': ariaLabel,
       }, children)
     }
 
@@ -935,6 +1019,17 @@ window.__ModuleLoader__.load({
         title ? h('div', { className: 'kd-empty-title' }, title) : null,
         body ? h('div', { className: 'kd-empty-body' }, body) : null,
         actions ? h('div', { className: 'kd-actions' }, actions) : null)
+    }
+
+    function Presence({ children }) {
+      const active = Array.isArray(children) ? children.some(Boolean) : Boolean(children)
+      const [retained, setRetained] = useState(children)
+      useEffect(() => {
+        if (active) { setRetained(children); return undefined }
+        const timer = setTimeout(() => setRetained([]), 160)
+        return () => clearTimeout(timer)
+      }, [children, active])
+      return h('div', { className: 'kd-presence' + (active ? '' : ' is-leaving') }, active ? children : retained)
     }
 
     function Modal({ title, children, footer, onClose, wide }) {
@@ -976,12 +1071,12 @@ window.__ModuleLoader__.load({
       return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
     }
 
-    /** 严格的三行倒计时。 */
+    /** 剩余不超过 30 天时省略中间的时长行。 */
     function CountdownLines({ countdown }) {
       const lines = (countdown || {}).lines || {}
       return h('div', { className: 'kd-cd-lines' },
         h('div', { className: 'kd-cd-primary' }, lines.primary || ''),
-        h('div', { className: 'kd-cd-secondary' }, lines.secondary || ''),
+        lines.secondary ? h('div', { className: 'kd-cd-secondary' }, lines.secondary) : null,
         h('div', { className: 'kd-cd-target' }, lines.target || ''))
     }
 
@@ -1077,7 +1172,7 @@ window.__ModuleLoader__.load({
         }, label, count ? h('span', { className: 'kd-tab-count' }, String(count)) : null)))
     }
 
-    function MobileBar({ boot, subjectId, kind, onPick, onTab, onManage, onBanks }) {
+    function MobileBar({ boot, subjectId, onPick, onManage, onBanks }) {
       const enabled = (boot.subjects || []).filter((subject) => subject.enabled)
       return h('div', { className: 'kd-mobilebar' },
         h('select', {
@@ -1086,13 +1181,6 @@ window.__ModuleLoader__.load({
           'aria-label': '切换科目',
           onChange: (event) => onPick(event.target.value),
         }, enabled.map((subject) => h('option', { key: subject.id, value: subject.id }, subject.name))),
-        ['today', 'all', 'favorite', 'wrong'].map((value) => h('button', {
-          key: value,
-          type: 'button',
-          className: `kd-nav-item${kind === value ? ' is-active' : ''}`,
-          style: { width: 'auto' },
-          onClick: () => onTab(value),
-        }, T.tabs[value])),
         // 窄屏隐藏了左侧栏，科目的增删与题库入口必须在这里保留。
         h(Btn, { small: true, variant: 'ghost', onClick: onManage }, h(Icon, { name: 'plus', size: 13 }), T.manageSubjects),
         h(Btn, { small: true, variant: 'ghost', onClick: onBanks }, h(Icon, { name: 'book', size: 13 }), T.manageBanks))
@@ -1184,7 +1272,7 @@ window.__ModuleLoader__.load({
 
     function QuestionPane({
       q, busy, choice, onSelect, onReveal, onJudge, onFavorite, onRedo, localRedo,
-      onRevise, revising, onToggleThread, threadOpen, narrow, onRemoveWrong,
+      onRevise, revising, onToggleThread, threadOpen, onRemoveWrong,
     }) {
       if (!q) return null
       const revealed = !localRedo && q.answerState === 'revealed' && q.attemptCount > 0
@@ -1255,9 +1343,7 @@ window.__ModuleLoader__.load({
             revealed
               ? h(Btn, { variant: 'ghost', onClick: onRedo, disabled: busy === 'reveal' }, h(Icon, { name: 'refresh', size: 13 }), T.redo)
               : null,
-            narrow
-              ? h(Btn, { variant: 'ghost', onClick: onToggleThread }, h(Icon, { name: 'book' }), threadOpen ? '收起追问' : T.followup)
-              : null),
+            revealed ? h(Btn, { variant: 'ghost', onClick: onToggleThread }, h(Icon, { name: 'book' }), threadOpen ? '收起追问' : T.followup) : null),
           revealed ? h(AnswerBlock, { question: q, onRevise, revising, onRemoveWrong }) : null,
           revealed && last?.result === 'pending'
             ? h('div', { className: 'kd-actions', style: { marginTop: '12px' } },
@@ -1270,7 +1356,7 @@ window.__ModuleLoader__.load({
             h(Badge, { tone: q.publishVerification.status === 'passed' ? 'ok' : 'warn' },
               q.publishVerification.status === 'passed' ? '试题发布前已通过独立校验' : '试题发布状态：待核验'),
             // 校验结论里通常写着答案与关键推导，提交答案前不能展示，否则等于泄题。
-            q.answerState === 'revealed'
+            revealed
               ? ` ${q.publishVerification.summary}`
               : ' 结论在提交答案后显示',
             `（${methodLabel(q.publishVerification.method)}${q.publishVerification.at ? `，${formatDateTime(q.publishVerification.at)}` : ''}）`)
@@ -1278,7 +1364,59 @@ window.__ModuleLoader__.load({
     }
 
     /* ============================== 列表 ============================== */
-    function ListPane({ list, kind, subjectName, onOpen }) {
+    function previewFadePosition(element, lineHeight) {
+      const bounds = element.getBoundingClientRect()
+      const rects = []
+      const document = element.ownerDocument
+      const walker = document.createTreeWalker(element, 4) // 只测量正文文字，公式由 SVG 的外框参与定位。
+      const range = document.createRange()
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (!node.textContent.trim() || node.parentElement.closest('mjx-container,.kd-code-lang')) continue
+        range.setStart(node, 0)
+        range.setEnd(node, node.textContent.trimEnd().length)
+        rects.push(...range.getClientRects())
+      }
+      for (const node of element.querySelectorAll('svg,img')) rects.push(node.getBoundingClientRect())
+      const visible = rects.filter((rect) => rect.width > 0 && rect.height > 0
+        && rect.top < bounds.bottom - 1 && rect.bottom > bounds.top
+        && rect.left < bounds.right && rect.right > bounds.left)
+      if (!visible.length) return null
+      const lineOf = (rect) => Math.max(0, Math.min(1, Math.floor(((rect.top + rect.bottom) / 2 - bounds.top) / lineHeight)))
+      const lastLine = Math.max(...visible.map(lineOf))
+      const end = Math.min(bounds.width, Math.max(...visible.filter((rect) => lineOf(rect) === lastLine).map((rect) => rect.right - bounds.left)))
+      return { top: lastLine * lineHeight, start: Math.max(0, end - 72), end }
+    }
+
+    function QuestionPreview({ text }) {
+      const ref = useRef(null)
+      const [truncated, setTruncated] = useState(false)
+      const mathStatus = useMathJaxStatus()
+      useEffect(() => {
+        const element = ref.current
+        if (!element) return undefined
+        const measure = () => {
+          let lineHeight = 28
+          for (const svg of element.querySelectorAll('svg')) lineHeight = Math.max(lineHeight, Math.ceil(svg.getBoundingClientRect().height + 16))
+          element.style.setProperty('--kd-preview-line-height', `${lineHeight}px`)
+          const content = element.firstElementChild
+          const clipped = element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1
+            || (content && content.scrollHeight > content.clientHeight + 1)
+          const fade = clipped && previewFadePosition(element, lineHeight)
+          if (fade) {
+            for (const [key, value] of Object.entries(fade)) element.style.setProperty(`--kd-preview-fade-${key}`, `${value}px`)
+          }
+          setTruncated(Boolean(fade))
+        }
+        measure()
+        const observer = new ResizeObserver(measure)
+        observer.observe(element)
+        if (element.firstElementChild) observer.observe(element.firstElementChild)
+        return () => observer.disconnect()
+      }, [text, mathStatus])
+      return h('div', { ref, className: 'kd-list-summary' + (truncated ? ' is-truncated' : '') }, h(Markdown, { text }))
+    }
+
+    function ListPane({ list, kind, subjectName, onOpen, managing, selected, onManage, onToggle, onSelectAll, onBulk, busy }) {
       if (!list) return h('div', { className: 'kd-loading' }, h('span', { className: 'kd-spinner' }), '加载中…')
       if (!list.items.length) {
         const icon = kind === 'favorite' ? 'star' : kind === 'wrong' ? 'check' : kind === 'all' ? 'book' : 'spark'
@@ -1290,33 +1428,49 @@ window.__ModuleLoader__.load({
       }
       return h('div', null,
         h('div', { className: 'kd-meta', style: { marginBottom: '10px' } },
-          h('span', null, `${subjectName} · ${T.tabs[kind]} · 共 ${list.items.length} 道`)),
-        list.items.map((item) => h('button', {
+          h('span', null, `${subjectName} · ${T.tabs[kind]} · 共 ${list.items.length} 道`),
+          h(Btn, { small: true, onClick: onManage, disabled: busy }, managing ? '完成管理' : '批量管理')),
+        managing ? h('div', { className: 'kd-bulkbar', 'aria-label': '批量管理' },
+          h('div', { className: 'kd-row' },
+            h('strong', { 'aria-live': 'polite' }, `已选 ${selected.length} 道`),
+            h(Btn, { small: true, disabled: busy, onClick: () => onSelectAll(true) }, '全选'),
+            h(Btn, { small: true, disabled: busy || !selected.length, onClick: () => onSelectAll(false) }, '全不选')),
+          h('div', { className: 'kd-row' },
+            ...[['favorite', '收藏'], ['unfavorite', '取消收藏'], ['wrong', '加入错题本'], ['unwrong', '移出错题本'], ['delete', '删除题目']].map(([action, label]) =>
+              h(Btn, { key: action, small: true, variant: action === 'delete' ? 'danger' : 'default', disabled: busy || !selected.length, onClick: () => onBulk(action) }, label)))) : null,
+        list.items.map((item) => h('div', {
           key: item.id,
-          type: 'button',
-          className: 'kd-list-row',
-          onClick: () => onOpen(item.id),
+          className: 'kd-list-row' + (managing && selected.includes(item.id) ? ' is-selected' : ''),
+          role: managing ? undefined : 'button',
+          tabIndex: managing ? undefined : 0,
+          onClick: managing ? undefined : (event) => { if (!event.target.closest('a,input')) onOpen(item.id) },
+          onKeyDown: managing ? undefined : (event) => {
+            if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key)) { event.preventDefault(); onOpen(item.id) }
+          },
         },
+        managing ? h('input', { type: 'checkbox', checked: selected.includes(item.id), disabled: busy,
+          'aria-label': '选择题目：' + (item.summary || item.id), onChange: () => onToggle(item.id) }) : null,
         h('div', { className: 'kd-list-body' },
-          h('div', { className: 'kd-list-summary' }, item.summary || '(无题干)'),
+          h(QuestionPreview, { text: item.stem || item.summary || '(无题干)' }),
           h('div', { className: 'kd-list-meta' },
             h(Badge, null, item.typeLabel),
             h('span', null, formatDate(item.assignedDate)),
             h('span', null, `作答 ${item.attemptCount} 次`),
             item.favorite ? h(Badge, { tone: 'brand' }, '收藏') : null,
-            item.wrongEver ? h(Badge, { tone: 'bad' }, item.mastered ? '曾答错 · 已掌握' : '错题') : null,
+            item.wrongEver ? h(Badge, { tone: 'bad' }, item.mastered ? '错题 · 已掌握' : '错题') : null,
             item.answerStatus !== 'verified' ? h(Badge, { tone: 'warn' }, T.unverified) : null,
             h('span', null, `难度 ${item.difficulty}/5`))),
-        h('span', { className: 'kd-iconbtn' }, h(Icon, { name: 'chevron' })))))
+        !managing ? h('span', { className: 'kd-list-open', 'aria-hidden': true }, '查看题目', h(Icon, { name: 'chevron' })) : null)))
     }
 
     /* ============================== 追问侧栏 ============================== */
-    function ThreadPane({ thread, questionId, busy, onSend, onClear, onClose, narrow }) {
+    function ThreadPane({ thread, questionId, busy, onSend, onClear, onClose, narrow, ratio = 33, onRatioChange }) {
       const [draft, setDraft] = useState('')
       const [sending, setSending] = useState(false)
       const [localError, setLocalError] = useState('')
       const [pending, setPending] = useState(null)
       const scrollRef = useRef(null)
+      const sendingRef = useRef(false)
       const messages = thread?.messages || []
 
       useEffect(() => {
@@ -1326,7 +1480,8 @@ window.__ModuleLoader__.load({
 
       const send = useCallback(async (text, messageId) => {
         const value = String(text || '').trim()
-        if (!value) return
+        if (!value || sendingRef.current) return
+        sendingRef.current = true
         setSending(true)
         setLocalError('')
         try {
@@ -1337,6 +1492,7 @@ window.__ModuleLoader__.load({
           setLocalError(error.message)
           setPending({ id: messageId, text: value })
         } finally {
+          sendingRef.current = false
           setSending(false)
         }
       }, [onSend])
@@ -1372,11 +1528,30 @@ window.__ModuleLoader__.load({
           h('span', { className: 'kd-spinner' }), T.sending))
       }
 
-      return h('aside', { className: 'kd-thread', 'aria-label': T.followup },
+      const resize = (value) => onRatioChange(Math.max(20, Math.min(55, value)))
+      return h('aside', { className: 'kd-thread', 'aria-label': T.followup, style: { '--kd-thread-ratio': ratio / 100 } },
+        !narrow ? h('div', { className: 'kd-thread-resize', role: 'separator', tabIndex: 0,
+          'aria-label': '调整题目与追问的宽度比例', 'aria-orientation': 'vertical',
+          'aria-valuemin': 20, 'aria-valuemax': 55, 'aria-valuenow': Math.round(ratio),
+          onPointerDown: (event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId) },
+          onPointerMove: (event) => {
+            if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+            const pane = event.currentTarget.parentElement
+            const left = pane.closest('.kd-shell').querySelector('.kd-main').getBoundingClientRect().left
+            const right = pane.getBoundingClientRect().right
+            resize((right - event.clientX) / (right - left) * 100)
+          },
+          onPointerUp: (event) => event.currentTarget.releasePointerCapture(event.pointerId),
+          onPointerCancel: (event) => event.currentTarget.releasePointerCapture(event.pointerId),
+          onKeyDown: (event) => {
+            const value = { ArrowLeft: ratio + 2, ArrowRight: ratio - 2, Home: 20, End: 55 }[event.key]
+            if (value !== undefined) { event.preventDefault(); resize(value) }
+          },
+        }) : null,
         h('div', { className: 'kd-thread-head' },
           h('div', null,
             h('div', { className: 'kd-thread-title' }, T.followup),
-            h('div', { className: 'kd-msg-meta' }, `题目 ${String(questionId || '').slice(0, 14)}`)),
+            h('div', { className: 'kd-msg-meta' }, '围绕当前题目，一起理清思路')),
           h('div', { className: 'kd-row' },
             h(Btn, {
               small: true,
@@ -1385,9 +1560,7 @@ window.__ModuleLoader__.load({
               onClick: onClear,
               title: '只清空本题的追问记录',
             }, T.clearThread),
-            narrow
-              ? h('button', { className: 'kd-iconbtn', onClick: onClose, 'aria-label': T.close }, h(Icon, { name: 'close' }))
-              : null)),
+            h('button', { className: 'kd-iconbtn', onClick: onClose, 'aria-label': T.close }, h(Icon, { name: 'close' })))),
         h('div', { className: 'kd-thread-hint' }, T.followupHint),
         h('div', { className: 'kd-thread-scroll', ref: scrollRef },
           rows.length ? rows : h('div', { className: 'kd-empty-body' }, '还没有追问。可以问某一步推导为什么成立、某个知识点怎么理解，或有没有别的解法。')),
@@ -1397,13 +1570,13 @@ window.__ModuleLoader__.load({
             h('textarea', {
               className: 'kd-textarea',
               value: draft,
-              placeholder: '围绕这道题继续追问…（Ctrl+Enter 发送）',
+              placeholder: '围绕这道题继续追问…（Enter 发送，Shift+Enter 换行）',
               disabled: sending,
               onChange: (event) => setDraft(event.target.value),
               onKeyDown: (event) => {
-                if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && !event.nativeEvent?.isComposing && event.keyCode !== 229) {
                   event.preventDefault()
-                  send(draft, newAttemptId())
+                  if (!event.repeat) send(draft, newAttemptId())
                 }
               },
             }),
@@ -1417,12 +1590,22 @@ window.__ModuleLoader__.load({
     }
 
     /* ============================== 弹窗 ============================== */
-    function SubjectsModal({ boot, onClose, onAdd, onRemove, onSource, onPick }) {
+    function SubjectsModal({ boot, onClose, onDone }) {
+      const [draft, setDraft] = useState(() => ({ subjects: [...boot.settings.subjects],
+        subjectSource: { ...boot.settings.subjectSource }, customSubjects: structuredClone(boot.customSubjects || []) }))
+      const [saving, setSaving] = useState(false)
+      const [saveError, setSaveError] = useState('')
       const [name, setName] = useState('')
       const [types, setTypes] = useState([])
       const [customTypes, setCustomTypes] = useState([])
       const [typeDraft, setTypeDraft] = useState('')
-      const enabled = new Set(boot.settings.subjects)
+      const enabled = new Set(draft.subjects)
+      const subjects = [...(boot.subjects || []), ...draft.customSubjects.filter((item) => !(boot.subjects || []).some((s) => s.id === item.id)).map((item) => ({
+        ...item, typeLabels: item.types.map((type) => ({ single: '单项选择题', multiple: '多项选择题', fill: '填空题', solution: '解答题' })[type] || type), bankItemCount: 0,
+      }))]
+      const close = () => { if (!saving) onClose() }
+      const toggleSubject = (id) => setDraft((current) => ({ ...current,
+        subjects: current.subjects.includes(id) ? current.subjects.filter((value) => value !== id) : [...current.subjects, id] }))
       const toggleType = (type) => setTypes((current) => current.includes(type)
         ? current.filter((item) => item !== type)
         : [...current, type])
@@ -1437,10 +1620,28 @@ window.__ModuleLoader__.load({
         setCustomTypes((current) => current.filter((item) => item !== value))
         setTypes((current) => current.filter((item) => item !== value))
       }
-      const canAdd = Boolean(name.trim()) && types.length > 0
+      const selectedTypes = [...new Set([...types, ...(typeDraft.trim() ? [typeDraft.trim().slice(0, 24)] : [])])]
+      const canAdd = Boolean(name.trim()) && selectedTypes.length > 0
+      const withCustomSubject = (current) => {
+        const subject = { id: 'custom_' + newAttemptId(), name: name.trim(), types: selectedTypes }
+        return { ...current, subjects: [...current.subjects, subject.id], customSubjects: [...current.customSubjects, subject] }
+      }
+      const finish = async () => {
+        if (saving) return
+        if ((name.trim() || types.length || typeDraft.trim()) && !canAdd) {
+          setSaveError('请填写自定义科目名称并至少选择一个题型，或清空未完成的输入。')
+          return
+        }
+        const next = canAdd ? withCustomSubject(draft) : draft
+        setSaving(true)
+        setSaveError('')
+        try { await onDone(next) }
+        catch (error) { setSaveError(error.message || '保存失败，请重试') }
+        finally { setSaving(false) }
+      }
       const submit = () => {
         if (!canAdd) return
-        onAdd({ name: name.trim(), types })
+        setDraft(withCustomSubject)
         setName('')
         setTypes([])
         setCustomTypes([])
@@ -1448,24 +1649,26 @@ window.__ModuleLoader__.load({
       }
       return h(Modal, {
         title: T.manageSubjects,
-        onClose,
+        onClose: close,
         wide: true,
         footer: [
-          h(Btn, { key: 'close', onClick: onClose }, T.close),
+          h(Btn, { key: 'cancel', onClick: close, disabled: saving }, T.cancel),
+          h(Btn, { key: 'done', variant: 'primary', onClick: finish, disabled: saving }, saving ? '保存中…' : '完成'),
         ],
       },
+      saveError ? h('div', { className: 'kd-error-text', role: 'alert' }, saveError) : null,
+      h('fieldset', { disabled: saving, style: { border: 0, padding: 0, margin: 0, minWidth: 0 } },
       h('div', { className: 'kd-meta', style: { marginBottom: '12px' } },
-        '勾选要每天出题的科目。取消勾选只会移出每日出题，该科目已出过的题目、收藏、错题与作答记录都会保留。'),
-      (boot.subjects || []).map((subject) => h('div', {
+        '修改后点击右下角「完成」统一保存；取消或关闭会放弃修改。停用科目不会删除历史题目、作答、收藏和追问。'),
+      subjects.map((subject) => h('div', {
         key: subject.id,
-        className: 'kd-row-between',
-        style: { padding: '8px 0', borderBottom: '1px solid var(--dsw-alias-border-l1)' },
+        className: 'kd-row-between kd-manage-card' + (enabled.has(subject.id) ? ' is-enabled' : ''),
       },
       h('label', { className: 'kd-checkline', style: { flex: '1 1 240px', cursor: 'pointer' } },
         h('input', {
           type: 'checkbox',
           checked: enabled.has(subject.id),
-          onChange: () => (enabled.has(subject.id) ? onRemove(subject) : onAdd(subject)),
+          onChange: () => toggleSubject(subject.id),
         }),
         h('span', null,
           h('span', null, subject.name),
@@ -1475,24 +1678,19 @@ window.__ModuleLoader__.load({
         ? h('div', { className: 'kd-row' },
           h('select', {
             className: 'kd-select',
-            value: subject.source,
+            value: draft.subjectSource[subject.id] || 'auto',
             'aria-label': `${subject.name} 出题来源`,
-            onChange: (event) => onSource(subject.id, event.target.value),
+            onChange: (event) => { const source = event.target.value; setDraft((current) => ({ ...current, subjectSource: { ...current.subjectSource, [subject.id]: source } })) },
           },
           h('option', { value: 'auto' }, '自动（优先题库）'),
           h('option', { value: 'online' }, '在线出题'),
           h('option', { value: 'bank' }, '题库出题')),
           subject.bankItemCount
             ? h('span', { className: 'kd-msg-meta' }, `题库 ${subject.bankItemCount} 题`)
-            : h('span', { className: 'kd-msg-meta' }, '题库为空'),
-          h(Btn, {
-            small: true,
-            variant: 'ghost',
-            onClick: () => { onClose(); onPick(subject.id) },
-          }, '查看'))
+            : h('span', { className: 'kd-msg-meta' }, '题库为空'))
         : null)),
       h('div', { className: 'kd-divider' }),
-      h('div', { className: 'kd-field' },
+      h('div', { className: 'kd-field kd-custom-subject' },
         h('div', { className: 'kd-field-label' }, '添加自定义科目'),
         h('div', { className: 'kd-row' },
           h('input', {
@@ -1543,7 +1741,7 @@ window.__ModuleLoader__.load({
           }),
           h(Btn, { small: true, disabled: !typeDraft.trim(), onClick: addCustomType }, '添加题型')),
         h('div', { className: 'kd-msg-meta', style: { marginTop: '6px' } },
-          canAdd ? `将添加：${name.trim()}（${types.join(' / ')}）` : '填写科目名称并至少选择一个题型后即可添加')))
+          canAdd ? `将添加：${name.trim()}（${types.join(' / ')}）` : '填写科目名称并至少选择一个题型后即可添加'))))
     }
 
     function BanksModal({ boot, importResult, onClose, onPickFile, onDelete, onCommit, onCancelImport }) {
@@ -1601,8 +1799,7 @@ window.__ModuleLoader__.load({
       (boot.banks || []).length
         ? boot.banks.map((bank) => h('div', {
           key: bank.id,
-          className: 'kd-row-between',
-          style: { padding: '9px 0', borderBottom: '1px solid var(--dsw-alias-border-l1)' },
+          className: 'kd-row-between kd-manage-card',
         },
         h('div', { style: { minWidth: 0 } },
           h('div', null, bank.name),
@@ -1647,13 +1844,13 @@ window.__ModuleLoader__.load({
       h('div', { className: 'kd-msg-meta' }, '确认后才会替换正式版本；旧版本会保留在版本历史中。'))
     }
 
-    function ConfirmModal({ title, message, confirmLabel, onConfirm, onClose, danger }) {
+    function ConfirmModal({ title, message, confirmLabel, onConfirm, onClose, danger, busy }) {
       return h(Modal, {
         title,
         onClose,
         footer: [
-          h(Btn, { key: 'cancel', onClick: onClose }, T.cancel),
-          h(Btn, { key: 'ok', variant: danger ? 'danger' : 'primary', onClick: onConfirm }, confirmLabel || T.confirm),
+          h(Btn, { key: 'cancel', onClick: onClose, disabled: busy }, T.cancel),
+          h(Btn, { key: 'ok', variant: danger ? 'danger' : 'primary', onClick: onConfirm, disabled: busy }, busy ? '正在处理…' : (confirmLabel || T.confirm)),
         ],
       }, h('div', { className: 'kd-md' }, message))
     }
@@ -1670,15 +1867,27 @@ window.__ModuleLoader__.load({
       const [thread, setThread] = useState(null)
       const [list, setList] = useState(null)
       const [busy, setBusy] = useState('')
+      const [managing, setManaging] = useState(false)
+      const [selected, setSelected] = useState([])
+      const bulkLock = useRef(false)
       const [fail, setFail] = useState('')
       const [toast, setToast] = useState(null)
       const [modal, setModal] = useState(null)
       const [choice, setChoice] = useState('')
       const [localRedo, setLocalRedo] = useState(false)
       const [threadOpen, setThreadOpen] = useState(false)
+      const [threadRatio, setThreadRatio] = useState(33)
       const fileRef = useRef(null)
       const attemptRef = useRef(newAttemptId())
       const toastTimer = useRef(null)
+      const mainScroll = useRef(null)
+      const listScroll = useRef(0)
+      const redoQuestions = useRef(new Set())
+
+      useEffect(() => {
+        if (view === 'list' && list && mainScroll.current) mainScroll.current.scrollTop = listScroll.current
+        if (view === 'detail' && mainScroll.current) mainScroll.current.scrollTop = 0
+      }, [view, list])
 
       const notify = useCallback((message, tone = 'ok') => {
         setToast({ message, tone })
@@ -1702,6 +1911,7 @@ window.__ModuleLoader__.load({
         if (!sid) return
         // 高亮必须跟着视图走：从「全部 / 收藏 / 错题本」切回今日题目时要一起复位
         setKind('today')
+        setThreadOpen(false)
         setView('detail')
         setBusy('daily')
         setFail('')
@@ -1713,6 +1923,7 @@ window.__ModuleLoader__.load({
         try {
           const result = await rpc('ensureDaily', { subjectId: sid })
           setQuestion(result.question)
+          setLocalRedo(redoQuestions.current.has(result.question.id))
           setThread(result.thread || null)
         } catch (issue) {
           setFail(issue.message)
@@ -1723,7 +1934,9 @@ window.__ModuleLoader__.load({
 
       const loadList = useCallback(async (sid, nextKind) => {
         if (!sid) return
+        listScroll.current = 0
         setKind(nextKind)
+        setThreadOpen(false)
         setView('list')
         setBusy('list')
         setList(null)
@@ -1737,6 +1950,8 @@ window.__ModuleLoader__.load({
         }
       }, [notify])
 
+      useEffect(() => { setSelected([]); setManaging(false) }, [subjectId, kind, view])
+
       const pickSubject = useCallback((sid) => {
         if (!sid || sid === subjectId) return
         setSubjectId(sid)
@@ -1746,13 +1961,17 @@ window.__ModuleLoader__.load({
       }, [subjectId, loadToday])
 
       const openQuestion = useCallback(async (qid) => {
+        listScroll.current = mainScroll.current?.scrollTop || 0
         setBusy('question')
         try {
           const result = await rpc('getQuestion', { qid })
+          const canResume = result.isToday && result.question.answerState === 'revealed'
+            && result.question.attemptCount > 0 && !redoQuestions.current.has(qid)
+          if (!canResume) redoQuestions.current.add(qid)
           setQuestion(result.question)
           setThread(result.thread || null)
           setView('detail')
-          setLocalRedo(false)
+          setLocalRedo(!canResume)
           setChoice('')
           setThreadOpen(false)
           attemptRef.current = newAttemptId()
@@ -1762,6 +1981,15 @@ window.__ModuleLoader__.load({
           setBusy('')
         }
       }, [notify])
+
+      const backToList = async () => {
+        setThreadOpen(false)
+        setView('list')
+        try {
+          const result = await rpc('listQuestions', { subjectId, kind })
+          setList(result)
+        } catch (issue) { notify(issue.message, 'bad') }
+      }
 
       useEffect(() => {
         let cancelled = false
@@ -1798,6 +2026,7 @@ window.__ModuleLoader__.load({
             attemptId: attemptRef.current,
           })
           setQuestion(result.question)
+          redoQuestions.current.delete(question.id)
           setLocalRedo(false)
           refreshBoot()
         } catch (issue) {
@@ -1938,67 +2167,18 @@ window.__ModuleLoader__.load({
         }
       }, [boot, notify, refreshBoot])
 
-      const addSubject = useCallback(async (subject) => {
-        try {
-          let targetId = subject.id
-          if (!targetId) {
-            targetId = `custom_${Date.now().toString(36)}`
-            await rpc('saveSettings', {
-              customSubjects: [...(boot?.customSubjects || []), {
-                id: targetId,
-                name: subject.name,
-                types: subject.types,
-              }],
-            })
-          }
-          const result = await rpc('addSubject', { subjectId: targetId })
-          const fresh = await refreshBoot()
-          notify(`${subject.name} 已启用，系统会为它分配今天的题目`)
-          if (fresh && result) {
-            setSubjectId(targetId)
-            loadToday(targetId)
-          }
-          setModal(null)
-        } catch (issue) {
-          notify(issue.message, 'bad')
+      const saveSubjects = async (draft) => {
+        const next = draft.subjects.includes(subjectId) ? subjectId : (draft.subjects[0] || null)
+        const result = await rpc('saveSettings', { ...draft, activeSubject: next })
+        setBoot((current) => ({ ...current, ...result, customSubjects: draft.customSubjects }))
+        setModal(null)
+        notify('科目设置已保存')
+        if (next !== subjectId) {
+          setSubjectId(next)
+          if (next) loadToday(next)
+          else { setQuestion(null); setThread(null); setThreadOpen(false); setView('empty') }
         }
-      }, [boot, notify, refreshBoot, loadToday])
-
-      const removeSubject = useCallback((subject) => {
-        setModal({
-          kind: 'confirm',
-          title: `${T.deleteSubject}：${subject.name}`,
-          message: `确认把「${subject.name}」移出每日出题吗？\n\n- 该科目已出过的题目、收藏、错题与作答记录都会保留在“全部”里。\n- 今天已经分配的题目不会丢失，重新启用后当天仍会复用同一道题。`,
-          confirmLabel: T.deleteSubject,
-          danger: true,
-          onConfirm: async () => {
-            setModal(null)
-            try {
-              const result = await rpc('removeSubject', { subjectId: subject.id })
-              const fresh = await refreshBoot()
-              notify(result.message || '已移出每日出题')
-              if (fresh) {
-                const next = fresh.settings.subjects[0] || null
-                setSubjectId(next)
-                if (next) loadToday(next)
-                else { setQuestion(null); setView('empty') }
-              }
-            } catch (issue) {
-              notify(issue.message, 'bad')
-            }
-          },
-        })
-      }, [notify, refreshBoot, loadToday])
-
-      const changeSource = useCallback(async (id, source) => {
-        try {
-          await rpc('saveSettings', { subjectSource: { [id]: source } })
-          await refreshBoot()
-          notify('出题来源已更新')
-        } catch (issue) {
-          notify(issue.message, 'bad')
-        }
-      }, [notify, refreshBoot])
+      }
 
       const pickFile = useCallback(() => {
         if (fileRef.current) {
@@ -2062,6 +2242,38 @@ window.__ModuleLoader__.load({
           },
         })
       }, [notify, refreshBoot])
+
+      const bulkQuestions = async (action) => {
+        if (bulkLock.current || !selected.length) return
+        const qids = [...selected]
+        const execute = async (confirmProtected = false) => {
+          if (bulkLock.current) return
+          bulkLock.current = true
+          setBusy('bulk')
+          try {
+            const result = await rpc('bulkQuestions', { qids, action, confirmProtected })
+            if (result.requiresConfirmation) {
+              setModal({ kind: 'confirm', title: '再次确认删除收藏或错题', danger: true,
+                message: `选中的题目中有 ${result.protectedCount} 道已收藏或在错题本中。继续将永久删除所选 ${qids.length} 道题及其作答和追问，无法恢复。确定仍要删除吗？`,
+                confirmLabel: '仍要永久删除', onConfirm: () => execute(true) })
+              return
+            }
+            setModal(null)
+            setSelected([])
+            await loadList(subjectId, kind)
+            await refreshBoot()
+            notify(`已处理 ${result.affected} 道题目`)
+          } catch (issue) {
+            setModal(null)
+            notify(issue.message, 'bad')
+          } finally { bulkLock.current = false; setBusy('') }
+        }
+        if (action === 'delete') {
+          setModal({ kind: 'confirm', title: '删除所选题目', danger: true,
+            message: `将永久删除 ${qids.length} 道题及其作答、收藏、错题标记和追问，无法恢复。题库原文件仍会保留，未来可能重新抽到其中的题目。`,
+            confirmLabel: '确认删除', onConfirm: () => execute() })
+        } else await execute()
+      }
 
       const counts = subjectId ? boot?.counts?.[subjectId] : null
       const narrow = useMediaQuery('(max-width: 1180px)')
@@ -2127,6 +2339,11 @@ window.__ModuleLoader__.load({
             kind,
             subjectName: currentSubject?.name || '',
             onOpen: openQuestion,
+            managing, selected, busy: busy === 'bulk',
+            onManage: () => { setManaging(!managing); setSelected([]) },
+            onToggle: (id) => setSelected((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]),
+            onSelectAll: (value) => setSelected(value ? list.items.map((item) => item.id) : []),
+            onBulk: bulkQuestions,
           })
         }
         if (view === 'detail' && question) {
@@ -2135,7 +2352,6 @@ window.__ModuleLoader__.load({
             busy,
             choice,
             localRedo,
-            narrow,
             threadOpen,
             onSelect: (key) => {
               setChoice((current) => {
@@ -2150,7 +2366,9 @@ window.__ModuleLoader__.load({
             onJudge: judge,
             onFavorite: favorite,
             onRedo: () => {
+              redoQuestions.current.add(question.id)
               setLocalRedo(true)
+              setThreadOpen(false)
               setChoice('')
               attemptRef.current = newAttemptId()
             },
@@ -2177,7 +2395,13 @@ window.__ModuleLoader__.load({
         })
       })()
 
-      const showThread = view === 'detail' && question && (!narrow || threadOpen)
+      const pickTab = (value) => {
+        if (value === kind && (value === 'today' || view === 'list')) return
+        if (value === 'today') loadToday(subjectId)
+        else loadList(subjectId, value)
+      }
+      const showThread = view === 'detail' && question && threadOpen && !localRedo
+        && question.answerState === 'revealed' && question.attemptCount > 0
 
       return h('div', { className: 'kd-page' },
         styleInjected ? null : h('style', null, CSS),
@@ -2187,10 +2411,10 @@ window.__ModuleLoader__.load({
               h('div', { className: 'kd-brand' }, h(SidebarIcon, { size: 18 })),
               h('div', { style: { minWidth: 0 } },
                 h('h1', { className: 'kd-title' }, T.title),
-                h('div', { className: 'kd-sub' },
+                h('div', { className: 'kd-sub', title: T.subtitle },
                   boot?.today ? `${formatDate(boot.today)} · ` : '',
                   boot ? `已启用 ${boot.settings.subjects.length} 个科目 · ` : '',
-                  T.subtitle))),
+                  '每天一道，稳步向前'))),
             boot ? h(CountdownLines, { countdown: boot.countdown }) : null),
           boot ? h(ExamStrip, {
             boot,
@@ -2201,14 +2425,9 @@ window.__ModuleLoader__.load({
         boot ? h(MobileBar, {
           boot,
           subjectId,
-          kind,
           onPick: pickSubject,
           onManage: () => setModal({ kind: 'subjects' }),
           onBanks: () => setModal({ kind: 'banks' }),
-          onTab: (value) => {
-            if (value === 'today') loadToday(subjectId)
-            else loadList(subjectId, value)
-          },
         }) : null,
         h('div', { className: 'kd-shell' },
           boot ? h(SubjectNav, {
@@ -2219,27 +2438,30 @@ window.__ModuleLoader__.load({
             onBanks: () => setModal({ kind: 'banks' }),
           }) : null,
           h('main', { className: 'kd-main' },
-            h('div', { className: 'kd-main-inner' },
+            h('div', { className: 'kd-main-toolbar' },
               boot ? h(TabBar, {
                 kind,
                 counts,
-                onPick: (value) => {
-                  if (value === 'today') loadToday(subjectId)
-                  else loadList(subjectId, value)
-                },
+                onPick: pickTab,
               }) : null,
-              mainContent)),
-          showThread
+              kind !== 'today' && view === 'detail'
+                ? h(Btn, { small: true, onClick: backToList, title: '返回列表', ariaLabel: '返回列表' }, h(Icon, { name: 'chevron-left', size: 16 })) : null),
+            h('div', { className: 'kd-main-scroll', ref: mainScroll },
+              h('div', { className: 'kd-main-inner' },
+                h('div', { className: 'kd-view', key: `${subjectId}|${kind}|${view}|${question?.id || ''}` }, mainContent)))),
+          h(Presence, null, showThread
             ? h(ThreadPane, {
               thread,
               questionId: question.id,
               busy,
               narrow,
+              ratio: threadRatio,
+              onRatioChange: setThreadRatio,
               onSend: sendFollowup,
               onClear: clearThread,
               onClose: () => setThreadOpen(false),
             })
-            : null),
+            : null)),
         h('input', {
           ref: fileRef,
           type: 'file',
@@ -2247,14 +2469,12 @@ window.__ModuleLoader__.load({
           style: { display: 'none' },
           onChange: onFile,
         }),
+        h(Presence, null,
         modal?.kind === 'subjects' && boot
           ? h(SubjectsModal, {
             boot,
             onClose: () => setModal(null),
-            onAdd: addSubject,
-            onRemove: removeSubject,
-            onSource: changeSource,
-            onPick: (id) => { setModal(null); pickSubject(id) },
+            onDone: saveSubjects,
           })
           : null,
         modal?.kind === 'banks' && boot
@@ -2276,13 +2496,16 @@ window.__ModuleLoader__.load({
           onDiscard: discardRevision,
         }) : null,
         modal?.kind === 'confirm' ? h(ConfirmModal, {
+          key: modal.title,
           title: modal.title,
           message: modal.message,
           confirmLabel: modal.confirmLabel,
           danger: modal.danger,
+          busy: busy === 'bulk',
           onConfirm: modal.onConfirm,
-          onClose: () => setModal(null),
+          onClose: () => { if (!bulkLock.current) setModal(null) },
         }) : null,
+        ),
         toast ? h('div', { className: `kd-toast kd-toast-${toast.tone}` }, toast.message) : null,
         busy === 'import' || busy === 'commit'
           ? h('div', { className: 'kd-loading', style: { position: 'absolute', inset: 'auto 0 60px 0' } },

@@ -1,11 +1,11 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { resolveExamDate, computeCountdown, calendarDiff, daysBetween, addYears, yearOptions } from '../lib/exam-dates.js'
+import { resolveExamDate, computeCountdown, calendarDiff, daysBetween, addYears, addDays, yearOptions } from '../lib/exam-dates.js'
 import { parseBankText } from '../lib/bank.js'
 import { Store } from '../lib/store.js'
 import { CHOICE_TYPES, findSubject, subjectTypes } from '../lib/subjects.js'
-import { normalizeCandidate, structuralProblems } from '../lib/generate.js'
+import { normalizeCandidate, structuralProblems, createVerifiedQuestion, reviseAnswer } from '../lib/generate.js'
 import { parseJsonLoose } from '../lib/llm-json.js'
 
 let failures = 0
@@ -26,13 +26,24 @@ check('倒计时天数 411', cd.days === 411, String(cd.days))
 check('三行都带“约”', cd.lines.primary.includes('约') && cd.lines.secondary.includes('约') && cd.lines.target.includes('约'))
 check('日历差 1年1个月16天', cd.calendar.years === 1 && cd.calendar.months === 1 && cd.calendar.days === 16, JSON.stringify(cd.calendar))
 check('天数与日历差一致', daysBetween('2026-11-03', '2027-11-03') + 46 === 411)
+for (const [remaining, expected] of [[0, ''], [29, ''], [30, ''], [31, '1个月1天'], [59, '1个月29天'],
+  [90, '3个月'], [113, '3个月23天'], [364, '12个月4天'], [365, '1年'], [366, '1年1天'],
+  [388, '1年23天'], [395, '1年1个月'], [415, '1年1个月20天'], [730, '2年']]) {
+  for (const status of ['official', 'estimated']) {
+    const countdown = computeCountdown(2029, { date: addDays('2028-01-01', remaining), status }, '2028-01-01')
+    check(`剩余 ${remaining} 天 ${status} 的精简时长`, countdown.lines.secondary === (expected && (status === 'estimated' ? '约' : '') + expected), countdown.lines.secondary)
+  }
+}
 
 // ---- 可选年份窗口 ----
 check('初试前：今年+1 起三年', JSON.stringify(yearOptions('2026-11-04')) === JSON.stringify([2027, 2028, 2029]),
   JSON.stringify(yearOptions('2026-11-04')))
 check('初试当天仍保留当前场次', yearOptions('2026-12-19')[0] === 2027, JSON.stringify(yearOptions('2026-12-19')))
-check('初试后：整体后移一年', JSON.stringify(yearOptions('2026-12-20')) === JSON.stringify([2028, 2029, 2030]),
-  JSON.stringify(yearOptions('2026-12-20')))
+check('初试最后一天仍保留当前场次', yearOptions('2026-12-20')[0] === 2027)
+check('初试结束次日整体后移一年', yearOptions('2026-12-21')[0] === 2028)
+const verifiedDates = { 2027: { date: '2026-12-26', endDate: '2026-12-27', status: 'official' } }
+check('年份窗口使用核验后的结束日期', yearOptions('2026-12-27', verifiedDates)[0] === 2027
+  && yearOptions('2026-12-28', verifiedDates)[0] === 2028)
 check('跨年后窗口连续', JSON.stringify(yearOptions('2027-01-05')) === JSON.stringify([2028, 2029, 2030]),
   JSON.stringify(yearOptions('2027-01-05')))
 check('任何时刻都只有 3 个选项', yearOptions('2027-06-01').length === 3 && yearOptions('2030-12-25').length === 3)
@@ -150,6 +161,24 @@ check('自定义科目可用任意题型名', JSON.stringify(subjectTypes('c1', 
   JSON.stringify(subjectTypes('c1', customSubject)))
 
 // ---- Store ----
+const custom = findSubject('c1', customSubject)
+const customDraft = {
+  type: '名词解释', stem: '请解释机会成本的含义并举例。', answer: '选择某方案所放弃的最佳替代方案的收益。',
+  explanation: '机会成本衡量放弃的最佳替代方案的收益，需要区分它与已经发生且不可收回的沉没成本。',
+}
+let modelCalls = 0
+const ctx = { get(name) {
+  if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'test', model: 'test' }) }
+  if (name === 'llm') return { async *stream() {
+    const reply = modelCalls++ % 2 === 0 ? customDraft : { pass: true, issues: [], independentAnswer: customDraft.answer }
+    yield { type: 'text-delta', text: JSON.stringify(reply) }
+  } }
+} }
+const generatedCustom = await createVerifiedQuestion({ ctx, subject: custom, preferredType: '名词解释' })
+check('在线生成保留自定义题型并通过校验', generatedCustom.question.type === '名词解释' && modelCalls === 2)
+const revisedCustom = await reviseAnswer({ ctx, subject: custom, question: { ...customDraft, subjectId: custom.id }, currentAnswer: customDraft })
+check('答案修订保留自定义题型并通过校验', revisedCustom.candidate.type === '名词解释' && modelCalls === 4)
+
 const tmpRoot = await mkdtemp(join(tmpdir(), 'daily-question-store-'))
 const dir = join(tmpRoot, 'data')
 const store = new Store(dir)
@@ -161,6 +190,16 @@ check('持久化后重新读回', store2.data.settings.targetYear === 2030, Stri
 let threw = false
 try { await store.update(() => { throw new Error('boom') }) } catch { threw = true }
 check('失败的事务抛错且不写入', threw && store.data.settings.targetYear === 2030)
+const originalWrite = store.write
+store.write = async () => { throw new Error('模拟磁盘写入失败') }
+threw = false
+try { await store.update((draft) => { draft.settings.targetYear = 2099 }) } catch { threw = true }
+check('磁盘写入失败不改变内存或文件', threw && store.data.settings.targetYear === 2030
+  && (await new Store(dir).read()).settings.targetYear === 2030)
+store.write = originalWrite
+await store.update((draft) => { draft.settings.activeSubject = 'math1' })
+const recovered = await new Store(dir).read()
+check('写入失败后队列能恢复且不带入失败修改', recovered.settings.activeSubject === 'math1' && recovered.settings.targetYear === 2030)
 
 await rm(tmpRoot, { recursive: true, force: true })
 console.log(failures ? `\n${failures} 个检查未通过` : '\n全部通过')
