@@ -30,22 +30,22 @@
 区分报名年份与实际考试日期：2028 考研 = 2027 年 12 月初试。已公布的用官方日期（不带「约」）；未公布的以上一年同一考试的官方日期推后一年估算，并在三行倒计时里都标「约」；查不到依据就明确写「尚未核实」，不编日期。页面上的「核验日期」会联网只采信 `moe.gov.cn` / `chsi.com.cn` / `neea.edu.cn`。
 
 **渲染**
-题干、选项、答案、解析均支持 Markdown：标题、列表、引用、表格、代码块（保留缩进与换行）、图片、行内与独立 LaTeX 公式。公式字体为 **Latin Modern Math**（随包附带）。排版细节按 LaTeX 数学模式处理：变量使用真正的数学斜体码位、数字与 `\sin` 等函数名保持直立、减号用 U+2212（不是连字符）、导数撇号用 U+2032 起的 prime（`'`→′、`''`→″，中文输入法的 `’` 也会归一）；`\text{…}` 里保持普通文本，连字符不会被当成减号。无法渲染的内容会以原文 + 提示保留，不会静默丢弃。
+题干、选项、答案、解析均支持 Markdown：标题、列表、引用、表格、代码块（保留缩进与换行）、图片、行内与独立 LaTeX 公式。公式由 **MathJax 3** 渲染（SVG 输出、随包分发、完全离线）：可拉伸根号、矩阵定界符、`\boxed`、`\begin{aligned}`、`\ce{}` 化学式都原生支持，覆盖范围跟随 MathJax 的宏列表。公式块里的裸 `\\` 换行会自动包一层 `\displaylines`（MathJax 3 的要求，与 Typora 的处理一致）。引擎加载完成前先显示 TeX 原文，渲染失败时降级为红字提示，不会让整块内容静默消失。
 
 ## 安装
 
 需要可用的 DeepSeek Harness，以及一个能用的默认模型（在线出题要用）。
 
 > 装插件需要 git 或 npm 其中一条通路。**没有 git 的机器**请用下面第 1 种（仓库自带的
-> `dist/daily-question-1.0.7.tgz`）或发到 npm 之后的包名，这两种都不调用 git。
+> `dist/daily-question-1.1.0.tgz`）或发到 npm 之后的包名，这两种都不调用 git。
 
 ### 1. 用仓库自带的 tgz（不需要 git、不需要联网装依赖）
 
-仓库里带了一个已打包好的插件：`dist/daily-question-1.0.7.tgz`。
+仓库里带了一个已打包好的插件：`dist/daily-question-1.1.0.tgz`。
 
 ```bash
 # 下载仓库后（ZIP 或 git clone 都行），用本地文件安装
-dsh plugin --profile web add ./dist/daily-question-1.0.7.tgz
+dsh plugin --profile web add ./dist/daily-question-1.1.0.tgz
 ```
 
 DSH Desktop 上：插件页的安装输入框填**这个 tgz 的绝对路径**，或把路径交给 Agent 用
@@ -65,14 +65,14 @@ profile 名就是你启动 DSH 时用的那个：跑 `dsh web` 就是 `--profile
 **从 npm 装**（最省事，不需要 git）：
 
 ```bash
-dsh plugin --profile web add daily-question@1.0.7
+dsh plugin --profile web add daily-question@1.1.0
 dsh plugin --profile web add daily-question        # 跟随最新版
 ```
 
 **从 GitHub 装**（需要本机有 git）：
 
 ```bash
-dsh plugin --profile web add github:Scienmicroit/Daily-Question#v1.0.7
+dsh plugin --profile web add github:Scienmicroit/Daily-Question#v1.1.0
 dsh plugin --profile web add github:Scienmicroit/Daily-Question   # 不写 #tag 取默认分支最新提交
 ```
 
@@ -92,8 +92,8 @@ dsh plugin --profile web add ./Daily-Question
 已经装好 DSH 的话，把下面任一 target 交给 Agent，让它调用 `plugin_manager` 的 `install_bundle`：
 
 - 本地目录或 tgz 的绝对路径（不需要 git）
-- `daily-question@1.0.7`（发布到 npm 之后）
-- `github:Scienmicroit/Daily-Question#v1.0.7`（本机有 git 时）
+- `daily-question@1.1.0`（发布到 npm 之后）
+- `github:Scienmicroit/Daily-Question#v1.1.0`（本机有 git 时）
 
 ### 升级与卸载
 
@@ -144,10 +144,10 @@ lib/tutor.js          追问回复（严格限定当前题目）
 lib/bank.js           题库解析（题干 / 选项 / 答案 / 解析 / 知识点 / 难度）
 lib/pdf.js            纯 JS 的 PDF 文本提取（文本型 PDF，含 ToUnicode CMap）
 lib/exam-dates.js     考研日期口径、估算规则、倒计时、官方日期联网核验
-lib/routes.js         同源 HTTP 接口 + 公式字体路由
+lib/routes.js         同源 HTTP 接口 + 公式引擎静态资源
 lib/subjects.js       科目目录、题型、大纲提示
 lib/llm-json.js       模型调用与 JSON 容错解析
-assets/               Latin Modern Math 字体及其许可文件
+vendor/mathjax/       MathJax 3 单文件 bundle 及其许可（Apache-2.0）
 test/                 离线单元/集成测试（不需要模型与网络）
 ```
 
@@ -165,17 +165,19 @@ node test/pdf-check.mjs <某个文本型 PDF 的路径>   # PDF 提取与题库�
 ## 已知限制
 
 - **PDF 只支持文本型**：纯 JS 实现，不 OCR；扫描件、图片型 PDF 与带权限加密的 PDF 会明确拒绝并提示改用 Markdown，不会伪装成导入成功。
-- **公式渲染是自写的 LaTeX 子集**：覆盖分式、根式、上下标、求和/积分/极限、矩阵、分段函数、希腊字母等常见结构；生僻宏会以原文保留并高亮提示。
+- **公式用的是 MathJax 3**：不支持的命令会显示成红色错误标记（MathJax 的标准行为），不会再退化成原文；TikZ 之类的绘图命令不在支持范围。
 - **导入题库的答案一律标「待核验」**，系统不会自动核验；只有「修订」流程会做独立校验。
 - 主观题不做自动判分（按考试要求由你自己判定）。
 - 暂未实现按知识点/难度筛选、学习统计与连续天数、题目质量反馈。
 
-## 字体许可
+## 公式引擎许可
 
-`assets/latinmodern-math.otf` 是 Latin Modern Math 1.959，版权归 B. Jackowski、P. Strzelczyk、P. Pianowski（代表 TeX Users Groups），按 **GUST Font License**（LPPL 的一个实例）发布，允许自由使用与再分发。许可原文见 `assets/LICENSE-latin-modern-math.txt`。
+`vendor/mathjax/tex-svg.js` 是 MathJax 3.2.2 的官方单文件 bundle（TeX 输入 + SVG 输出，含全部 TeX 扩展），版权归 MathJax Consortium，按 **Apache License 2.0** 发布，允许自由使用与再分发。许可原文见 `vendor/mathjax/LICENSE`。
+
+SVG 输出自带字形路径，所以不再需要单独分发数学字体文件（1.0.x 里的 Latin Modern Math OTF 已移除）。
 
 ## License
 
 本插件代码以 **MIT** 许可发布，见仓库根目录的 [LICENSE](LICENSE)。
 
-`assets/latinmodern-math.otf` 不适用 MIT：它按 GUST Font License（LPPL 的一个实例）发布，许可原文见 `assets/LICENSE-latin-modern-math.txt`。
+`vendor/mathjax/` 不适用 MIT：MathJax 按 Apache License 2.0 发布，许可原文见 `vendor/mathjax/LICENSE`。

@@ -109,359 +109,119 @@ window.__ModuleLoader__.load({
       return { text: '未作答', tone: 'idle' }
     }
 
-    /* ============================== LaTeX ============================== */
-    const LATEX_SYMBOLS = {
-      alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε', varepsilon: 'ε', zeta: 'ζ', eta: 'η',
-      theta: 'θ', vartheta: 'ϑ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π',
-      rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ', phi: 'φ', varphi: 'φ', chi: 'χ', psi: 'ψ', omega: 'ω',
-      Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ', Upsilon: 'Υ',
-      Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω',
-      infty: '∞', cdot: '·', times: '×', div: '÷', pm: '±', mp: '∓', ast: '∗', star: '⋆', oplus: '⊕', otimes: '⊗',
-      leq: '≤', le: '≤', geq: '≥', ge: '≥', neq: '≠', ne: '≠', approx: '≈', equiv: '≡', sim: '∼',
-      propto: '∝', ll: '≪', gg: '≫', leqslant: '≤', geqslant: '≥',
-      to: '→', rightarrow: '→', leftarrow: '←', leftrightarrow: '↔', Rightarrow: '⇒', Leftarrow: '⇐',
-      Leftrightarrow: '⇔', mapsto: '↦', implies: '⟹', iff: '⟺',
-      longrightarrow: '⟶', longleftarrow: '⟵', longleftrightarrow: '⟷',
-      Longrightarrow: '⟹', Longleftarrow: '⟸', Longleftrightarrow: '⟺',
-      hookrightarrow: '↪', hookleftarrow: '↩', uparrow: '↑', downarrow: '↓', Updownarrow: '⇕',
-      partial: '∂', nabla: '∇', forall: '∀', exists: '∃', nexists: '∄', neg: '¬', in: '∈', notin: '∉',
-      subset: '⊂', subseteq: '⊆', supset: '⊃', supseteq: '⊇', cup: '∪', cap: '∩', emptyset: '∅',
-      varnothing: '∅', setminus: '∖', land: '∧', lor: '∨',
-      mid: '∣', nmid: '∤', vert: '|', lvert: '|', rvert: '|',
-      Vert: '‖', lVert: '‖', rVert: '‖', colon: ':', '|': '‖',
-      ldots: '…', cdots: '⋯', vdots: '⋮', ddots: '⋱', dots: '…',
-      angle: '∠', perp: '⊥', parallel: '∥', circ: '∘', degree: '°', prime: '′',
-      lceil: '⌈', rceil: '⌉', lfloor: '⌊', rfloor: '⌋', langle: '⟨', rangle: '⟩',
-      ell: 'ℓ', Re: 'ℜ', Im: 'ℑ', hbar: 'ℏ',
-      therefore: '∴', because: '∵', triangle: '△', square: '□',
-      bullet: '∙', ni: '∋', backslash: '\\', Box: '□', bigcirc: '○', dagger: '†', ddagger: '‡',
-      quad: '\u2003', qquad: '\u2003\u2003',
-      '%': '%', '&': '&', '#': '#', '_': '_', '{': '{', '}': '}',
-      ' ': ' ', ',': '\u2009', ';': '\u2005', ':': '\u2005', '!': '',
-    }
-    const LATEX_FUNCS = new Set(['sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'arcsin', 'arccos', 'arctan',
-      'sinh', 'cosh', 'tanh', 'ln', 'log', 'lg', 'exp', 'max', 'min', 'sup', 'inf', 'det', 'gcd', 'lcm',
-      'deg', 'dim', 'ker', 'arg', 'Pr'])
-    const LATEX_BIGOPS = {
-      sum: '∑', prod: '∏', int: '∫', iint: '∬', iiint: '∭', oint: '∮',
-      lim: 'lim', limsup: 'lim sup', liminf: 'lim inf', bigcup: '⋃', bigcap: '⋂',
-    }
-    const DOUBLE_STRUCK = { R: 'ℝ', N: 'ℕ', Z: 'ℤ', Q: 'ℚ', C: 'ℂ', P: 'ℙ' }
+    /* ============================== 公式（MathJax 3） ============================== */
+    // MathJax 的 SVG 输出自带字形路径，不依赖任何字体文件；单文件 bundle 随包分发，
+    // 由宿主在 /api/daily-question/vendor/tex-svg.js 提供。
+    const MATHJAX_SRC = '/api/daily-question/vendor/tex-svg.js'
+    const mathState = { status: 'idle' }
+    const mathWatchers = new Set()
 
-    /** 连写撇号对应的 prime 字符（1～4 阶，更多阶用 4 阶 + 单撇补）。 */
-    const PRIME_CHARS = { 1: '\u2032', 2: '\u2033', 3: '\u2034', 4: '\u2057' }
+    function notifyMath() {
+      for (const watcher of [...mathWatchers]) {
+        try { watcher() } catch (error) { /* 单个订阅出错不影响其它 */ }
+      }
+    }
+
+    function subscribeMath(fn) {
+      mathWatchers.add(fn)
+      return () => { mathWatchers.delete(fn) }
+    }
+
+    function ensureMathJax() {
+      if (mathState.status !== 'idle') return
+      mathState.status = 'loading'
+      window.MathJax = {
+        startup: { typeset: false },
+        // 每条公式自带 <defs>，注入 innerHTML 后不依赖全局字体缓存
+        svg: { fontCache: 'local' },
+      }
+      const script = document.createElement('script')
+      script.src = MATHJAX_SRC
+      script.async = true
+      script.onload = () => {
+        const startup = window.MathJax && window.MathJax.startup
+        const done = () => {
+          mathState.status = 'ready'
+          ensureMathStylesheet()
+          notifyMath()
+        }
+        const failed = () => { mathState.status = 'failed'; notifyMath() }
+        if (startup && startup.promise) startup.promise.then(done, failed)
+        else done()
+      }
+      script.onerror = () => { mathState.status = 'failed'; notifyMath() }
+      document.head.appendChild(script)
+    }
+
+    /** SVG 输出依赖 MathJax 自己生成的样式表；手动调用 tex2svg 时不会自动插，补一次。 */
+    function ensureMathStylesheet() {
+      try {
+        const mathJax = window.MathJax
+        if (!mathJax || typeof mathJax.svgStylesheet !== 'function') return
+        if (document.getElementById('MJX-SVG-styles')) return
+        const sheet = mathJax.svgStylesheet()
+        if (sheet) document.head.appendChild(sheet)
+      } catch (error) {
+        // 没有样式表也能显示，只是对齐略差，不阻断渲染
+      }
+    }
+
+    /** 让组件跟着公式引擎的加载状态重渲染。 */
+    function useMathJaxStatus() {
+      const [status, setStatus] = useState(mathState.status)
+      useEffect(() => {
+        ensureMathJax()
+        const update = () => setStatus(mathState.status)
+        update()
+        return subscribeMath(update)
+      }, [])
+      return status
+    }
 
     /**
-     * 数学模式里的字符修正。只处理公式内部的裸文本（\text / \mathrm 走原样，不受影响）：
-     *
-     * 1. 连字符 `-` 在 LaTeX 数学模式里是**减号**，换成 U+2212 MINUS SIGN。
-     *    留成 U+002D 的话，Latin Modern Math 会画成一个短横，看着像分隔符。
-     * 2. 撇号 `'`（含中文输入法常见的 ’）是**导数记号**，换成 U+2032 起的 prime
-     *    连写：' → ′、'' → ″、''' → ‴、'''' → ⁗。
-     * 3. ASCII 字母换成 Unicode 数学斜体码位（U+1D434… 大写、U+1D44E… 小写，
-     *    例外 h → U+210E），Latin Modern Math 与 Cambria Math 都完整覆盖，
-     *    因此变量是真斜体，而数字、运算符、函数名（\sin 等）保持直立。
+     * 规范化模型输出的 TeX：
+     * - 去掉自带的 $ / $$ 包裹；
+     * - 过滤能改页面结构或注入链接的宏（公式来自模型输出，不当作可信内容）；
+     * - 公式块里的裸 \\ 换行在 MathJax 3 需要放进 \displaylines（Typora 也是这么处理的）；
+     * - 其余交给 MathJax，不再自己做子集解析。
      */
-    function toMathText(text) {
-      return String(text)
-        .replace(/['\u2018\u2019]+/g, (run) => {
-          const count = [...run].length
-          if (count <= 4) return PRIME_CHARS[count]
-          return '\u2057' + '\u2032'.repeat(count - 4)
-        })
-        .replace(/-/g, '\u2212')
-        .replace(/\*/g, '\u2217')
-        .replace(/\.{3,}/g, '\u2026')
-        .replace(/[A-Za-z]/g, (ch) => {
-          if (ch === 'h') return '\u210E'
-          const code = ch.charCodeAt(0)
-          if (code >= 97 && code <= 122) return String.fromCodePoint(0x1d44e + (code - 97))
-          return String.fromCodePoint(0x1d434 + (code - 65))
-        })
-    }
+    const RISKY_TEX = [
+      /\\href\s*\{[^{}]*\}/g,
+      /\\url\s*\{[^{}]*\}/g,
+      /\\(?:style|class|cssId|htmlId|htmlClass|htmlStyle)\s*\{[^{}]*\}/g,
+      /\\require\s*\{[^{}]*\}/g,
+      /\\includegraphics\s*(?:\[[^\]]*\])?\s*\{[^{}]*\}/g,
+    ]
 
-    function readGroup(cur) {
-      // cur.src[cur.i] === '{'
-      let depth = 0
-      let j = cur.i
-      const start = cur.i + 1
-      while (j < cur.src.length) {
-        const c = cur.src[j]
-        if (c === '\\') { j += 2; continue }
-        if (c === '{') depth += 1
-        else if (c === '}') {
-          depth -= 1
-          if (depth === 0) {
-            cur.i = j + 1
-            return cur.src.slice(start, j)
-          }
-        }
-        j += 1
+    function normalizeTeX(source, display) {
+      let tex = String(source || '').trim()
+      tex = tex.replace(/^\${1,2}/, '').replace(/\${1,2}$/, '')
+      for (const pattern of RISKY_TEX) tex = tex.replace(pattern, '')
+      if (display && /\\\\/.test(tex) && !/\\displaylines/.test(tex) && !/\\begin\{/.test(tex)) {
+        tex = `\\displaylines{${tex}}`
       }
-      cur.i = cur.src.length
-      return cur.src.slice(start)
-    }
-
-    function readOptionalGroup(cur) {
-      while (cur.i < cur.src.length && cur.src[cur.i] === ' ') cur.i += 1
-      if (cur.src[cur.i] !== '[') return null
-      const end = cur.src.indexOf(']', cur.i)
-      if (end < 0) return null
-      const body = cur.src.slice(cur.i + 1, end)
-      cur.i = end + 1
-      return body
-    }
-
-    function readArg(cur) {
-      while (cur.i < cur.src.length && cur.src[cur.i] === ' ') cur.i += 1
-      if (cur.src[cur.i] === '{') return latexNodes(readGroup(cur))
-      const rest = cur.src.slice(cur.i)
-      const command = /^\\[A-Za-z]+/.exec(rest)
-      if (command) {
-        cur.i += command[0].length
-        return latexNodes(command[0])
-      }
-      if (rest[0] === '\\') {
-        cur.i += 2
-        return latexNodes(rest.slice(0, 2))
-      }
-      cur.i += 1
-      return latexNodes(rest.slice(0, 1))
-    }
-
-    function readLimits(cur) {
-      let sub = null
-      let sup = null
-      for (let guard = 0; guard < 4; guard += 1) {
-        const save = cur.i
-        while (cur.i < cur.src.length && cur.src[cur.i] === ' ') cur.i += 1
-        const c = cur.src[cur.i]
-        if (c === '_' && !sub) { cur.i += 1; sub = readArg(cur); continue }
-        if (c === '^' && !sup) { cur.i += 1; sup = readArg(cur); continue }
-        cur.i = save
-        break
-      }
-      return { sub, sup }
-    }
-
-    function readMatrix(cur, env) {
-      const marker = `\\end{${env}}`
-      const end = cur.src.indexOf(marker, cur.i)
-      const body = end < 0 ? cur.src.slice(cur.i) : cur.src.slice(cur.i, end)
-      cur.i = end < 0 ? cur.src.length : end + marker.length
-      const rows = body.split(/\\\\/).map((row) => row.trim()).filter((row) => row.length)
-      const cells = rows.map((row) => row.split('&').map((cell) => latexNodes(cell.trim())))
-      const table = h('table', { className: 'kd-matrix', key: nextKey('mx') },
-        h('tbody', null, cells.map((row, rowIndex) => h('tr', { key: rowIndex },
-          row.map((cell, cellIndex) => h('td', { key: cellIndex }, cell))))))
-      const wrapCls = env === 'cases' ? 'kd-cases'
-        : env === 'bmatrix' ? 'kd-bmatrix'
-          : env === 'vmatrix' ? 'kd-vmatrix'
-            : env === 'pmatrix' ? 'kd-pmatrix' : 'kd-matrixwrap'
-      const open = env === 'cases' ? '{' : env === 'bmatrix' ? '[' : env === 'pmatrix' ? '(' : ''
-      const close = env === 'bmatrix' ? ']' : env === 'pmatrix' ? ')' : ''
-      const children = []
-      if (open) children.push(h('span', { className: 'kd-delim', key: 'open' }, open))
-      children.push(table)
-      if (close) children.push(h('span', { className: 'kd-delim', key: 'close' }, close))
-      return h('span', { className: `kd-matrixbox ${wrapCls}`, key: nextKey('mb') }, children)
-    }
-
-    function latexNodes(src) {
-      const cur = { src: String(src || ''), i: 0 }
-      return latexSeq(cur, '')
-    }
-
-    function latexSeq(cur, stopChars) {
-      const out = []
-      let buf = ''
-      const flush = () => {
-        if (buf) {
-          out.push(toMathText(buf))
-          buf = ''
-        }
-      }
-      while (cur.i < cur.src.length) {
-        const c = cur.src[cur.i]
-        if (stopChars && stopChars.includes(c)) break
-        if (c === '}') { buf += c; cur.i += 1; continue }
-        if (c === '{') {
-          flush()
-          out.push(...latexNodes(readGroup(cur)))
-          continue
-        }
-        if (c === '^' || c === '_') {
-          flush()
-          cur.i += 1
-          const arg = readArg(cur)
-          out.push(h(c === '^' ? 'sup' : 'sub', { className: c === '^' ? 'kd-sup' : 'kd-sub', key: nextKey('sc') }, arg))
-          continue
-        }
-        if (c === '&') {
-          flush()
-          cur.i += 1
-          out.push(h('span', { className: 'kd-colsep', key: nextKey('cs') }, '\u2003'))
-          continue
-        }
-        if (c === '~') {
-          buf += '\u00a0'
-          cur.i += 1
-          continue
-        }
-        if (c === '\\') {
-          const rest = cur.src.slice(cur.i)
-          const command = /^\\([A-Za-z]+)/.exec(rest)
-          if (command) {
-            flush()
-            cur.i += command[0].length
-            const node = latexCommand(cur, command[1])
-            if (node !== null && node !== undefined) out.push(node)
-            continue
-          }
-          const symbol = rest[1]
-          cur.i += symbol === undefined ? 1 : 2
-          if (symbol === '\\') {
-            flush()
-            out.push(h('br', { key: nextKey('br') }))
-            continue
-          }
-          if (LATEX_SYMBOLS[symbol] !== undefined) buf += LATEX_SYMBOLS[symbol]
-          else if (symbol !== undefined) buf += symbol
-          continue
-        }
-        if (c === ' ') { buf += ' '; cur.i += 1; continue }
-        buf += c
-        cur.i += 1
-      }
-      flush()
-      return out
-    }
-
-    function latexCommand(cur, name) {
-      if (LATEX_BIGOPS[name]) {
-        const { sub, sup } = readLimits(cur)
-        const symbol = LATEX_BIGOPS[name]
-        return h('span', { className: 'kd-op', key: nextKey('op') },
-          sup ? h('span', { className: 'kd-op-lim', key: 'up' }, sup) : null,
-          h('span', { className: 'kd-op-sym', key: 'sym' }, symbol),
-          sub ? h('span', { className: 'kd-op-lim', key: 'down' }, sub) : null)
-      }
-      if (name === 'frac' || name === 'dfrac' || name === 'tfrac' || name === 'cfrac') {
-        const numerator = readArg(cur)
-        const denominator = readArg(cur)
-        return h('span', { className: 'kd-frac', key: nextKey('fr') },
-          h('span', { className: 'kd-frac-n', key: 'n' }, numerator),
-          h('span', { className: 'kd-frac-d', key: 'd' }, denominator))
-      }
-      // \boxed{...}（amsmath 常用的“把答案框起来”）画一个方框
-      if (name === 'boxed' || name === 'fbox' || name === 'framebox') {
-        return h('span', { className: 'kd-boxed', key: nextKey('bx') }, readArg(cur))
-      }
-      // \binom{n}{k}：无分数线的上下堆叠 + 圆括号
-      if (name === 'binom' || name === 'dbinom' || name === 'tbinom') {
-        const top = readArg(cur)
-        const bottom = readArg(cur)
-        return h('span', { className: 'kd-binom', key: nextKey('bn') },
-          h('span', { className: 'kd-delim', key: 'l' }, '('),
-          h('span', { className: 'kd-frac kd-binom-body', key: 'b' },
-            h('span', { className: 'kd-frac-n', key: 'n' }, top),
-            h('span', { className: 'kd-frac-d', key: 'd' }, bottom)),
-          h('span', { className: 'kd-delim', key: 'r' }, ')'))
-      }
-      if (name === 'sqrt') {
-        const index = readOptionalGroup(cur)
-        const from = cur.i
-        const body = readArg(cur)
-        // 被开方式是分式、矩阵、求和积分这类"高"内容时，√ 字形高度不够，
-        // 换成可拉伸的画法（见 .kd-sqrt-tall）
-        const raw = cur.src.slice(from, cur.i)
-        const tall = /\\[dtc]?frac\b|\\binom\b|\\sum\b|\\prod\b|\\i{1,2}int\b|\\oint\b|\\overline\b|\\begin\b/.test(raw)
-        return h('span', { className: `kd-sqrt${tall ? ' kd-sqrt-tall' : ''}`, key: nextKey('sq') },
-          h('span', { className: 'kd-sqrt-sign', key: 's' }, tall ? null : '√'),
-          index ? h('sup', { className: 'kd-sqrt-index', key: 'i' }, latexNodes(index)) : null,
-          h('span', { className: 'kd-sqrt-body', key: 'b' }, body))
-      }
-      if (name === 'text' || name === 'textrm' || name === 'mbox' || name === 'mathrm' || name === 'operatorname') {
-        const raw = readGroup(cur)
-        return h('span', { className: 'kd-roman', key: nextKey('rm') }, raw.replace(/\\([,;: !])/g, ' '))
-      }
-      if (name === 'mathbf' || name === 'boldsymbol' || name === 'bm' || name === 'textbf') {
-        return h('strong', { className: 'kd-bold', key: nextKey('bd') }, latexNodes(readGroup(cur)))
-      }
-      if (name === 'mathbb' || name === 'mathcal' || name === 'mathscr') {
-        const raw = readGroup(cur).trim()
-        return h('span', { className: 'kd-blackboard', key: nextKey('bb') }, DOUBLE_STRUCK[raw] || raw)
-      }
-      if (name === 'overline' || name === 'bar' || name === 'underline' || name === 'vec'
-        || name === 'hat' || name === 'widehat' || name === 'tilde' || name === 'dot' || name === 'ddot') {
-        const body = readArg(cur)
-        return h('span', { className: `kd-accent kd-accent-${name}`, key: nextKey('ac') }, body)
-      }
-      if (name === 'overrightarrow' || name === 'overleftarrow') {
-        return h('span', { className: `kd-accent kd-accent-${name}`, key: nextKey('ac') }, readArg(cur))
-      }
-      // \underbrace{x}_{说明} / \overbrace{x}^{说明}：花括号画不出来，保留内容与标记
-      if (name === 'underbrace' || name === 'overbrace') {
-        return h('span', { className: 'kd-group', key: nextKey('grp') }, readArg(cur))
-      }
-      // \overset{上}{基} / \underset{下}{基}：上下堆叠
-      if (name === 'overset' || name === 'underset') {
-        const mark = readArg(cur)
-        const base = readArg(cur)
-        return h('span', {
-          className: `kd-stack kd-stack-${name === 'overset' ? 'over' : 'under'}`,
-          key: nextKey('st'),
-        },
-        name === 'overset' ? h('span', { className: 'kd-stack-mark', key: 'm' }, mark) : null,
-        h('span', { className: 'kd-stack-base', key: 'b' }, base),
-        name === 'underset' ? h('span', { className: 'kd-stack-mark', key: 'm' }, mark) : null)
-      }
-      if (name === 'left' || name === 'right' || name === 'middle') {
-        while (cur.i < cur.src.length && cur.src[cur.i] === ' ') cur.i += 1
-        const rest = cur.src.slice(cur.i)
-        const command = /^\\[A-Za-z]+/.exec(rest)
-        let token
-        if (command) { token = command[0]; cur.i += command[0].length } else { token = rest[0] || ''; cur.i += 1 }
-        const display = token === '.' ? '' : (LATEX_SYMBOLS[token.replace(/^\\/, '')] || token.replace(/^\\/, ''))
-        return h('span', { className: 'kd-delim', key: nextKey('dl') }, display)
-      }
-      if (name === 'begin') {
-        const env = readGroup(cur).trim()
-        return readMatrix(cur, env)
-      }
-      if (name === 'displaystyle' || name === 'textstyle' || name === 'limits' || name === 'nolimits' || name === 'notag'
-        || name === 'nonumber' || name === 'label' || name === 'tag') {
-        // \tag{...} 之类的排版修饰我们不实现，但也不能把内容原样吐到公式里
-        if (name === 'tag' || name === 'label') readGroup(cur)
-        return null
-      }
-      // \big( \Big[ \bigl\{ … 只是放大定界符，实际字符由后面的记号自己渲染
-      if (/^(?:big|Big|bigg|Bigg)[lrm]?$/.test(name)) return null
-      if (name === 'bmod') return h('span', { className: 'kd-roman', key: nextKey('bm') }, 'mod')
-      if (name === 'pmod') {
-        return h('span', { className: 'kd-roman', key: nextKey('pm') }, '(', 'mod ',
-          ...readArg(cur), ')')
-      }
-      // \hline 只用于表格横线；矩阵里没有对应结构，直接忽略而不是吐字面量
-      if (name === 'hline') return null
-      if (name === 'space' || name === 'newline') return h('br', { key: nextKey('br') })
-      if (LATEX_FUNCS.has(name)) return h('span', { className: 'kd-roman', key: nextKey('fn') }, name)
-      if (LATEX_SYMBOLS[name] !== undefined) return LATEX_SYMBOLS[name]
-      // 未知命令：保留原始内容并提示，绝不丢弃。
-      return h('span', { className: 'kd-latex-unknown', title: `未知的 LaTeX 命令：\\${name}`, key: nextKey('un') }, `\\${name}`)
+      return tex
     }
 
     function renderMath(source, display) {
-      let nodes
-      try {
-        nodes = latexNodes(source)
-      } catch (error) {
-        nodes = [source]
+      const tex = normalizeTeX(source, display)
+      const key = nextKey('math')
+      if (mathState.status !== 'ready') {
+        // 引擎还没就绪（或加载失败）：先显示原文，就绪后组件会重渲染
+        return h('span', { className: 'kd-math-pending', key, title: '公式引擎正在加载' }, tex)
       }
-      return h(display ? 'div' : 'span', {
-        className: display ? 'kd-mathblock' : 'kd-math',
-        key: nextKey('math'),
-      }, nodes)
+      try {
+        const node = window.MathJax.tex2svg(tex, { display: Boolean(display) })
+        const html = node && node.outerHTML
+        if (!html) throw new Error('empty svg')
+        return h(display ? 'div' : 'span', {
+          className: display ? 'kd-mathblock' : 'kd-math',
+          key,
+          dangerouslySetInnerHTML: { __html: html },
+        })
+      } catch (error) {
+        return h('span', { className: 'kd-math-error', key, title: '公式无法渲染' }, tex)
+      }
     }
 
     /* ============================== Markdown ============================== */
@@ -767,13 +527,15 @@ window.__ModuleLoader__.load({
     }
 
     function Markdown({ text, className }) {
+      // 公式引擎加载完成后要重渲染一次，否则首次绘制出来的还是 TeX 原文
+      const mathStatus = useMathJaxStatus()
       const nodes = useMemo(() => {
         try {
           return renderBlocks(text)
         } catch (error) {
           return [h('pre', { className: 'kd-code', key: 'raw' }, String(text || ''))]
         }
-      }, [text])
+      }, [text, mathStatus])
       return h('div', { className: `kd-md ${className || ''}` }, nodes)
     }
 
@@ -781,12 +543,6 @@ window.__ModuleLoader__.load({
     /** 由 apply 用 styles.insert 注入时置位；否则由组件渲染 <style> 兜底。 */
     let styleInjected = false
     const CSS = `
-@font-face {
-  font-family: 'KD Latin Modern Math';
-  src: local('Latin Modern Math'), local('LatinModernMath'), local('LatinModernMath-Regular'),
-       url('/api/daily-question/font/latinmodern-math.otf') format('opentype');
-  font-display: swap;
-}
 .kd-page { height:100%; min-height:0; display:flex; flex-direction:column; position:relative;
   background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary);
   font-size:14px; line-height:1.65; -webkit-font-smoothing:antialiased; box-sizing:border-box; }
@@ -1051,83 +807,15 @@ window.__ModuleLoader__.load({
 .kd-image-fallback { display:inline-block; font-family:ui-monospace,monospace; font-size:12px;
   color:var(--dsw-alias-state-warn-primary); border:1px dashed var(--dsw-alias-state-warn-primary);
   border-radius:6px; padding:2px 6px; }
-.kd-math { display:inline-block; vertical-align:middle; }
-.kd-mathblock { display:block; margin:10px 0; overflow-x:auto; overflow-y:hidden;
-  text-align:center; padding:.42em .2em .3em; }
-.kd-math, .kd-mathblock {
-  font-family: 'KD Latin Modern Math', 'Latin Modern Math', 'Cambria Math', 'STIX Two Math',
-    'TeX Gyre Termes Math', 'Times New Roman', serif;
-  font-feature-settings: 'ss01' 0;
-  letter-spacing: 0;
-}
-/* 分式：整块按“垂直中线”对齐到父级数学轴线（约基线上方 .25em），
-   而不是下压半个字高；分子分母固定行高，保证分数线正好落在中线上。 */
-.kd-frac { display:inline-flex; flex-direction:column; align-items:stretch; vertical-align:middle;
-  text-align:center; margin:0 .18em; line-height:1.15; }
-.kd-frac-n { padding:0 .25em .03em; }
-.kd-frac-d { border-top:1px solid currentColor; padding:.03em .25em 0; }
-/* boxed：把最终答案框起来 */
-.kd-boxed { display:inline-flex; align-items:center; padding:.06em .38em; margin:0 .12em;
-  border:1px solid currentColor; border-radius:3px; }
-/* overset / underset：在基座上方或下方叠一行小字 */
-.kd-stack { display:inline-flex; flex-direction:column; align-items:center; vertical-align:middle;
-  line-height:1.1; }
-.kd-stack-mark { font-size:.72em; }
-.kd-stack-base { line-height:1.2; }
-/* underbrace / overbrace 的花括号暂不绘制，只保留内容分组 */
-.kd-group { display:inline; }
-/* binom：没有分数线的上下堆叠 */
-.kd-binom { display:inline-flex; align-items:center; vertical-align:middle; margin:0 .1em; }
-.kd-binom .kd-frac-d { border-top:0; padding-top:0; }
-.kd-sup, .kd-sub { font-size:.72em; }
-.kd-sup { vertical-align:super; }
-.kd-sub { vertical-align:sub; }
-.kd-sqrt { display:inline-flex; align-items:flex-start; }
-.kd-sqrt-sign { font-size:1.05em; line-height:1; }
-.kd-sqrt-index { font-size:.6em; margin-left:-.35em; }
-.kd-sqrt-body { border-top:1px solid currentColor; padding:0 .12em; }
-/* 被开方式偏高（分式/矩阵/求和）时，单个 √ 字形盖不住整体：
-   改成「底部斜钩 + 竖直左线 + 上横线」，竖线随内容自动拉长，多高都不脱节。 */
-.kd-sqrt-tall { position:relative; align-items:stretch; padding-left:.34em; }
-.kd-sqrt-tall .kd-sqrt-sign { position:absolute; left:0; bottom:0; width:.34em; height:.52em;
-  font-size:0; }
-.kd-sqrt-tall .kd-sqrt-sign::before { content:''; position:absolute; left:.33em; bottom:0;
-  width:1px; height:.52em; background:currentColor;
-  transform-origin:bottom center; transform:rotate(-40deg); }
-.kd-sqrt-tall .kd-sqrt-body { border-left:1px solid currentColor; }
-.kd-sqrt-tall .kd-sqrt-index { position:absolute; left:0; top:-.05em; margin:0; font-size:.55em; }
-.kd-op { display:inline-flex; flex-direction:column; align-items:center; vertical-align:middle;
-  margin:0 .2em; line-height:1.15; }
-.kd-op-sym { font-size:1.35em; line-height:1; }
-.kd-op-lim { font-size:.62em; }
-.kd-roman { font-style:normal; }
-.kd-bold { font-weight:700; font-style:normal; }
-.kd-blackboard { font-style:normal; }
-.kd-colsep { display:inline-block; width:.5em; }
-.kd-matrixbox { display:inline-flex; align-items:center; vertical-align:middle; }
-.kd-matrix { border-collapse:collapse; }
-.kd-matrix td { padding:2px 7px; text-align:center; border:0; }
-.kd-delim { font-size:1.5em; line-height:1; }
-.kd-cases .kd-matrix td { text-align:left; }
-.kd-accent-overline, .kd-accent-bar { border-top:1px solid currentColor; }
-.kd-accent-underline { border-bottom:1px solid currentColor; }
-.kd-accent-vec { position:relative; }
-.kd-accent-vec::before { content:'→'; position:absolute; top:-.75em; left:50%; transform:translateX(-50%); font-size:.7em; }
-.kd-accent-overrightarrow { position:relative; }
-.kd-accent-overrightarrow::before { content:'→'; position:absolute; top:-.85em; left:0; right:0;
-  text-align:center; font-size:.72em; line-height:1; }
-.kd-accent-overleftarrow { position:relative; }
-.kd-accent-overleftarrow::before { content:'←'; position:absolute; top:-.85em; left:0; right:0;
-  text-align:center; font-size:.72em; line-height:1; }
-.kd-accent-hat::before, .kd-accent-widehat::before { content:'^'; position:absolute; top:-.5em; left:50%; transform:translateX(-50%); font-size:.8em; }
-.kd-accent-hat, .kd-accent-widehat { position:relative; }
-.kd-accent-tilde { position:relative; }
-.kd-accent-tilde::before { content:'~'; position:absolute; top:-.55em; left:50%; transform:translateX(-50%); }
-.kd-accent-dot { position:relative; }
-.kd-accent-dot::before { content:'·'; position:absolute; top:-.6em; left:50%; transform:translateX(-50%); }
-.kd-accent-ddot { position:relative; }
-.kd-accent-ddot::before { content:'··'; position:absolute; top:-.6em; left:50%; transform:translateX(-50%); }
-.kd-latex-unknown { color:var(--dsw-alias-state-warn-primary); font-size:.92em; }
+.kd-math { display:inline-block; vertical-align:middle; max-width:100%; }
+.kd-math mjx-container { color:currentColor; }
+.kd-mathblock { display:block; margin:10px 0; padding:.35em .2em; overflow-x:auto; overflow-y:hidden;
+  text-align:center; }
+.kd-mathblock mjx-container { display:inline-block; max-width:100%; }
+.kd-math-pending { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.9em;
+  opacity:.55; white-space:pre-wrap; }
+.kd-math-error { color:var(--dsw-alias-state-error-primary);
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.9em; }
 .kd-checkline { display:flex; gap:8px; align-items:flex-start; padding:5px 0; font-size:13px; }
 .kd-chip { display:inline-flex; align-items:center; gap:2px; padding:0 2px 0 8px; border-radius:999px;
   border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1); font-size:12px; }

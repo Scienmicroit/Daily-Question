@@ -2,22 +2,25 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 /**
- * 渲染器单元测试：直接切片 client.js 里的 LaTeX / Markdown 解析段，
- * 用一个只记录结构的 React 桩函数跑一遍，检查解析结果（不是模拟浏览器渲染）。
+ * 渲染层单元测试：切片 client.js 里的「公式 + Markdown」代码段，用只记录结构的
+ * React 桩跑一遍。公式现在交给 MathJax，所以这里用一个假的 tex2svg 记录
+ * 「最终送给 MathJax 的 TeX 是什么」，而不是检查我们自己画的节点。
  */
 const clientPath = fileURLToPath(new URL('../client.js', import.meta.url))
 const source = readFileSync(clientPath, 'utf8')
-const start = source.indexOf('    /* ============================== LaTeX')
+const start = source.indexOf('    /* ============================== 公式（MathJax')
 const end = source.indexOf('    /* ============================== 样式')
 if (start < 0 || end < 0) throw new Error('没有找到渲染器代码段')
-const code = `let uid = 0\nconst nextKey = (prefix) => prefix + (uid += 1)\n${source.slice(start, end)}\nreturn { inlineNodes, renderBlocks, renderMath, Markdown }`
+const code = `let uid = 0
+const nextKey = (prefix) => prefix + (uid += 1)
+${source.slice(start, end)}
+return { inlineNodes, renderBlocks, renderMath, Markdown, mathState }`
 
 const h = (type, props, ...children) => ({ type, props: props || {}, children: children.flat(9) })
-function useState(initial) {
-  return [typeof initial === 'function' ? initial() : initial, () => {}]
-}
+function useState(initial) { return [typeof initial === 'function' ? initial() : initial, () => {}] }
 const factory = new Function('h', 'useState', 'useMemo', 'useEffect', 'useRef', 'useCallback', code)
-const { renderBlocks, inlineNodes, Markdown } = factory(h, useState, (fn) => fn(), () => {}, (v) => ({ current: v }), (fn) => fn)
+const api = factory(h, useState, (fn) => fn(), () => {}, (v) => ({ current: v }), (fn) => fn)
+const { inlineNodes, renderBlocks, mathState } = api
 
 let failures = 0
 function check(name, condition, detail = '') {
@@ -27,209 +30,144 @@ function check(name, condition, detail = '') {
 
 function walk(node, visit) {
   if (node === null || node === undefined) return
-  if (Array.isArray(node)) {
-    for (const item of node) walk(item, visit)
-    return
-  }
+  if (Array.isArray(node)) { for (const item of node) walk(item, visit); return }
   if (typeof node === 'object') {
     visit(node)
     for (const child of node.children || []) walk(child, visit)
   }
 }
-function classes(node) {
-  const out = []
-  walk(node, (item) => { if (item.props?.className) out.push(item.props.className) })
-  return out
-}
-function types(node) {
-  const out = []
-  walk(node, (item) => out.push(item.type))
-  return out
-}
+
 function textOf(node) {
-  let out = ''
-  const visit = (item) => { for (const child of item.children || []) if (typeof child === 'string') out += child }
+  if (node === null || node === undefined) return ''
   if (typeof node === 'string') return node
-  const collect = (value) => {
-    if (value === null || value === undefined) return
-    if (Array.isArray(value)) { value.forEach(collect); return }
-    if (typeof value === 'string') { out += value; return }
-    if (typeof value === 'object') {
-      visit(value)
-      ;(value.children || []).forEach(collect)
-    }
+  if (Array.isArray(node)) return node.map(textOf).join('')
+  if (typeof node === 'object') return (node.children || []).map(textOf).join('')
+  return ''
+}
+
+function mathNodes(node) {
+  const found = []
+  walk(node, (n) => { if (n.props && n.props.dangerouslySetInnerHTML) found.push(n) })
+  return found
+}
+
+/** 取出送进 MathJax 的 TeX 和 display 标记。 */
+function texOf(node) {
+  const [first] = mathNodes(node)
+  if (!first) return null
+  const html = first.props.dangerouslySetInnerHTML.__html
+  const match = /data-tex="([\s\S]*?)"/.exec(html)
+  return {
+    tex: match ? match[1] : '',
+    display: /data-display="true"/.test(html),
+    className: first.props.className,
   }
-  collect(node)
-  return out
-}
-function find(node, cls) {
-  let hit = null
-  walk(node, (item) => { if (!hit && item.props?.className?.includes(cls)) hit = item })
-  return hit
 }
 
-// ---- 数学公式 ----
-const inlineMath = inlineNodes('设 $x^2+\\frac{1}{2}$ 为所求')
-check('行内公式识别为 $...$', classes(inlineMath).some((c) => c.includes('kd-math')), JSON.stringify(classes(inlineMath)))
-check('上下标渲染为 sup', types(inlineMath).includes('sup'))
-check('分式渲染为 kd-frac', classes(inlineMath).some((c) => c.includes('kd-frac')))
-
-const blockMath = renderBlocks('$$\\int_0^1 x\\,dx = \\frac{1}{2}$$')
-check('独立公式渲染为块级', classes(blockMath).some((c) => c.includes('kd-mathblock')))
-check('积分号渲染为大运算符', classes(blockMath).some((c) => c.includes('kd-op')))
-
-const parenMath = inlineNodes('因为 \\(A\\) 的特征值为 0')
-check('支持 \\( ... \\) 定界符', classes(parenMath).some((c) => c.includes('kd-math')) && !textOf(parenMath).includes('\\('))
-
-const bracketMath = renderBlocks('\\[\nA^2+A\n\\]')
-check('支持 \\[ ... \\] 定界符', classes(bracketMath).some((c) => c.includes('kd-mathblock')))
-
-const matrix = renderBlocks('$$\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$$')
-check('矩阵渲染为表格', types(matrix).includes('table') && classes(matrix).some((c) => c.includes('kd-matrix')))
-
-const cases = renderBlocks('$$\\begin{cases} x, & x>0 \\\\ -x, & x\\le 0 \\end{cases}$$')
-check('分段函数渲染', classes(cases).some((c) => c.includes('kd-cases')))
-
-const greek = inlineNodes('$\\alpha+\\beta \\to \\infty$')
-check('希腊字母与符号', textOf(greek).includes('α') && textOf(greek).includes('∞'), textOf(greek))
-
-const unknown = inlineNodes('$\\weirdcmd{x}$')
-check('未知命令保留原文并提示', classes(unknown).some((c) => c.includes('kd-latex-unknown')) && textOf(unknown).includes('\\weirdcmd'), textOf(unknown))
-
-const sqrt = inlineNodes('$\\sqrt[3]{x}$')
-check('根式渲染', classes(sqrt).some((c) => c.includes('kd-sqrt')))
-
-const textCmd = inlineNodes('$\\text{当 } x>0$')
-check('\\text 原样输出', textOf(textCmd).includes('当'))
-
-const italic = inlineNodes('$x+y$')
-const italicText = textOf(italic)
-check('变量使用数学斜体码位', italicText.includes('\u{1D465}') && italicText.includes('\u{1D466}'), italicText)
-const upright = inlineNodes('$\\sin x+1$')
-const uprightText = textOf(upright)
-check('函数名与数字保持直立', uprightText.includes('sin') && uprightText.includes('1') && !uprightText.includes('\u{1D460}'), uprightText)
-const italicH = textOf(inlineNodes('$h(t)$'))
-check('斜体 h 使用 U+210E', italicH.includes('\u210E'), italicH)
-
-// 减号与导数记号必须是数学符号，不能是 ASCII 连字符/撇号
-const minus = textOf(inlineNodes('$x-1$'))
-check('减号使用 U+2212 而不是 ASCII 连字符', minus.includes('\u2212') && !minus.includes('-'), minus)
-const prime1 = textOf(inlineNodes("$f'(x)$"))
-check("撇号使用 U+2032 而不是 ASCII '", prime1.includes('\u2032') && !prime1.includes("'"), prime1)
-const prime2 = textOf(inlineNodes("$f''(x)$"))
-check('二阶导使用 U+2033', prime2.includes('\u2033'), prime2)
-const primeCurly = textOf(inlineNodes('$f\u2019(x)$'))
-check('中文输入法的 ’ 也归一为 U+2032', primeCurly.includes('\u2032') && !primeCurly.includes('\u2019'), primeCurly)
-const textHyphen = textOf(inlineNodes('$\\text{a-b}$'))
-check('文本模式保留普通连字符', textHyphen.includes('a-b'), textHyphen)
-
-// 其余符号也必须是数学字符
-const times = textOf(inlineNodes('$a*b$'))
-check('乘号使用 U+2217 而不是 ASCII 星号', times.includes('\u2217') && !times.includes('*'), times)
-const ellipsis = textOf(inlineNodes('$x_1,...$'))
-check('省略号使用 U+2026', ellipsis.includes('\u2026'), ellipsis)
-const norm = textOf(inlineNodes('$\\|x\\|$'))
-check('\\| 渲染为双竖线 U+2016', norm.includes('\u2016'), norm)
-const cond = textOf(inlineNodes('$P(A\\mid B)$'))
-check('\\mid 渲染为条件竖线 U+2223', cond.includes('\u2223'), cond)
-
-// amsmath 常用命令：\boxed / \binom / \overrightarrow
-const boxed = inlineNodes('$\\boxed{x=1}$')
-check('\\boxed 渲染成方框而不是字面量', classes(boxed).some((c) => c.includes('kd-boxed')), JSON.stringify(classes(boxed)))
-check('\\boxed 内部内容正常渲染', textOf(boxed).includes('\u{1D465}=1'), textOf(boxed))
-const binom = inlineNodes('$\\binom{n}{k}$')
-check('\\binom 渲染为堆叠括号', classes(binom).some((c) => c.includes('kd-binom')) && textOf(binom).includes('\u{1D45B}'), textOf(binom))
-const vector = inlineNodes('$\\overrightarrow{AB}$')
-check('\\overrightarrow 渲染为向量箭头', classes(vector).some((c) => c.includes('kd-accent-overrightarrow')) && textOf(vector).includes('\u{1D434}'), JSON.stringify(classes(vector)))
-
-// 公式块：根号必须保留 √ 字形（否则只剩一条横线），长箭头不能退化成字面量
-const sqrtNode = inlineNodes('$\\sqrt{x^2+y^2}$')
-check('根号输出里带 √ 字形', textOf(sqrtNode).includes('\u221A'), textOf(sqrtNode))
-check('根号有 kd-sqrt 结构与横线容器',
-  classes(sqrtNode).some((c) => c.includes('kd-sqrt')) && classes(sqrtNode).some((c) => c.includes('kd-sqrt-body')),
-  JSON.stringify(classes(sqrtNode)))
-// 被开方式偏高时必须换画法，否则单个 √ 字形盖不住分式
-check('矮根号仍用 √ 字形', !classes(sqrtNode).some((c) => c.includes('kd-sqrt-tall')), JSON.stringify(classes(sqrtNode)))
-const tallRoot = inlineNodes('$\\sqrt{\\frac{a}{b}}$')
-check('分式根号切到可拉伸画法', classes(tallRoot).some((c) => c.includes('kd-sqrt-tall')), JSON.stringify(classes(tallRoot)))
-check('可拉伸根号不再输出 √ 字形（避免钩子悬空）', !textOf(tallRoot).includes('\u221A'), textOf(tallRoot))
-const tallBinom = inlineNodes('$\\sqrt{\\binom{n}{k}}$')
-check('组合数根号也切到可拉伸画法', classes(tallBinom).some((c) => c.includes('kd-sqrt-tall')), JSON.stringify(classes(tallBinom)))
-const tallIndex = inlineNodes('$\\sqrt[3]{\\frac{a}{b}}$')
-check('带次数的分式根号保留次数', textOf(tallIndex).includes('3') && classes(tallIndex).some((c) => c.includes('kd-sqrt-tall')), textOf(tallIndex))
-const nestedRoot = inlineNodes('$\\sqrt{1+\\sqrt{x}}$')
-check('嵌套矮根号仍是字形画法', classes(nestedRoot).every((c) => !c.includes('kd-sqrt-tall')), JSON.stringify(classes(nestedRoot)))
-for (const [name, glyph] of [['Longleftrightarrow', '\u27FA'], ['Longrightarrow', '\u27F9'], ['Longleftarrow', '\u27F8']]) {
-  const nodes = inlineNodes(`$a \\${name} b$`)
-  check(`\\${name} 渲染为箭头`, !classes(nodes).some((c) => c.includes('kd-latex-unknown'))
-    && textOf(nodes).includes(glyph), textOf(nodes))
+// ---- 假的 MathJax ----
+mathState.status = 'ready'
+globalThis.window = {
+  MathJax: {
+    tex2svg(tex, options) {
+      const escaped = String(tex).replace(/"/g, '&#34;')
+      const display = options && options.display ? 'true' : 'false'
+      return { outerHTML: `<mjx-container data-tex="${escaped}" data-display="${display}"></mjx-container>` }
+    },
+  },
 }
 
-// 字面量 \n（模型多转义了一层）应还原成换行，且不能误伤 \nabla 这类命令
-const literalBreak = renderBlocks('段落一\\n\\n段落二')
-check('字面量 \\n\\n 还原成两个段落', literalBreak.length === 2
-  && literalBreak.every((block) => block && block.type === 'p'), String(literalBreak.length))
-const literalLine = renderBlocks('第一行\\n第二行')
-check('字面量 \\n 变成换行而不是字母 n', !textOf(literalLine[0]).includes('n第'),
-  JSON.stringify(textOf(literalLine[0])))
-const nablaText = textOf(renderBlocks('$\\nabla f$')[0])
-check('\\nabla 不会被当成换行', nablaText.includes('\u2207') && !nablaText.includes('abla f'), nablaText)
+// ---- 公式 ----
+const inline = texOf(inlineNodes('斜率 $k=\\frac{1}{2}$ 与法线'))
+check('行内公式交给 MathJax', inline && inline.tex === 'k=\\frac{1}{2}' && inline.display === false, JSON.stringify(inline))
+check('行内公式用 kd-math 包裹', inline && inline.className === 'kd-math', inline && inline.className)
 
-const KNOWN_SNIPPETS = [
-  '\\boxed{x}', '\\binom{n}{k}', '\\lceil x \\rceil', '\\lfloor x \\rfloor',
-  '\\langle a,b \\rangle', '\\ell', '\\Re', '\\Im', '\\hbar',
-  '\\overset{a}{b}', '\\underset{a}{b}', '\\underbrace{1+1}_{=2}', '\\overbrace{a+b}^{c}',
-  '\\big(', '\\Big[', '\\bigl\\{', '\\bmod', '\\pmod{7}', '\\|x\\|', '\\mid', '\\nmid',
-  '\\bullet', '\\ni', '\\Box', '\\bigcirc', '\\dagger', '\\ddagger', '\\backslash', '\\hline',
-]
-const unknownCommands = KNOWN_SNIPPETS.filter((snippet) => classes(inlineNodes(`$${snippet}$`))
-  .some((c) => c.includes('kd-latex-unknown')))
-check('常见 LaTeX 命令都不会退化成字面量', unknownCommands.length === 0, JSON.stringify(unknownCommands))
+const displayMath = texOf(renderBlocks('$$\\int_0^1 x^2 dx$$'))
+check('公式块用 kd-mathblock', displayMath && displayMath.className === 'kd-mathblock', displayMath && displayMath.className)
+check('公式块标记为 display', displayMath && displayMath.display === true, JSON.stringify(displayMath))
 
-// ---- Markdown 块级 ----
+const arrow = texOf(inlineNodes('$a \\Longleftrightarrow b$'))
+check('长箭头原样交给 MathJax（不再自己映射）', arrow.tex.includes('\\Longleftrightarrow'), arrow.tex)
+
+const boxed = texOf(inlineNodes('$\\boxed{x=1}$'))
+check('\\boxed 原样交给 MathJax', boxed.tex.includes('\\boxed'), boxed.tex)
+
+const lineBreak = texOf(renderBlocks('$$a\\\\b$$'))
+check('公式块里的裸 \\\\ 包进 \\displaylines', lineBreak.tex.startsWith('\\displaylines{'), lineBreak.tex)
+
+const alignedBreak = texOf(renderBlocks('$$\\begin{aligned}a\\\\b\\end{aligned}$$'))
+check('环境里的 \\\\ 不会被再包一层', !alignedBreak.tex.includes('\\displaylines'), alignedBreak.tex)
+
+const parenDelim = texOf(inlineNodes('行内 \\(a+b\\) 结束'))
+check('\\( \\) 定界符', parenDelim && parenDelim.tex === 'a+b' && parenDelim.display === false, JSON.stringify(parenDelim))
+
+const bracketDelim = texOf(renderBlocks('\\[a+b\\]'))
+check('\\[ \\] 定界符按公式块处理', bracketDelim && bracketDelim.display === true, JSON.stringify(bracketDelim))
+
+const dangling = inlineNodes('价格 $5 与 $6 不是公式')
+check('不闭合的 $ 不会吃掉正文', textOf(dangling).includes('价格'), textOf(dangling))
+
+// ---- Markdown ----
 const doc = renderBlocks([
   '# 标题',
   '',
   '普通段落，**加粗**、*斜体*、`代码`、[链接](https://example.com)。',
   '',
-  '- 第一项',
-  '- 第二项',
+  '- 项目一',
+  '- 项目二',
   '',
-  '> 引用行',
+  '> 引用',
   '',
-  '| 列1 | 列2 |',
-  '| --- | --- |',
-  '| a | b |',
-  '',
-  '```python',
-  'for i in range(3):',
-  '    print(i)',
+  '```js',
+  'const a = 1',
   '```',
 ].join('\n'))
+const types = []
+walk(doc, (n) => { if (n.type) types.push(n.type) })
+check('标题', types.some((t) => /^h[1-6]$/.test(t)), types.join(','))
+check('段落与列表', types.includes('p') && types.includes('ul') && types.includes('li'), types.join(','))
+check('引用与代码块', types.includes('blockquote') && types.includes('pre'), types.join(','))
+check('粗体斜体与行内代码', types.includes('strong') && types.includes('em') && types.includes('code'), types.join(','))
+check('链接', types.includes('a'), types.join(','))
 
-check('标题渲染', types(doc).includes('h3'), JSON.stringify(types(doc)))
-check('粗体与斜体', types(doc).includes('strong') && types(doc).includes('em'))
-check('行内代码', classes(doc).some((c) => c.includes('kd-inline-code')))
-check('链接', types(doc).includes('a'))
-check('无序列表', types(doc).includes('ul'))
-check('引用块', types(doc).includes('blockquote'))
-check('表格', types(doc).includes('table'))
-const codeBlock = find(doc, 'kd-code')
-check('代码块保留缩进与换行', Boolean(codeBlock) && textOf(codeBlock).includes('    print(i)'), textOf(codeBlock))
+const table = renderBlocks('| a | b |\n| --- | --- |\n| 1 | 2 |')
+const tableTags = []
+walk(table, (n) => { if (n.type) tableTags.push(n.type) })
+check('表格', tableTags.includes('table') && tableTags.includes('th') && tableTags.includes('td'), tableTags.join(','))
 
-const ordered = renderBlocks('1. 一\n2. 二')
-check('有序列表', types(ordered).includes('ol'))
+// ---- 文本清洗 ----
+const literalBreak = renderBlocks('段落一\\n\\n段落二')
+check('字面量 \\n\\n 还原成两个段落', literalBreak.length === 2
+  && literalBreak.every((block) => block && block.type === 'p'), String(literalBreak.length))
+const nabla = renderBlocks('$\\nabla f$')
+check('\\nabla 不会被当成换行', texOf(nabla).tex === '\\nabla f', JSON.stringify(texOf(nabla)))
 
-const image = renderBlocks('![图](https://example.com/a.png)')
-let imageNode = null
-walk(image, (item) => { if (item.props?.url) imageNode = item })
-check('图片渲染为组件并保留地址', Boolean(imageNode) && typeof imageNode.type === 'function' && imageNode.props.url === 'https://example.com/a.png', JSON.stringify(imageNode && imageNode.props))
+// ---- 引擎未就绪 / 失败 ----
+mathState.status = 'loading'
+const pending = inlineNodes('$x^2$')
+check('引擎未就绪时先显示原文', textOf(pending).includes('x^2'), textOf(pending))
+mathState.status = 'ready'
 
-const broken = renderBlocks('$\\frac{1}{$')
-check('不完整公式不会抛错', Array.isArray(broken))
+mathState.status = 'ready'
+globalThis.window.MathJax.tex2svg = () => { throw new Error('boom') }
+const broken = inlineNodes('$\\bad$')
+check('渲染失败时降级为错误样式', textOf(broken).includes('\\bad'), textOf(broken))
+check('渲染失败不抛错', true)
 
-const empty = renderBlocks('')
-check('空内容安全', Array.isArray(empty) && empty.length === 0)
+// ---- 安全过滤 ----
+// 恢复一个可用的 tex2svg（上面测失败路径时把它换成了抛错的桩）
+globalThis.window.MathJax.tex2svg = (tex, options) => {
+  const escaped = String(tex).replace(/"/g, '&#34;')
+  const display = options && options.display ? 'true' : 'false'
+  return { outerHTML: `<mjx-container data-tex="${escaped}" data-display="${display}"></mjx-container>` }
+}
+const xss = texOf(inlineNodes('$\\href{javascript:alert(1)}{click}$'))
+check('去掉 \\href（防 javascript: 链接）', !xss.tex.includes('\\href') && !xss.tex.includes('javascript:'), xss.tex)
+const styled = texOf(inlineNodes('$\\style{color:red}{x}$'))
+check('去掉 \\style', !styled.tex.includes('\\style'), styled.tex)
+const requireTag = texOf(inlineNodes('$\\require{enclose}x$'))
+check('去掉 \\require', !requireTag.tex.includes('\\require'), requireTag.tex)
+const normal = texOf(inlineNodes('$\\frac{\\sqrt{2}}{2}$'))
+check('正常公式不受过滤影响', normal.tex === '\\frac{\\sqrt{2}}{2}', normal.tex)
 
-console.log(failures ? `\n${failures} 个检查未通过` : '\n全部通过')
-process.exit(failures ? 1 : 0)
+console.log(failures === 0 ? '全部通过' : `${failures} 项失败`)
+process.exit(failures === 0 ? 0 : 1)

@@ -1,10 +1,11 @@
-# 统一换行与二进制判定：JS/JSON/MD 一律 LF，字体与图片按二进制处理
+# 统一换行与二进制判定：JS/JSON/MD 一律 LF，字体与压缩包按二进制处理
 * text=auto eol=lf
 
 *.otf binary
 *.woff  binary
 *.woff2 binary
 *.ttf  binary
+*.tgz  binary
 *.png  binary
 *.jpg  binary
 *.ico  binary
