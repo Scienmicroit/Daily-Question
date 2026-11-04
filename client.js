@@ -121,6 +121,9 @@ window.__ModuleLoader__.load({
       propto: '∝', ll: '≪', gg: '≫', leqslant: '≤', geqslant: '≥',
       to: '→', rightarrow: '→', leftarrow: '←', leftrightarrow: '↔', Rightarrow: '⇒', Leftarrow: '⇐',
       Leftrightarrow: '⇔', mapsto: '↦', implies: '⟹', iff: '⟺',
+      longrightarrow: '⟶', longleftarrow: '⟵', longleftrightarrow: '⟷',
+      Longrightarrow: '⟹', Longleftarrow: '⟸', Longleftrightarrow: '⟺',
+      hookrightarrow: '↪', hookleftarrow: '↩', uparrow: '↑', downarrow: '↓', Updownarrow: '⇕',
       partial: '∂', nabla: '∇', forall: '∀', exists: '∃', nexists: '∄', neg: '¬', in: '∈', notin: '∉',
       subset: '⊂', subseteq: '⊆', supset: '⊃', supseteq: '⊇', cup: '∪', cap: '∩', emptyset: '∅',
       varnothing: '∅', setminus: '∖', land: '∧', lor: '∨',
@@ -367,9 +370,14 @@ window.__ModuleLoader__.load({
       }
       if (name === 'sqrt') {
         const index = readOptionalGroup(cur)
+        const from = cur.i
         const body = readArg(cur)
-        return h('span', { className: 'kd-sqrt', key: nextKey('sq') },
-          h('span', { className: 'kd-sqrt-sign', key: 's' }, '√'),
+        // 被开方式是分式、矩阵、求和积分这类"高"内容时，√ 字形高度不够，
+        // 换成可拉伸的画法（见 .kd-sqrt-tall）
+        const raw = cur.src.slice(from, cur.i)
+        const tall = /\\[dtc]?frac\b|\\binom\b|\\sum\b|\\prod\b|\\i{1,2}int\b|\\oint\b|\\overline\b|\\begin\b/.test(raw)
+        return h('span', { className: `kd-sqrt${tall ? ' kd-sqrt-tall' : ''}`, key: nextKey('sq') },
+          h('span', { className: 'kd-sqrt-sign', key: 's' }, tall ? null : '√'),
           index ? h('sup', { className: 'kd-sqrt-index', key: 'i' }, latexNodes(index)) : null,
           h('span', { className: 'kd-sqrt-body', key: 'b' }, body))
       }
@@ -484,6 +492,10 @@ window.__ModuleLoader__.load({
       })
     }
 
+    /** Markdown 里有转义意义的字符：只有这些才允许把反斜杠吃掉。 */
+    const MD_ESCAPABLE = new Set(['\\', '`', '*', '_', '{', '}', '[', ']', '(', ')',
+      '#', '+', '-', '.', '!', '>', '|', '~', '<', '$', '"', "'"])
+
     function inlineNodes(text) {
       const out = []
       let buffer = ''
@@ -504,8 +516,16 @@ window.__ModuleLoader__.load({
           }
         }
         if (c === '\\' && index + 1 < text.length) {
-          buffer += text[index + 1]
-          index += 2
+          const next = text[index + 1]
+          // 只有 Markdown 里有意义的字符才去掉反斜杠；其余原样保留，
+          // 免得把 \nabla、\neq 这类命令悄悄变成 "nabla"、"neq"。
+          if (MD_ESCAPABLE.has(next)) {
+            buffer += next
+            index += 2
+            continue
+          }
+          buffer += c
+          index += 1
           continue
         }
         if (c === '`') {
@@ -634,7 +654,16 @@ window.__ModuleLoader__.load({
     }
 
     function renderBlocks(source) {
-      const lines = String(source || '').replace(/\r\n?/g, '\n').split('\n')
+      // 模型偶尔把换行写成字面量 `\n`（JSON 里多转义了一层），这里先还原成真换行，
+      // 否则会渲染成一串多余的字母 n，段落结构也会塌成一行。
+      // 用 (?!\w) 保证不会误伤 \nabla / \neq / \theta / \times 这类命令。
+      const normalized = String(source || '')
+        .replace(/\\r\\n/g, '\n')
+        .replace(/\\n(?!\w)/g, '\n')
+        .replace(/\\r(?!\w)/g, '\n')
+        .replace(/\\t(?!\w)/g, ' ')
+        .replace(/\r\n?/g, '\n')
+      const lines = normalized.split('\n')
       const out = []
       let index = 0
       while (index < lines.length) {
@@ -1023,7 +1052,8 @@ window.__ModuleLoader__.load({
   color:var(--dsw-alias-state-warn-primary); border:1px dashed var(--dsw-alias-state-warn-primary);
   border-radius:6px; padding:2px 6px; }
 .kd-math { display:inline-block; vertical-align:middle; }
-.kd-mathblock { display:block; margin:10px 0; overflow-x:auto; overflow-y:hidden; text-align:center; }
+.kd-mathblock { display:block; margin:10px 0; overflow-x:auto; overflow-y:hidden;
+  text-align:center; padding:.42em .2em .3em; }
 .kd-math, .kd-mathblock {
   font-family: 'KD Latin Modern Math', 'Latin Modern Math', 'Cambria Math', 'STIX Two Math',
     'TeX Gyre Termes Math', 'Times New Roman', serif;
@@ -1053,9 +1083,19 @@ window.__ModuleLoader__.load({
 .kd-sup { vertical-align:super; }
 .kd-sub { vertical-align:sub; }
 .kd-sqrt { display:inline-flex; align-items:flex-start; }
-.kd-sqrt-sign { font-size:1.05em; }
+.kd-sqrt-sign { font-size:1.05em; line-height:1; }
 .kd-sqrt-index { font-size:.6em; margin-left:-.35em; }
 .kd-sqrt-body { border-top:1px solid currentColor; padding:0 .12em; }
+/* 被开方式偏高（分式/矩阵/求和）时，单个 √ 字形盖不住整体：
+   改成「底部斜钩 + 竖直左线 + 上横线」，竖线随内容自动拉长，多高都不脱节。 */
+.kd-sqrt-tall { position:relative; align-items:stretch; padding-left:.34em; }
+.kd-sqrt-tall .kd-sqrt-sign { position:absolute; left:0; bottom:0; width:.34em; height:.52em;
+  font-size:0; }
+.kd-sqrt-tall .kd-sqrt-sign::before { content:''; position:absolute; left:.33em; bottom:0;
+  width:1px; height:.52em; background:currentColor;
+  transform-origin:bottom center; transform:rotate(-40deg); }
+.kd-sqrt-tall .kd-sqrt-body { border-left:1px solid currentColor; }
+.kd-sqrt-tall .kd-sqrt-index { position:absolute; left:0; top:-.05em; margin:0; font-size:.55em; }
 .kd-op { display:inline-flex; flex-direction:column; align-items:center; vertical-align:middle;
   margin:0 .2em; line-height:1.15; }
 .kd-op-sym { font-size:1.35em; line-height:1; }

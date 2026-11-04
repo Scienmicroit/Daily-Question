@@ -142,7 +142,39 @@ check('\\binom 渲染为堆叠括号', classes(binom).some((c) => c.includes('kd
 const vector = inlineNodes('$\\overrightarrow{AB}$')
 check('\\overrightarrow 渲染为向量箭头', classes(vector).some((c) => c.includes('kd-accent-overrightarrow')) && textOf(vector).includes('\u{1D434}'), JSON.stringify(classes(vector)))
 
-// 常见命令都不应该退化成字面量（会显示成 \xxx 的那种）
+// 公式块：根号必须保留 √ 字形（否则只剩一条横线），长箭头不能退化成字面量
+const sqrtNode = inlineNodes('$\\sqrt{x^2+y^2}$')
+check('根号输出里带 √ 字形', textOf(sqrtNode).includes('\u221A'), textOf(sqrtNode))
+check('根号有 kd-sqrt 结构与横线容器',
+  classes(sqrtNode).some((c) => c.includes('kd-sqrt')) && classes(sqrtNode).some((c) => c.includes('kd-sqrt-body')),
+  JSON.stringify(classes(sqrtNode)))
+// 被开方式偏高时必须换画法，否则单个 √ 字形盖不住分式
+check('矮根号仍用 √ 字形', !classes(sqrtNode).some((c) => c.includes('kd-sqrt-tall')), JSON.stringify(classes(sqrtNode)))
+const tallRoot = inlineNodes('$\\sqrt{\\frac{a}{b}}$')
+check('分式根号切到可拉伸画法', classes(tallRoot).some((c) => c.includes('kd-sqrt-tall')), JSON.stringify(classes(tallRoot)))
+check('可拉伸根号不再输出 √ 字形（避免钩子悬空）', !textOf(tallRoot).includes('\u221A'), textOf(tallRoot))
+const tallBinom = inlineNodes('$\\sqrt{\\binom{n}{k}}$')
+check('组合数根号也切到可拉伸画法', classes(tallBinom).some((c) => c.includes('kd-sqrt-tall')), JSON.stringify(classes(tallBinom)))
+const tallIndex = inlineNodes('$\\sqrt[3]{\\frac{a}{b}}$')
+check('带次数的分式根号保留次数', textOf(tallIndex).includes('3') && classes(tallIndex).some((c) => c.includes('kd-sqrt-tall')), textOf(tallIndex))
+const nestedRoot = inlineNodes('$\\sqrt{1+\\sqrt{x}}$')
+check('嵌套矮根号仍是字形画法', classes(nestedRoot).every((c) => !c.includes('kd-sqrt-tall')), JSON.stringify(classes(nestedRoot)))
+for (const [name, glyph] of [['Longleftrightarrow', '\u27FA'], ['Longrightarrow', '\u27F9'], ['Longleftarrow', '\u27F8']]) {
+  const nodes = inlineNodes(`$a \\${name} b$`)
+  check(`\\${name} 渲染为箭头`, !classes(nodes).some((c) => c.includes('kd-latex-unknown'))
+    && textOf(nodes).includes(glyph), textOf(nodes))
+}
+
+// 字面量 \n（模型多转义了一层）应还原成换行，且不能误伤 \nabla 这类命令
+const literalBreak = renderBlocks('段落一\\n\\n段落二')
+check('字面量 \\n\\n 还原成两个段落', literalBreak.length === 2
+  && literalBreak.every((block) => block && block.type === 'p'), String(literalBreak.length))
+const literalLine = renderBlocks('第一行\\n第二行')
+check('字面量 \\n 变成换行而不是字母 n', !textOf(literalLine[0]).includes('n第'),
+  JSON.stringify(textOf(literalLine[0])))
+const nablaText = textOf(renderBlocks('$\\nabla f$')[0])
+check('\\nabla 不会被当成换行', nablaText.includes('\u2207') && !nablaText.includes('abla f'), nablaText)
+
 const KNOWN_SNIPPETS = [
   '\\boxed{x}', '\\binom{n}{k}', '\\lceil x \\rceil', '\\lfloor x \\rfloor',
   '\\langle a,b \\rangle', '\\ell', '\\Re', '\\Im', '\\hbar',

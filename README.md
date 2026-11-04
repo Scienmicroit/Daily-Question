@@ -37,15 +37,15 @@
 需要可用的 DeepSeek Harness，以及一个能用的默认模型（在线出题要用）。
 
 > 装插件需要 git 或 npm 其中一条通路。**没有 git 的机器**请用下面第 1 种（仓库自带的
-> `dist/daily-question-1.0.6.tgz`）或发到 npm 之后的包名，这两种都不调用 git。
+> `dist/daily-question-1.0.7.tgz`）或发到 npm 之后的包名，这两种都不调用 git。
 
 ### 1. 用仓库自带的 tgz（不需要 git、不需要联网装依赖）
 
-仓库里带了一个已打包好的插件：`dist/daily-question-1.0.6.tgz`。
+仓库里带了一个已打包好的插件：`dist/daily-question-1.0.7.tgz`。
 
 ```bash
 # 下载仓库后（ZIP 或 git clone 都行），用本地文件安装
-dsh plugin --profile web add ./dist/daily-question-1.0.6.tgz
+dsh plugin --profile web add ./dist/daily-question-1.0.7.tgz
 ```
 
 DSH Desktop 上：插件页的安装输入框填**这个 tgz 的绝对路径**，或把路径交给 Agent 用
@@ -65,14 +65,14 @@ profile 名就是你启动 DSH 时用的那个：跑 `dsh web` 就是 `--profile
 **从 npm 装**（最省事，不需要 git）：
 
 ```bash
-dsh plugin --profile web add daily-question@1.0.6
+dsh plugin --profile web add daily-question@1.0.7
 dsh plugin --profile web add daily-question        # 跟随最新版
 ```
 
 **从 GitHub 装**（需要本机有 git）：
 
 ```bash
-dsh plugin --profile web add github:Scienmicroit/Daily-Question#v1.0.6
+dsh plugin --profile web add github:Scienmicroit/Daily-Question#v1.0.7
 dsh plugin --profile web add github:Scienmicroit/Daily-Question   # 不写 #tag 取默认分支最新提交
 ```
 
@@ -92,8 +92,8 @@ dsh plugin --profile web add ./Daily-Question
 已经装好 DSH 的话，把下面任一 target 交给 Agent，让它调用 `plugin_manager` 的 `install_bundle`：
 
 - 本地目录或 tgz 的绝对路径（不需要 git）
-- `daily-question@1.0.6`（发布到 npm 之后）
-- `github:Scienmicroit/Daily-Question#v1.0.6`（本机有 git 时）
+- `daily-question@1.0.7`（发布到 npm 之后）
+- `github:Scienmicroit/Daily-Question#v1.0.7`（本机有 git 时）
 
 ### 升级与卸载
 
