@@ -2,7 +2,7 @@
 
 给 [DeepSeek Harness](https://github.com/deepseek-ai) 用的每日一题插件：左侧栏一个入口，每个启用科目每天一道题，答案先经过**独立视角校验**才发布，配倒计时、错题本、收藏和按题隔离的追问侧栏。
 
-面向中国大陆硕士研究生招生考试（考研），默认科目含思想政治理论、英语一/二、数学一/二/三、408 计算机学科专业基础综合，也可自行添加其他科目。
+面向中国大陆硕士研究生招生考试（考研）。内置科目只有这几个：思想政治理论（单项选择、多项选择）、数学一 / 数学二 / 数学三（单项选择、填空、解答）、英语一 / 英语二（英语知识运用（完形填空）、阅读理解、翻译）。其他科目可以自己添加为自定义科目。
 
 ## 功能
 
@@ -49,7 +49,7 @@ profile 名就是你启动 DSH 时用的那个：跑 `dsh web` 就是 `--profile
 **从 GitHub 装**（推荐）：
 
 ```bash
-dsh plugin --profile web add github:Scienmicroit/Daily-Question#v1.0.2
+dsh plugin --profile web add github:Scienmicroit/Daily-Question#v1.0.4
 dsh plugin --profile web add github:Scienmicroit/Daily-Question   # 不写 #tag 取默认分支最新提交
 ```
 
@@ -58,7 +58,7 @@ dsh plugin --profile web add github:Scienmicroit/Daily-Question   # 不写 #tag 
 ```bash
 git clone https://github.com/Scienmicroit/Daily-Question
 dsh plugin --profile web add ./Daily-Question
-dsh plugin --profile web add ./daily-question-1.0.2.tgz
+dsh plugin --profile web add ./daily-question-1.0.4.tgz
 ```
 
 装完这条命令会把包里 `dsh.bundle.patch` 声明的那一行自动叠加进 profile（`package.json` 的 `dsh.profile.bundles` 里会出现 `daily-question`），下次启动该 profile 即生效。
@@ -76,7 +76,7 @@ dsh plugin --profile web add github:Scienmicroit/Daily-Question   # 重新装一
 dsh plugin --profile web remove daily-question                    # 卸载
 ```
 
-卸载不会删除学习数据（`~/.dsh/kaoyan-daily/data.json`）。
+卸载不会删除学习数据（`~/.dsh/daily-question/data.json`）。
 
 ### 发新版本（维护者）
 
@@ -84,7 +84,7 @@ dsh plugin --profile web remove daily-question                    # 卸载
 git tag v1.0.3 && git push --tags
 ```
 
-打了 tag 之后，别人就能用 `github:Scienmicroit/Daily-Question#v1.0.3` 锁定版本；
+打了 tag 之后，别人就能用 `github:Scienmicroit/Daily-Question#v1.0.4` 锁定版本；
 不打 tag 则安装默认分支的最新提交。
 
 > 本插件不发布到 npm，安装统一走 GitHub 或本地目录。
@@ -92,14 +92,14 @@ git tag v1.0.3 && git push --tags
 
 ## 首次使用
 
-1. 点左侧栏图标进入，先「科目管理」勾选要考的科目（例如数学一、408）。
+1. 点左侧栏图标进入，先「科目管理」勾选要考的科目（例如数学一、英语一）。
 2. 在右上角年份下拉里选择你参加的考研年份，倒计时与目标日期随之更新。
 3. 「今日题目」会为该科目出今天的题；首次在线出题需要几十秒（生成 + 独立校验）。
 4. 想用题库：科目管理里把该科目来源切成「题库出题」或「自动」，再到「题库管理」导入 `.md` / `.txt` / 文本型 PDF，先在预览里核对识别结果，再确认入库。
 
 ## 数据与隐私
 
-- 学习数据保存在本机：`~/.dsh/kaoyan-daily/data.json`（可用环境变量 `DSH_KAOYAN_DATA_DIR` 改路径）。单文件 JSON，原子写 + 串行队列，写失败会把错误抛给界面而不是静默丢弃。
+- 学习数据保存在本机：`~/.dsh/daily-question/data.json`（可用环境变量 `DSH_DAILY_QUESTION_DATA_DIR` 改路径）。单文件 JSON，原子写 + 串行队列，写失败会把错误抛给界面而不是静默丢弃。
 - 在线出题与追问只走宿主自己配置的模型服务，不额外接入第三方；联网核验考试日期只访问教育部 / 教育考试院 / 研招网域名。
 - 导入的题库文件只在本机解析，不上传。
 

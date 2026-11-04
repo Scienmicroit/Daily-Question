@@ -1,4 +1,4 @@
-import { KaoyanService } from './lib/service.js'
+import { DailyQuestionService } from './lib/service.js'
 import { registerRoutes } from './lib/routes.js'
 
 /**
@@ -11,7 +11,7 @@ import { registerRoutes } from './lib/routes.js'
  * 界面全部由 client.js 以 Slot 组件渲染；这里不提供 HTML 页面。
  */
 
-const PREFIX = 'kaoyan-daily'
+const PREFIX = 'daily-question'
 
 function createLogger(ctx) {
   const scoped = typeof ctx.logger === 'function' ? ctx.logger(PREFIX) : undefined
@@ -27,7 +27,7 @@ export function apply(ctx) {
   const logger = createLogger(ctx)
   // 服务只通过 ctx.get(name) 探测可选服务（llm / web / agentDefaultModel），
   // 因此这里给它一个最小的宿主外观，而不是整个 Context。
-  const service = new KaoyanService({ get: (name) => ctx.get?.(name), logger })
+  const service = new DailyQuestionService({ get: (name) => ctx.get?.(name), logger })
 
   ctx.effect(() => {
     let stopped = false
@@ -48,4 +48,4 @@ export function apply(ctx) {
   })
 }
 
-export { KaoyanService }
+export { DailyQuestionService }

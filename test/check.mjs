@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { resolveExamDate, computeCountdown, calendarDiff, daysBetween, addYears } from '../lib/exam-dates.js'
 import { parseBankText } from '../lib/bank.js'
 import { Store } from '../lib/store.js'
-import { findSubject, subjectTypes } from '../lib/subjects.js'
+import { CHOICE_TYPES, findSubject, subjectTypes } from '../lib/subjects.js'
 import { normalizeCandidate, structuralProblems } from '../lib/generate.js'
 import { parseJsonLoose } from '../lib/llm-json.js'
 
@@ -123,13 +123,21 @@ check('难度被夹到 5', cand.difficulty === 5)
 check('结构检查通过', structuralProblems(cand, ['single']).length === 0, JSON.stringify(structuralProblems(cand, ['single'])))
 
 // ---- 科目 ----
-check('408 只有单选与解答', JSON.stringify(subjectTypes('cs408')) === JSON.stringify(['single', 'solution']))
+check('政治只考单选与多选', JSON.stringify(subjectTypes('politics')) === JSON.stringify(['single', 'multiple']))
+check('英语一题型', JSON.stringify(subjectTypes('english1')) === JSON.stringify(['cloze', 'reading', 'translation']))
+check('英语二题型', JSON.stringify(subjectTypes('english2')) === JSON.stringify(['cloze', 'reading', 'translation']))
+check('408 已不在默认科目目录', findSubject('cs408') === undefined)
+check('完形填空/阅读理解按选择题判分', CHOICE_TYPES.has('cloze') && CHOICE_TYPES.has('reading'))
 check('数学一题型', JSON.stringify(subjectTypes('math1')) === JSON.stringify(['single', 'fill', 'solution']))
 check('未知科目退化', JSON.stringify(subjectTypes('nope')) === JSON.stringify(['single', 'solution']))
 check('科目查找', findSubject('math2')?.name === '数学二')
 
+const customSubject = [{ id: 'c1', name: '自命题科目', types: ['名词解释', 'multiple'] }]
+check('自定义科目可用任意题型名', JSON.stringify(subjectTypes('c1', customSubject)) === JSON.stringify(['名词解释', 'multiple']),
+  JSON.stringify(subjectTypes('c1', customSubject)))
+
 // ---- Store ----
-const tmpRoot = await mkdtemp(join(tmpdir(), 'kaoyan-store-'))
+const tmpRoot = await mkdtemp(join(tmpdir(), 'daily-question-store-'))
 const dir = join(tmpRoot, 'data')
 const store = new Store(dir)
 await store.load()

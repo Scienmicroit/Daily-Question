@@ -687,7 +687,7 @@ window.__ModuleLoader__.load({
 @font-face {
   font-family: 'KD Latin Modern Math';
   src: local('Latin Modern Math'), local('LatinModernMath'), local('LatinModernMath-Regular'),
-       url('/api/kaoyan/font/latinmodern-math.otf') format('opentype');
+       url('/api/daily-question/font/latinmodern-math.otf') format('opentype');
   font-display: swap;
 }
 .kd-page { height:100%; min-height:0; display:flex; flex-direction:column; position:relative;
@@ -924,6 +924,10 @@ window.__ModuleLoader__.load({
 .kd-accent-ddot::before { content:'··'; position:absolute; top:-.6em; left:50%; transform:translateX(-50%); }
 .kd-latex-unknown { color:var(--dsw-alias-state-warn-primary); font-size:.92em; }
 .kd-checkline { display:flex; gap:8px; align-items:flex-start; padding:5px 0; font-size:13px; }
+.kd-chip { display:inline-flex; align-items:center; gap:2px; padding:0 2px 0 8px; border-radius:999px;
+  border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1); font-size:12px; }
+.kd-chip .kd-checkline { padding:0; }
+.kd-chip .kd-iconbtn { width:20px; height:20px; }
 @media (max-width: 1180px) {
   .kd-thread { position:absolute; right:0; top:0; bottom:0; width:min(360px,90vw); z-index:30;
     box-shadow:-8px 0 24px rgba(0,0,0,.18); }
@@ -942,7 +946,7 @@ window.__ModuleLoader__.load({
     async function rpc(op, args) {
       let response
       try {
-        response = await fetch('/api/kaoyan/rpc', {
+        response = await fetch('/api/daily-question/rpc', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ op, args: args || {} }),
@@ -968,7 +972,7 @@ window.__ModuleLoader__.load({
     }
 
     function isChoiceType(type) {
-      return type === 'single' || type === 'multiple'
+      return type === 'single' || type === 'multiple' || type === 'cloze' || type === 'reading'
     }
 
     function readFileAsPayload(file) {
@@ -1268,7 +1272,7 @@ window.__ModuleLoader__.load({
       if (!q) return null
       const revealed = !localRedo && q.answerState === 'revealed' && q.attemptCount > 0
       const last = q.lastAttempt
-      const isChoice = isChoiceType(q.type)
+      const isChoice = typeof q.isChoice === 'boolean' ? q.isChoice : isChoiceType(q.type)
       const answerKey = q.answer?.answerKey || ''
       const selected = revealed ? (last?.choice || '') : choice
       const meta = [q.subjectName, q.typeLabel]
@@ -1495,11 +1499,33 @@ window.__ModuleLoader__.load({
     /* ============================== 弹窗 ============================== */
     function SubjectsModal({ boot, onClose, onAdd, onRemove, onSource, onPick }) {
       const [name, setName] = useState('')
-      const [types, setTypes] = useState(['single', 'solution'])
+      const [types, setTypes] = useState([])
+      const [customTypes, setCustomTypes] = useState([])
+      const [typeDraft, setTypeDraft] = useState('')
       const enabled = new Set(boot.settings.subjects)
       const toggleType = (type) => setTypes((current) => current.includes(type)
         ? current.filter((item) => item !== type)
         : [...current, type])
+      const addCustomType = () => {
+        const value = typeDraft.trim().slice(0, 24)
+        if (!value) return
+        setCustomTypes((current) => (current.includes(value) ? current : [...current, value]))
+        setTypes((current) => (current.includes(value) ? current : [...current, value]))
+        setTypeDraft('')
+      }
+      const dropCustomType = (value) => {
+        setCustomTypes((current) => current.filter((item) => item !== value))
+        setTypes((current) => current.filter((item) => item !== value))
+      }
+      const canAdd = Boolean(name.trim()) && types.length > 0
+      const submit = () => {
+        if (!canAdd) return
+        onAdd({ name: name.trim(), types })
+        setName('')
+        setTypes([])
+        setCustomTypes([])
+        setTypeDraft('')
+      }
       return h(Modal, {
         title: T.manageSubjects,
         onClose,
@@ -1547,7 +1573,7 @@ window.__ModuleLoader__.load({
         : null)),
       h('div', { className: 'kd-divider' }),
       h('div', { className: 'kd-field' },
-        h('div', { className: 'kd-field-label' }, '添加自定义科目（内置科目之外）'),
+        h('div', { className: 'kd-field-label' }, '添加自定义科目'),
         h('div', { className: 'kd-row' },
           h('input', {
             className: 'kd-input',
@@ -1555,23 +1581,49 @@ window.__ModuleLoader__.load({
             value: name,
             placeholder: '例如：数据结构（自命题）',
             onChange: (event) => setName(event.target.value),
+            onKeyDown: (event) => { if (event.key === 'Enter') submit() },
           }),
-          h(Btn, {
-            disabled: !name.trim(),
-            onClick: () => {
-              onAdd({ name: name.trim(), types })
-              setName('')
-            },
-          }, '添加')),
+          h(Btn, { disabled: !canAdd, onClick: submit }, '添加')),
+        h('div', { className: 'kd-meta', style: { marginTop: '10px' } }, '题型（至少选一个）'),
+        h('div', { className: 'kd-row', style: { marginTop: '6px' } },
+          [['single', '单项选择题'], ['multiple', '多项选择题'], ['fill', '填空题'], ['solution', '解答题']]
+            .map(([value, label]) =>
+              h('label', { key: value, className: 'kd-checkline', style: { cursor: 'pointer' } },
+                h('input', {
+                  type: 'checkbox',
+                  checked: types.includes(value),
+                  onChange: () => toggleType(value),
+                }),
+                h('span', null, label)))),
+        customTypes.length
+          ? h('div', { className: 'kd-row', style: { marginTop: '6px' } },
+            customTypes.map((value) => h('span', { key: value, className: 'kd-chip' },
+              h('label', { className: 'kd-checkline', style: { cursor: 'pointer' } },
+                h('input', {
+                  type: 'checkbox',
+                  checked: types.includes(value),
+                  onChange: () => toggleType(value),
+                }),
+                h('span', null, value)),
+              h('button', {
+                type: 'button',
+                className: 'kd-iconbtn',
+                title: '删除这个自定义题型',
+                onClick: () => dropCustomType(value),
+              }, h(Icon, { name: 'close', size: 12 })))))
+          : null,
         h('div', { className: 'kd-row', style: { marginTop: '8px' } },
-          [['single', '单项选择题'], ['fill', '填空题'], ['solution', '解答题']].map(([value, label]) =>
-            h('label', { key: value, className: 'kd-checkline', style: { cursor: 'pointer' } },
-              h('input', {
-                type: 'checkbox',
-                checked: types.includes(value),
-                onChange: () => toggleType(value),
-              }),
-              h('span', null, label))))))
+          h('input', {
+            className: 'kd-input',
+            style: { flex: '1 1 160px' },
+            value: typeDraft,
+            placeholder: '自定义题型，例如：名词解释',
+            onChange: (event) => setTypeDraft(event.target.value),
+            onKeyDown: (event) => { if (event.key === 'Enter') addCustomType() },
+          }),
+          h(Btn, { small: true, disabled: !typeDraft.trim(), onClick: addCustomType }, '添加题型')),
+        h('div', { className: 'kd-msg-meta', style: { marginTop: '6px' } },
+          canAdd ? `将添加：${name.trim()}（${types.join(' / ')}）` : '填写科目名称并至少选择一个题型后即可添加')))
     }
 
     function BanksModal({ boot, importResult, onClose, onPickFile, onDelete, onCommit, onCancelImport }) {
@@ -2351,7 +2403,7 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         const slots = ctx.slots
         if (!slots || typeof slots.inject !== 'function') {
-          console.error('[kaoyan-daily] slots 服务不可用，界面没有注册')
+          console.error('[daily-question] slots 服务不可用，界面没有注册')
           return
         }
         ctx.effect(() => {
@@ -2364,27 +2416,27 @@ window.__ModuleLoader__.load({
                 try {
                   dispose?.()
                 } catch (error) {
-                  console.error('[kaoyan-daily] 注销样式失败', error)
+                  console.error('[daily-question] 注销样式失败', error)
                 }
               }
             } catch (error) {
               styleInjected = false
-              console.error('[kaoyan-daily] 样式注入失败，改用 <style> 元素', error)
+              console.error('[daily-question] 样式注入失败，改用 <style> 元素', error)
             }
           }
           return undefined
-        }, 'kaoyan-daily.styles')
+        }, 'daily-question.styles')
         ctx.effect(() => {
           const stops = [
             slots.inject('sidebar.panellist', () => slots.register({
               name: 'sidebar.panellist',
-              id: 'kaoyan-daily',
+              id: 'daily-question',
               order: 20,
               label: () => T.title,
             }, SidebarIcon)),
             slots.inject('main', () => slots.register({
               name: 'main',
-              key: 'kaoyan-daily',
+              key: 'daily-question',
             }, Page)),
           ]
           return () => {
@@ -2392,11 +2444,11 @@ window.__ModuleLoader__.load({
               try {
                 stop?.()
               } catch (error) {
-                console.error('[kaoyan-daily] 注销失败', error)
+                console.error('[daily-question] 注销失败', error)
               }
             }
           }
-        }, 'kaoyan-daily.slots')
+        }, 'daily-question.slots')
       },
     }
   },

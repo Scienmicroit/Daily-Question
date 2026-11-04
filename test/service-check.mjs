@@ -2,10 +2,10 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const tmpRoot = await mkdtemp(join(tmpdir(), 'kaoyan-service-'))
+const tmpRoot = await mkdtemp(join(tmpdir(), 'daily-question-service-'))
 process.env.DSH_PROFILE_DIR = join(tmpRoot, 'profile')
 
-const { KaoyanService } = await import('../lib/service.js')
+const { DailyQuestionService } = await import('../lib/service.js')
 const { daysBetween, todayISO } = await import('../lib/exam-dates.js')
 
 let failures = 0
@@ -14,7 +14,7 @@ function check(name, condition, detail = '') {
   else { failures += 1; console.log(`FAIL ${name} :: ${detail}`) }
 }
 
-const service = new KaoyanService({ get: () => undefined, logger: { info() {}, warn() {}, error() {} } })
+const service = new DailyQuestionService({ get: () => undefined, logger: { info() {}, warn() {}, error() {} } })
 
 const bankMarkdown = `# 题库
 
@@ -35,7 +35,7 @@ D. 4
 const boot0 = await service.bootstrap()
 check('初始没有科目', boot0.settings.subjects.length === 0)
 
-const saved = await service.saveSettings({ subjects: ['math1', 'cs408'], targetYear: 2028 })
+const saved = await service.saveSettings({ subjects: ['math1', 'math2'], targetYear: 2028 })
 check('保存科目与年份', saved.settings.subjects.length === 2 && saved.settings.targetYear === 2028)
 check('倒计时使用估算日期', saved.countdown.status === 'estimated'
   && saved.countdown.days === daysBetween(todayISO(), '2027-12-19'),
@@ -87,25 +87,25 @@ check('收藏列表包含该题', favList.items.length === 1)
 const allList = await service.listQuestions({ subjectId: 'math1', kind: 'all' })
 check('全部列表不重复', allList.items.length === 1)
 
-// 主观题流程：408 只出题库里的证明题 -> 作答完毕 -> 待判定 -> 判定错误
+// 主观题流程：数学二只出题库里的证明题 -> 作答完毕 -> 待判定 -> 判定错误
 const csBank = await service.importBank({
-  name: '408 题库',
+  name: '数学二题库',
   kind: 'md',
-  text: `## 第 1 题\n证明：在单链表中无法通过一次遍历直接访问第 n 个结点之后的前驱。\n\n答案：需要反向寻址，单链表只有 next 指针。\n解析：单链表结点只保存后继指针，无法 O(1) 回溯前驱。\n\n---\n\n## 第 2 题\n4096 的二进制表示中 1 的个数是 ____。\n\n答案：1\n解析：4096 是 2 的 12 次方。\n`,
-  fileName: 'cs.md',
+  text: `## 第 1 题\n证明：若 $f$ 在 $[a,b]$ 上连续，则 $f$ 在 $[a,b]$ 上取到最大值。\n\n答案：由最值定理直接可得。\n解析：闭区间上的连续函数有界且能取到上下确界，因此存在最大值与最小值。\n`,
+  fileName: 'math2.md',
 })
-const csCommitted = await service.commitBank({ importId: csBank.importId, name: '408 题库', subjectId: 'cs408' })
-await service.saveSettings({ subjectSource: { cs408: 'bank' } })
-const csDaily = await service.ensureDaily('cs408')
-check('408 从题库出题', csDaily.question.type === 'solution', csDaily.question.type)
+const csCommitted = await service.commitBank({ importId: csBank.importId, name: '数学二题库', subjectId: 'math2' })
+await service.saveSettings({ subjectSource: { math2: 'bank' } })
+const csDaily = await service.ensureDaily('math2')
+check('数学二从题库出题', csDaily.question.type === 'solution', csDaily.question.type)
 const solutionQid = csDaily.question.id
 const done = await service.reveal({ qid: solutionQid, mode: 'done', attemptId: 'sub1' })
 check('作答完毕记为待判定', done.question.lastAttempt.result === 'pending' && done.question.answerState === 'revealed')
-const before = await service.listQuestions({ subjectId: 'cs408', kind: 'wrong' })
+const before = await service.listQuestions({ subjectId: 'math2', kind: 'wrong' })
 check('待判定不进入错题本', before.items.every((item) => item.id !== solutionQid))
 const judged = await service.judge({ qid: solutionQid, verdict: 'wrong' })
 check('判定错误后进入错题本', judged.question.lastAttempt.result === 'wrong' && judged.question.wrongEver)
-const giveupSource = await service.listQuestions({ subjectId: 'cs408', kind: 'wrong' })
+const giveupSource = await service.listQuestions({ subjectId: 'math2', kind: 'wrong' })
 check('错题本可读到该主观题', giveupSource.items.length === 1)
 
 const studentThread = { before: (await service.data()).threads[qid1] }
@@ -123,21 +123,32 @@ const examRefresh = await service.refreshExamDate({ year: 2028 })
 check('无 web 服务时如实报告未核验', examRefresh.ok === false && typeof examRefresh.reason === 'string', JSON.stringify(examRefresh))
 
 let modelError = ''
-await service.saveSettings({ subjects: ['math1', 'cs408', 'math2'] })
+await service.saveSettings({ subjects: ['math1', 'math2', 'english1'] })
 try {
-  await service.ensureDaily('math2')
+  await service.ensureDaily('english1')
 } catch (error) {
   modelError = error.message
 }
 check('无法在线出题时给出明确原因', modelError.includes('llm') || modelError.includes('模型'), modelError)
 const data = await service.data()
-check('出题失败不会写入正式题目', Object.values(data.questions).every((question) => question.subjectId !== 'math2'))
-check('失败原因被记录', Boolean(data.failures.math2?.message))
+check('出题失败不会写入正式题目', Object.values(data.questions).every((question) => question.subjectId !== 'english1'))
+check('失败原因被记录', Boolean(data.failures.english1?.message))
 
 const removed = await service.removeSubject({ subjectId: 'math1' })
 check('删除科目保留历史数据', removed.settings.subjects.length === 2 && !removed.settings.subjects.includes('math1') && Object.values(data.questions).some((q) => q.subjectId === 'math1'), JSON.stringify(removed.settings.subjects))
 const kept = await service.listQuestions({ subjectId: 'math1', kind: 'all' })
 check('删除科目后仍可查看历史题目', kept.items.length >= 1)
+
+// ---- 自定义科目与自定义题型 ----
+const withCustom = await service.saveSettings({
+  customSubjects: [{ id: 'custom_demo', name: '自命题科目', types: ['名词解释', 'multiple'] }],
+})
+const customView = withCustom.subjects.find((subject) => subject.id === 'custom_demo') || {}
+check('自定义题型被保存并正确显示',
+  JSON.stringify(customView.typeLabels) === JSON.stringify(['名词解释', '多项选择题']),
+  JSON.stringify(customView.typeLabels))
+const enabledCustom = await service.addSubject({ subjectId: 'custom_demo' })
+check('自定义科目可启用', enabledCustom.settings.subjects.includes('custom_demo'), JSON.stringify(enabledCustom.settings.subjects))
 
 await rm(tmpRoot, { recursive: true, force: true })
 console.log(failures ? `\n${failures} 个检查未通过` : '\n全部通过')
