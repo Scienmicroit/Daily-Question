@@ -2,6 +2,7 @@
 node_modules/
 pnpm-lock.yaml
 *.tgz
+!dist/*.tgz
 
 # 运行时数据（不要提交个人学习记录）
 data.json

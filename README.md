@@ -34,46 +34,72 @@
 
 ## 安装
 
-需要可用的 DeepSeek Harness，以及一个能用的默认模型（在线出题要用）。三种方式任选其一。
+需要可用的 DeepSeek Harness，以及一个能用的默认模型（在线出题要用）。
 
-### 1. DSH Desktop（图形界面）
+> 装插件需要 git 或 npm 其中一条通路。**没有 git 的机器**请用下面第 1 种（仓库自带的
+> `dist/daily-question-1.0.6.tgz`）或发到 npm 之后的包名，这两种都不调用 git。
 
-插件面板 → 添加 → 选择本仓库目录（克隆后的本地目录）。装好后**刷新一次页面**，左侧栏会出现「考研每日一题」的图标（在「插件」「日程」旁边）。
+### 1. 用仓库自带的 tgz（不需要 git、不需要联网装依赖）
 
-### 2. 命令行（`dsh web` 这类 CLI 用法）
+仓库里带了一个已打包好的插件：`dist/daily-question-1.0.6.tgz`。
 
-profile 名就是你启动 DSH 时用的那个：跑 `dsh web` 就是 `--profile web`，跑 `dsh --profile headless …` 就是 `--profile headless`。下面的命令以 `web` 为例，换成你自己的 profile 名即可。
+```bash
+# 下载仓库后（ZIP 或 git clone 都行），用本地文件安装
+dsh plugin --profile web add ./dist/daily-question-1.0.6.tgz
+```
+
+DSH Desktop 上：插件页的安装输入框填**这个 tgz 的绝对路径**，或把路径交给 Agent 用
+`plugin_manager install_bundle` 安装。
+
+### 2. DSH Desktop（图形界面）
+
+插件面板 → 添加 → 填 npm 包名 `daily-question`（发布后可用），或本地目录 / tgz 路径。
+装好后**刷新一次页面**，左侧栏会出现「考研每日一题」的图标（在「插件」「日程」旁边）。
+
+### 3. 命令行（`dsh web` 这类 CLI 用法）
+
+profile 名就是你启动 DSH 时用的那个：跑 `dsh web` 就是 `--profile web`，跑 `dsh --profile headless …` 就是 `--profile headless`。
 
 `dsh plugin` 会把参数原样转发给 pnpm，所以本机需要先有 pnpm（`corepack enable pnpm`，或 `npm i -g pnpm`）。
 
-**从 GitHub 装**（推荐）：
+**从 npm 装**（最省事，不需要 git）：
 
 ```bash
-dsh plugin --profile web add github:Scienmicroit/Daily-Question#v1.0.5
+dsh plugin --profile web add daily-question@1.0.6
+dsh plugin --profile web add daily-question        # 跟随最新版
+```
+
+**从 GitHub 装**（需要本机有 git）：
+
+```bash
+dsh plugin --profile web add github:Scienmicroit/Daily-Question#v1.0.6
 dsh plugin --profile web add github:Scienmicroit/Daily-Question   # 不写 #tag 取默认分支最新提交
 ```
 
-**从本地目录 / tgz 装**：
+**从本地目录装**：
 
 ```bash
 git clone https://github.com/Scienmicroit/Daily-Question
 dsh plugin --profile web add ./Daily-Question
-dsh plugin --profile web add ./daily-question-1.0.5.tgz
 ```
 
 装完这条命令会把包里 `dsh.bundle.patch` 声明的那一行自动叠加进 profile（`package.json` 的 `dsh.profile.bundles` 里会出现 `daily-question`），下次启动该 profile 即生效。
 
-> **注意**：DSH Desktop 内置的 `desktop` profile 由应用独占管理，命令行会拒绝（`profile "desktop" is managed exclusively by the Electron application`），请走上面的图形界面方式。
+> **注意**：DSH Desktop 内置的 `desktop` profile 由应用独占管理，命令行会拒绝（`profile "desktop" is managed exclusively by the Electron application`），请走图形界面方式。
 
-### 3. 让 Agent 装
+### 4. 让 Agent 装
 
-已经装好 DSH 的话，把仓库路径告诉 Agent，让它调用 `plugin_manager install_bundle <绝对路径>` 即可。
+已经装好 DSH 的话，把下面任一 target 交给 Agent，让它调用 `plugin_manager` 的 `install_bundle`：
+
+- 本地目录或 tgz 的绝对路径（不需要 git）
+- `daily-question@1.0.6`（发布到 npm 之后）
+- `github:Scienmicroit/Daily-Question#v1.0.6`（本机有 git 时）
 
 ### 升级与卸载
 
 ```bash
-dsh plugin --profile web add github:Scienmicroit/Daily-Question   # 重新装一次即为升级（可加 #新tag 锁版本）
-dsh plugin --profile web remove daily-question                    # 卸载
+dsh plugin --profile web add daily-question@latest               # 重新装一次即为升级
+dsh plugin --profile web remove daily-question                   # 卸载
 ```
 
 卸载不会删除学习数据（`~/.dsh/daily-question/data.json`）。
@@ -81,14 +107,17 @@ dsh plugin --profile web remove daily-question                    # 卸载
 ### 发新版本（维护者）
 
 ```bash
-git tag v1.0.3 && git push --tags
+# 1. 改 package.json 的 version，然后重新打包并提交
+npm pack --pack-destination dist     # 产出 dist/daily-question-<版本>.tgz
+git add -A && git commit -m "release: v<版本>"
+git tag v<版本> && git push --follow-tags
+
+# 2. 发布到 npm（可选，但装了 npm 的用户最省事）
+npm publish                          # package.json 里 private 已是 false
 ```
 
-打了 tag 之后，别人就能用 `github:Scienmicroit/Daily-Question#v1.0.5` 锁定版本；
-不打 tag 则安装默认分支的最新提交。
-
-> 本插件不发布到 npm，安装统一走 GitHub 或本地目录。
-> 若以后想发 npm，需要把 `package.json` 的 `private` 改为 `false`，再 `npm publish`。
+打了 tag 之后，别人就能用 `github:Scienmicroit/Daily-Question#v<版本>` 锁定版本；
+发布 npm 之后，`daily-question@<版本>` 也可以直接装。
 
 ## 首次使用
 
