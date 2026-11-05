@@ -1,6 +1,6 @@
 {
   "name": "daily-question",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": false,
   "type": "module",
   "description": "考研每日一题 — DSH 插件：每科每天一道独立校验过的考研题，含倒计时、错题本、收藏与按题隔离的追问。",
@@ -31,7 +31,8 @@
     "node": ">=20.3.0"
   },
   "scripts": {
-    "test": "node test/check.mjs && node test/service-check.mjs && node test/render-check.mjs"
+    "test": "node test/check.mjs && node test/service-check.mjs && node test/tutor-status-check.mjs && node test/attempt-binding-check.mjs && node test/list-performance-check.mjs && node test/daily-attempt-check.mjs && node test/render-check.mjs && node test/ui-race-check.mjs && node test/followup-check.mjs && node test/task-check.mjs && node test/generation-check.mjs && node test/generation-history-check.mjs && node test/reference-check.mjs && node test/reference-reader-check.mjs && node test/research-check.mjs && node test/pdf-safety-check.mjs && node test/update-check.mjs",
+    "test:live": "node test/live-check.mjs"
   },
   "exports": {
     ".": "./index.js",
@@ -45,6 +46,7 @@
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
+    "CHANGELOG.md",
     "lib/*.js",
     "vendor/mathjax/*"
   ],

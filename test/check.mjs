@@ -1,3 +1,4 @@
+import { referenceWeb, fitResponse } from './reference-fixture.mjs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -132,6 +133,10 @@ check('已正确转义的反斜杠不被二次修改', doubled.stem.includes('\\
 
 const jsonFenced = '```json\n{"a": 1, "b": [1, 2,],}\n```'
 check('代码围栏与尾逗号仍可解析', parseJsonLoose(jsonFenced).b.length === 2, JSON.stringify(parseJsonLoose(jsonFenced)))
+const codeQuestion={stem:'执行下列代码：\n```c\nif (x) { x++; }\n```\n判断结果。',answer:'A'}
+const codeJson=JSON.stringify(codeQuestion)
+check('JSON题干内的代码围栏与花括号不会被当成外层包装',parseJsonLoose(codeJson).stem===codeQuestion.stem)
+check('外层JSON围栏内仍可嵌套题干代码围栏',parseJsonLoose('```json\n'+codeJson+'\n```').stem===codeQuestion.stem)
 
 const jsonStrayQuote = '{"stem": "求 "x+1" 的值", "options": [{"key": "A", "text": "1"}]}'
 const stray = parseJsonLoose(jsonStrayQuote)
@@ -156,7 +161,7 @@ check('数学一题型', JSON.stringify(subjectTypes('math1')) === JSON.stringif
 check('未知科目退化', JSON.stringify(subjectTypes('nope')) === JSON.stringify(['single', 'solution']))
 check('科目查找', findSubject('math2')?.name === '数学二')
 
-const customSubject = [{ id: 'c1', name: '自命题科目', types: ['名词解释', 'multiple'] }]
+const customSubject = [{ id: 'c1', name: '自命题科目', referenceSubjectId: 'math1', types: ['名词解释', 'multiple'] }]
 check('自定义科目可用任意题型名', JSON.stringify(subjectTypes('c1', customSubject)) === JSON.stringify(['名词解释', 'multiple']),
   JSON.stringify(subjectTypes('c1', customSubject)))
 
@@ -166,18 +171,26 @@ const customDraft = {
   type: '名词解释', stem: '请解释机会成本的含义并举例。', answer: '选择某方案所放弃的最佳替代方案的收益。',
   explanation: '机会成本衡量放弃的最佳替代方案的收益，需要区分它与已经发生且不可收回的沉没成本。',
 }
-let modelCalls = 0
+let modelCalls = 0, answerCalls = 0
 const ctx = { get(name) {
+  if (name === 'web') return referenceWeb()
   if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'test', model: 'test' }) }
-  if (name === 'llm') return { async *stream() {
-    const reply = modelCalls++ % 2 === 0 ? customDraft : { pass: true, issues: [], independentAnswer: customDraft.answer }
+  if (name === 'llm') return { async *stream(options) {
+    modelCalls++
+    if (options.system.includes('独立的考研范围与难度评审员')) {
+      yield { type: 'text-delta', text: JSON.stringify(fitResponse()) }
+      return
+    }
+    const phase = answerCalls++ % 3
+    const reply = phase === 0 ? customDraft : phase === 1 ? { ...customDraft, solvable: true, issues: [] }
+      : { agree: true, writerValid: true, solverValid: true, issues: [] }
     yield { type: 'text-delta', text: JSON.stringify(reply) }
   } }
 } }
 const generatedCustom = await createVerifiedQuestion({ ctx, subject: custom, preferredType: '名词解释' })
-check('在线生成保留自定义题型并通过校验', generatedCustom.question.type === '名词解释' && modelCalls === 2)
+check('在线生成保留自定义题型并通过校验', generatedCustom.question.type === '名词解释' && modelCalls === 4)
 const revisedCustom = await reviseAnswer({ ctx, subject: custom, question: { ...customDraft, subjectId: custom.id }, currentAnswer: customDraft })
-check('答案修订保留自定义题型并通过校验', revisedCustom.candidate.type === '名词解释' && modelCalls === 4)
+check('答案修订保留自定义题型并通过校验', revisedCustom.candidate.type === '名词解释' && modelCalls === 7)
 
 const tmpRoot = await mkdtemp(join(tmpdir(), 'daily-question-store-'))
 const dir = join(tmpRoot, 'data')

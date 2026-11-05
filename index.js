@@ -31,11 +31,11 @@ export function apply(ctx) {
 
   ctx.effect(() => {
     let stopped = false
-    service.store.load().then(
+    service.init().then(
       () => { if (!stopped) logger.info?.('数据文件已加载:', service.store.file) },
       (error) => logger.error?.('数据文件加载失败:', error),
     )
-    return () => { stopped = true }
+    return () => { stopped = true; service.dispose() }
   }, `${PREFIX}.store`)
 
   ctx.inject(['webServer'], (scoped) => {

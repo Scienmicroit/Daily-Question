@@ -33,7 +33,12 @@ D. 4
 `
 
 const boot0 = await service.bootstrap()
+check('当前版本来自插件自身package.json',boot0.pluginVersion===(await import('../lib/updates.js')).PLUGIN_VERSION)
 check('初始没有科目', boot0.settings.subjects.length === 0)
+check('参考考试目录包含408但不强加每日科目', boot0.referenceExams.some((s)=>s.code==='408')&&!boot0.subjects.some((s)=>s.code==='408'))
+check('提供宿主下次零点供页面调度', Date.parse(boot0.nextDayAt) > Date.parse(boot0.now)
+  && Date.parse(boot0.nextDayAt) - Date.parse(boot0.now) <= 25 * 60 * 60 * 1000
+  && new Date(boot0.nextDayAt).getHours() === 0)
 
 const yearWindow = yearOptions()
 const targetYear = yearWindow[0]
@@ -115,7 +120,7 @@ const done = await service.reveal({ qid: solutionQid, mode: 'done', attemptId: '
 check('作答完毕记为待判定', done.question.lastAttempt.result === 'pending' && done.question.answerState === 'revealed')
 const before = await service.listQuestions({ subjectId: 'math2', kind: 'wrong' })
 check('待判定不进入错题本', before.items.every((item) => item.id !== solutionQid))
-const judged = await service.judge({ qid: solutionQid, verdict: 'wrong' })
+const judged = await service.judge({ qid: solutionQid, verdict: 'wrong', attemptId:'sub1' })
 check('判定错误后进入错题本', judged.question.lastAttempt.result === 'wrong' && judged.question.wrongEver)
 const giveupSource = await service.listQuestions({ subjectId: 'math2', kind: 'wrong' })
 check('错题本可读到该主观题', giveupSource.items.length === 1)
@@ -179,14 +184,32 @@ check('删除科目后仍可查看历史题目', kept.items.length >= 1)
 
 // ---- 自定义科目与自定义题型 ----
 const withCustom = await service.saveSettings({
-  customSubjects: [{ id: 'custom_demo', name: '自命题科目', types: ['名词解释', 'multiple'] }],
+  customSubjects: [{ id: 'custom_demo', name: '自命题科目', types: ['名词解释', 'multiple'], referenceSubjectId: 'math1' }],
 })
 const customView = withCustom.subjects.find((subject) => subject.id === 'custom_demo') || {}
+check('自定义科目参考考试被保存并提供给界面', customView.referenceSubjectId === 'math1')
 check('自定义题型被保存并正确显示',
   JSON.stringify(customView.typeLabels) === JSON.stringify(['名词解释', '多项选择题']),
   JSON.stringify(customView.typeLabels))
 const enabledCustom = await service.addSubject({ subjectId: 'custom_demo' })
 check('自定义科目可启用', enabledCustom.settings.subjects.includes('custom_demo'), JSON.stringify(enabledCustom.settings.subjects))
+
+const previousCustom=structuredClone((await service.data()).customSubjects)
+const automatic=await service.saveSettings({customSubjects:[...previousCustom,{id:'custom_auto',name:'计算机科学与技术',code:'081200',types:['single'],referenceSubjectId:'auto'}]})
+check('自动检索配置及用户专业代码保存后保持原样',automatic.subjects.find((s)=>s.id==='custom_auto').referenceSubjectId==='auto'&&automatic.subjects.find((s)=>s.id==='custom_auto').code==='081200')
+await service.saveSettings({customSubjects:previousCustom})
+const profiles=await service.saveSettings({customSubjects:[...previousCustom,
+  {id:'custom_408',name:'408复习',types:['single'],referenceSubjectId:'cs408'},
+  {id:'custom_independent',name:'专业课专项',types:['solution'],referenceSubjectId:'independent',referenceExamName:' 示例大学数据结构 ',referenceExamCode:' 801 '}]})
+check('408参考和独立考试持久化后提供给页面',profiles.subjects.find((s)=>s.id==='custom_408').referenceSubjectId==='cs408'
+  &&profiles.subjects.find((s)=>s.id==='custom_independent').referenceExamName==='示例大学数据结构'
+  &&profiles.subjects.find((s)=>s.id==='custom_independent').referenceExamCode==='801')
+const reopened=new DailyQuestionService({get:()=>undefined,logger:{info(){},warn(){},error(){}}})
+check('重新打开后独立考试配置不丢失',(await reopened.bootstrap()).customSubjects.find((s)=>s.id==='custom_independent').referenceExamCode==='801')
+const beforeInvalid=JSON.stringify((await service.data()).customSubjects)
+const invalidReference=await service.saveSettings({customSubjects:[{id:'invalid',name:'课程',referenceSubjectId:'independent'}]}).then(()=>false,()=>true)
+check('独立考试缺少名称时拒绝保存并保留原设置',invalidReference&&JSON.stringify((await service.data()).customSubjects)===beforeInvalid)
+await service.saveSettings({customSubjects:previousCustom})
 
 // 批量管理：标记独立于作答，删除必须原子地清理关联记录。
 await service.store.update((draft) => {
@@ -251,6 +274,15 @@ for (const args of [{ qids: [], action: 'delete' }, { qids: [null], action: 'fav
   const rejected = await service.bulkQuestions(args).then(() => false, () => true)
   check('非法批量请求被拒绝', rejected)
 }
+
+await service.store.update((draft) => {
+  draft.questions['no-answer-choice'] = { id:'no-answer-choice',subjectId:'math1',type:'single',stem:'题库缺少答案的选择题',
+    options:[{key:'A',text:'1'},{key:'B',text:'2'}],answerStatusRaw:'missing',currentAnswer:{answer:'',answerKey:'',explanation:''} }
+})
+const ungraded = await service.reveal({qid:'no-answer-choice',choice:'A',attemptId:'ungraded-choice'})
+check('缺少选择题答案时记为待判定，保留选项且不加入错题本',ungraded.question.lastAttempt.result==='pending'
+  &&ungraded.question.lastAttempt.choice==='A'&&!ungraded.question.wrongEver&&service.store.data.attempts.at(-1).judgedAt===null)
+check('无法自动判分的选择题可由用户判定', (await service.judge({qid:'no-answer-choice',verdict:'correct',attemptId:'ungraded-choice'})).question.lastAttempt.result==='correct')
 
 await rm(tmpRoot, { recursive: true, force: true })
 console.log(failures ? `\n${failures} 个检查未通过` : '\n全部通过')

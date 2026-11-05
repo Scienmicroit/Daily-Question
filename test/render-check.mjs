@@ -173,14 +173,20 @@ check('正常公式不受过滤影响', normal.tex === '\\frac{\\sqrt{2}}{2}', n
 let components
 let stateHook = useState
 let refHook = (v) => ({ current: v })
+let effectHook = () => {}
 const requests = []
 let rpcResult = { items: [] }
+let rpcResponder = null
+let rpcError = null
 const mockWindow = { __ModuleLoader__: { load(module) {
-  components = module.factory(() => ({ createElement: h, useState: (v) => stateHook(v), useEffect() {}, useRef: (v) => refHook(v), useMemo: (fn) => fn(), useCallback: (fn) => fn }))
+  components = module.factory(() => ({ createElement: h, useState: (v) => stateHook(v), useEffect: (fn, deps) => effectHook(fn, deps), useRef: (v) => refHook(v), useMemo: (fn) => fn(), useCallback: (fn) => fn }))
 } } }
-new Function('window', 'fetch', source.replace("    return {\n      inject: ['slots'],", "    return { ListPane, CountdownLines, Page, TabBar, ThreadPane, QuestionPane, SubjectsModal, mathState, previewFadePosition };\n    return {\n      inject: ['slots'],"))(mockWindow, async (_, options) => {
-  requests.push(JSON.parse(options.body))
-  return { ok: true, json: async () => ({ ok: true, result: rpcResult }) }
+new Function('window', 'fetch', source.replace("    return {\n      inject: ['slots'],", "    return { ListPane, CountdownLines, Page, TabBar, ThreadPane, QuestionPane, SubjectsModal, UpdateCheck, mathState, previewFadePosition, watchDayChange };\n    return {\n      inject: ['slots'],"))(mockWindow, async (_, options) => {
+  const payload = JSON.parse(options.body)
+  requests.push(payload)
+  if (rpcError) throw rpcError
+  const result = rpcResponder ? await rpcResponder(payload) : rpcResult
+  return { ok: true, json: async () => ({ ok: true, result }) }
 })
 const rect = (left, top, width, height = 18) => ({ left, top, width, height, right: left + width, bottom: top + height })
 function fadeFixture(textRects, svgRects = [], lineHeight = 28) {
@@ -295,6 +301,7 @@ const redo = resolve(components.QuestionPane({ localRedo: true, choice: '', q: {
   options: [{ key: 'A', text: '选项' }], lastAttempt: { choice: 'A', result: 'correct' },
   answer: { answerKey: 'A', answer: 'SECRET ANSWER', explanation: 'SECRET EXPLANATION' },
   publishVerification: { status: 'passed', summary: 'SECRET REVIEW' },
+  examAlignment: { outlineYear:2027, rationale:'SECRET FIT', sources:[{ id:'ref-1',url:'https://www.neea.edu.cn/test',title:'官方大纲',year:2027,official:true }], checkedAt:'2026-11-05T00:00:00Z' },
 } }))
 check('重新作答隐藏答案解析和可能泄题的校验结论', !textOf(redo).includes('SECRET') && textOf(redo).includes('提交答案'))
 check('重新作答时隐藏追问按钮', !textOf(redo).includes('本题追问'))
@@ -337,6 +344,7 @@ for (const [answerState, localRedo] of [['locked', false], ['revealed', false], 
 
 // 科目管理只编辑草稿，完成后才提交。
 const subjectsBoot = { settings: { subjects: ['math1'], subjectSource: { math1: 'auto' } }, customSubjects: [],
+  referenceExams:[{id:'math1',name:'数学一',code:'301'},{id:'english1',name:'英语一',code:'201'},{id:'cs408',name:'计算机学科专业基础',code:'408'}],
   subjects: [{ id: 'math1', name: '数学一', typeLabels: ['解答题'] }, { id: 'english1', name: '英语一', typeLabels: ['翻译'] }] }
 const originalSubjects = JSON.stringify(subjectsBoot)
 let subjectState = new Map(), subjectIndex = 0, subjectSaves = [], closes = 0, failSave = false
@@ -363,6 +371,7 @@ subjectButton('取消').props.onClick()
 check('取消不提交修改', closes === 1 && subjectSaves.length === 0)
 subjectState = new Map()
 check('重新打开不保留取消的草稿', subjectNodes().filter((n) => n.type === 'input' && n.props.type === 'checkbox')[1].props.checked === false)
+subjectNodes().find((n) => n.props['aria-label'] === '自定义科目的参考考试').props.onChange({ target: { value: 'math1' } })
 subjectNodes().find((n) => n.props.placeholder === '例如：数据结构（自命题）').props.onChange({ target: { value: '专业课' } })
 subjectNodes().find((n) => n.props.placeholder === '自定义题型，例如：名词解释').props.onChange({ target: { value: '名词解释' } })
 subjectButton('添加题型').props.onClick()
@@ -376,13 +385,41 @@ check('保存失败保留草稿并显示错误', subjectSaves.length === 0 && su
 failSave = false
 await subjectButton('完成').props.onClick()
 check('完成一次提交科目和自定义题型', subjectSaves.length === 1 && subjectSaves[0].customSubjects[0].types[0] === '名词解释'
-  && subjectSaves[0].subjects.includes(subjectSaves[0].customSubjects[0].id))
+  && subjectSaves[0].subjects.includes(subjectSaves[0].customSubjects[0].id) && subjectSaves[0].customSubjects[0].referenceSubjectId === 'math1')
 subjectState = new Map()
 subjectNodes().find((n) => n.props.placeholder === '例如：数据结构（自命题）').props.onChange({ target: { value: '待添加科目' } })
 subjectNodes().find((n) => n.props.placeholder === '自定义题型，例如：名词解释').props.onChange({ target: { value: '简答' } })
 await subjectButton('完成').props.onClick()
 check('完成同时保存未点击添加的有效自定义输入', subjectSaves.at(-1).customSubjects[0].name === '待添加科目'
   && subjectSaves.at(-1).customSubjects[0].types[0] === '简答')
+subjectState=new Map()
+check('参考考试显示408及独立考试且不受每日科目目录限制',subjectNodes().some((n)=>n.type==='option'&&n.props.value==='cs408')
+  &&subjectNodes().some((n)=>n.type==='option'&&n.props.value==='independent')&&!subjectsBoot.subjects.some((s)=>s.id==='cs408'))
+subjectNodes().find((n)=>n.props['aria-label']==='自定义科目的参考考试').props.onChange({target:{value:'independent'}})
+subjectNodes().find((n)=>n.props.placeholder==='例如：数据结构（自命题）').props.onChange({target:{value:'专业课练习'}})
+subjectNodes().find((n)=>n.props.placeholder==='自定义题型，例如：名词解释').props.onChange({target:{value:'简答'}})
+const savesBeforeIndependent=subjectSaves.length
+await subjectButton('完成').props.onClick()
+check('独立参考考试缺少名称时不提交',subjectSaves.length===savesBeforeIndependent)
+subjectNodes().find((n)=>n.props['aria-label']==='自定义科目的参考考试名称').props.onChange({target:{value:'示例大学数据结构'}})
+subjectNodes().find((n)=>n.props['aria-label']==='自定义科目的参考考试代码').props.onChange({target:{value:'801'}})
+subjectButton('添加').props.onClick()
+subjectNodes().find((n)=>n.props['aria-label']==='专业课练习 参考考试科目代码').props.onChange({target:{value:'802'}})
+check('编辑独立考试名称代码仍只修改草稿',subjectSaves.length===savesBeforeIndependent&&JSON.stringify(subjectsBoot)===originalSubjects)
+await subjectButton('完成').props.onClick()
+check('点击完成后统一保存独立考试名称代码',subjectSaves.at(-1).customSubjects[0].referenceSubjectId==='independent'
+  &&subjectSaves.at(-1).customSubjects[0].referenceExamName==='示例大学数据结构'&&subjectSaves.at(-1).customSubjects[0].referenceExamCode==='802')
+subjectState=new Map()
+check('新自定义科目默认自主检索',subjectNodes().find((n)=>n.props['aria-label']==='自定义科目的参考考试').props.value==='auto')
+subjectNodes().find((n)=>n.props.placeholder==='例如：数据结构（自命题）').props.onChange({target:{value:'示例大学计算机科学与技术'}})
+subjectNodes().find((n)=>n.props['aria-label']==='自定义科目的参考考试代码（考试科目或专业）').props.onChange({target:{value:'081200'}})
+subjectNodes().find((n)=>n.props.placeholder==='自定义题型，例如：名词解释').props.onChange({target:{value:'简答'}})
+const beforeAuto=subjectSaves.length
+subjectButton('添加').props.onClick()
+subjectNodes().find((n)=>n.props['aria-label']==='示例大学计算机科学与技术 参考考试科目代码（考试科目或专业）').props.onChange({target:{value:'081201'}})
+check('自主检索代码编辑仍只修改草稿',subjectSaves.length===beforeAuto&&JSON.stringify(subjectsBoot)===originalSubjects)
+await subjectButton('完成').props.onClick()
+check('完成后保存自动检索和专业代码',subjectSaves.at(-1).customSubjects[0].referenceSubjectId==='auto'&&subjectSaves.at(-1).customSubjects[0].code==='081201')
 let pageStateIndex = 0
 const pageInitial = { 0: subjectsBoot, 1: false, 3: 'math1', 4: 'all', 5: 'list', 8: { items: [] }, 14: { kind: 'subjects' } }
 stateHook = (value) => { const i = pageStateIndex++; return [Object.hasOwn(pageInitial, i) ? pageInitial[i] : (typeof value === 'function' ? value() : value), () => {}] }
@@ -396,6 +433,94 @@ check('完成通过单次设置请求统一保存且保留当前科目', request
   && requests.at(-1).op === 'saveSettings' && requests.at(-1).args.activeSubject === 'math1'
   && requests.at(-1).args.subjects.length === 2 && requests.at(-1).args.subjectSource.math1 === 'bank')
 stateHook = useState
+
+// 模拟宿主零点，不依赖测试电脑的时区，也不真的等待午夜。
+const timers = new Map(), focusListeners = new Map(), visibilityListeners = new Map()
+let timerId = 0
+mockWindow.setTimeout = (fn, delay) => { const id = ++timerId; timers.set(id, { fn, delay }); return id }
+mockWindow.clearTimeout = (id) => timers.delete(id)
+mockWindow.addEventListener = (name, fn) => focusListeners.set(name, fn)
+mockWindow.removeEventListener = (name) => focusListeners.delete(name)
+mockWindow.document = { visibilityState: 'visible', addEventListener: (name, fn) => visibilityListeners.set(name, fn), removeEventListener: (name) => visibilityListeners.delete(name) }
+const beforeMidnight = { today: '2026-11-04', now: '2026-11-04T15:59:50Z', nextDayAt: '2026-11-04T16:00:00Z' }
+const afterMidnight = { today: '2026-11-05', now: '2026-11-04T16:00:00Z', nextDayAt: '2026-11-05T16:00:00Z', counts: { math1: { all: 3 } } }
+const snapshots = []
+const stopWatch = components.watchDayChange(beforeMidnight, (value) => snapshots.push(value))
+check('按宿主的零点安排检查，不使用浏览器当前时区', [...timers.values()][0].delay === 10_000)
+rpcResult = afterMidnight
+await [...timers.values()][0].fn()
+check('跨日自动读取新日期与数量，并安排下次零点', snapshots.at(-1).today === '2026-11-05'
+  && snapshots.at(-1).counts.math1.all === 3 && [...timers.values()][0].delay === 86_400_000)
+const beforeHidden = requests.length
+mockWindow.document.visibilityState = 'hidden'
+visibilityListeners.get('visibilitychange')()
+check('后台状态变化不重复检查', requests.length === beforeHidden)
+mockWindow.document.visibilityState = 'visible'
+visibilityListeners.get('visibilitychange')()
+await new Promise((resolve) => setImmediate(resolve))
+check('从后台恢复时补查日期', requests.length === beforeHidden + 1)
+rpcError = new Error('offline')
+await focusListeners.get('focus')()
+check('临时断网后一分钟重试', [...timers.values()][0].delay === 60_000)
+rpcError = null
+const beforeStop = snapshots.length
+const pendingCheck = focusListeners.get('focus')()
+stopWatch()
+await pendingCheck
+check('卸载后清理定时器和监听，不再更新页面', !timers.size && !focusListeners.size && !visibilityListeners.size && snapshots.length === beforeStop)
+
+for (const activeKind of ['today', 'all']) {
+  const state = new Map([[0, { ...beforeMidnight, settings: { subjects: ['math1'] }, subjects: [], counts: { math1: { all: 2 } } }],
+    [1, false], [3, 'math1'], [4, activeKind], [5, activeKind === 'today' ? 'detail' : 'list'], [8, { page:activeKind==='all'?2:1,items: [] }]])
+  const dayRefs = []
+  let si, ri, effects
+  stateHook = (value) => {
+    const n = si++
+    if (!state.has(n)) state.set(n, typeof value === 'function' ? value() : value)
+    return [state.get(n), (v) => state.set(n, typeof v === 'function' ? v(state.get(n)) : v)]
+  }
+  refHook = (value) => dayRefs[ri++] ||= { current: value }
+  effectHook = (fn, deps) => effects.push({ fn, deps })
+  const renderDay = () => { si = ri = 0; effects = []; components.Page(); return effects.find((e) => e.deps?.length === 4 && e.deps[0] === state.get(0).today).fn }
+  renderDay()()
+  state.set(0, { ...state.get(0), ...afterMidnight })
+  rpcResponder = ({ op,args }) => op === 'ensureDaily' ? { question: { id: 'new-day-q' } }
+    : op === 'bootstrap' ? { ...state.get(0), todayMap: { math1: { questionId: 'new-day-q' } }, counts: { math1: { all: 3 } } }
+    : { page:args.page,items: [{ id: 'new-day-q' }] }
+  const requestStart = requests.length
+  renderDay()()
+  await new Promise((resolve) => setImmediate(resolve))
+  check(`跨日时 ${activeKind} 栏目自动生成当前科目今日题`, requests.slice(requestStart).some((r) => r.op === 'ensureDaily' && r.args.subjectId === 'math1'))
+  check(`跨日后 ${activeKind} 栏目数量和今日状态自动同步`, state.get(0).counts.math1.all === 3 && state.get(0).todayMap.math1.questionId === 'new-day-q')
+  check(`跨日保留 ${activeKind} 栏目并更新内容`, state.get(4) === activeKind && (activeKind === 'today' ? state.get(6).id === 'new-day-q' : state.get(8).items[0].id === 'new-day-q'))
+  if (activeKind === 'today') {
+    let resolveOld, generation = 0
+    rpcResponder = ({ op }) => op === 'ensureDaily'
+      ? generation++ === 0 ? new Promise((resolve) => { resolveOld = resolve }) : { question: { id: 'latest-q' } }
+      : { ...state.get(0), counts: { math1: { all: 4 } } }
+    state.set(0, { ...state.get(0), today: '2026-11-06' })
+    renderDay()()
+    state.set(0, { ...state.get(0), today: '2026-11-07' })
+    renderDay()()
+    await new Promise((resolve) => setImmediate(resolve))
+    resolveOld({ question: { id: 'late-old-q' } })
+    await new Promise((resolve) => setImmediate(resolve))
+    check('旧日期的延迟生成结果不会覆盖当前今日题', state.get(6).id === 'latest-q')
+  } else {
+    check('跨日刷新保留列表当前页',state.get(8).page===2)
+    let resolveOldPage
+    rpcResponder=({op})=>op==='listQuestions'?new Promise(resolve=>{resolveOldPage=resolve}):op==='bootstrap'?state.get(0):{}
+    state.set(0,{...state.get(0),today:'2026-11-08'})
+    renderDay()();await new Promise(resolve=>setImmediate(resolve))
+    state.set(8,{page:3,items:[{id:'page-three'}]});renderDay()
+    resolveOldPage({page:2,items:[{id:'late-page-two'}]});await new Promise(resolve=>setImmediate(resolve))
+    check('跨日延迟响应不会覆盖后来切换的列表页',state.get(8).page===3&&state.get(8).items[0].id==='page-three')
+  }
+  rpcResponder = null
+}
+stateHook = useState
+refHook = (v) => ({ current: v })
+effectHook = () => {}
 
 let threadIndex = 0, sent = 0, prevented = 0
 stateHook = (value) => [threadIndex++ === 0 ? '请解释这一步' : value, () => {}]
@@ -418,6 +543,41 @@ for (const clientX of [400, 1100]) separator.props.onPointerMove({ pointerId: 1,
 } })
 check('拖动分隔线使用主区域宽度并限制比例', JSON.stringify(widths.slice(-2)) === JSON.stringify([55, 20]))
 stateHook = useState
+
+const pageChanges=[]
+const pagedNodes=[]
+walk(resolve(components.ListPane({list:{total:60,page:1,totalPages:2,items:[{id:'paged-q',stem:'测试题干',summary:'测试题干',typeLabel:'解答题',answerStatus:'verified'}]},
+  kind:'all',subjectName:'数学一',selected:[],managing:false,onPage:page=>pageChanges.push(page)})),n=>pagedNodes.push(n))
+check('分页显示栏目总量及当前页数',pagedNodes.some(n=>textOf(n).includes('共 60 道'))&&pagedNodes.some(n=>textOf(n)==='第 1 / 2 页'))
+check('第一页禁用上一页',pagedNodes.find(n=>n.type==='button'&&textOf(n)==='上一页').props.disabled)
+pagedNodes.find(n=>n.type==='button'&&textOf(n)==='下一页').props.onClick()
+check('下一页按钮传递正确页码',pageChanges[0]===2)
+
+let updateState,updateEffect,updateRefs=[],updateRefIndex=0,timerDelay,cleared=false,focusListener
+stateHook=(initial)=>{updateState??=initial;return [updateState,(value)=>{updateState=typeof value==='function'?value(updateState):value}]}
+refHook=(initial)=>{const i=updateRefIndex++;return updateRefs[i]??=( {current:initial} )}
+effectHook=(fn)=>{updateEffect=fn}
+mockWindow.document={hidden:false}
+mockWindow.setInterval=(_fn,delay)=>{timerDelay=delay;return 123}
+mockWindow.clearInterval=(id)=>{cleared=id===123}
+mockWindow.addEventListener=(name,fn)=>{if(name==='focus')focusListener=fn}
+mockWindow.removeEventListener=(name,fn)=>{if(name==='focus'&&focusListener===fn)focusListener=null}
+const updateNodes=()=>{updateRefIndex=0;const nodes=[];walk(resolve(components.UpdateCheck({currentVersion:'2.0.0'})),n=>nodes.push(n));return nodes}
+rpcResult={currentVersion:'2.0.0',latestVersion:'2.0.1',updateAvailable:true,packageUrl:'https://www.npmjs.com/package/daily-question'}
+updateNodes();const stopUpdates=updateEffect()
+await new Promise(resolve=>setImmediate(resolve))
+check('打开页面自动检查且每6小时重查',requests.at(-1).op==='checkUpdates'&&requests.at(-1).args.force===false&&timerDelay===6*60*60*1000)
+check('同时展示当前版本及新版npm链接',updateNodes().some(n=>textOf(n)==='当前版本 v2.0.0')&&updateNodes().some(n=>n.type==='a'&&textOf(n).includes('2.0.1')&&n.props.href===rpcResult.packageUrl))
+await updateNodes().find(n=>n.type==='button'&&textOf(n)==='检查更新').props.onClick()
+check('手动检查强制重查npm',requests.at(-1).args.force===true)
+rpcResult={...rpcResult,latestVersion:'2.0.0',updateAvailable:false}
+await updateNodes().find(n=>n.type==='button'&&textOf(n)==='检查更新').props.onClick()
+check('无新版时显示已是最新版本',updateNodes().some(n=>n.props.role==='status'&&textOf(n)==='已是最新版本'))
+rpcError=new Error('模拟npm断网')
+await updateNodes().find(n=>n.type==='button'&&textOf(n)==='检查更新').props.onClick()
+check('断网提示重试且保留当前版本',updateNodes().some(n=>n.props.role==='status'&&textOf(n).includes('请重试'))&&updateNodes().some(n=>textOf(n)==='当前版本 v2.0.0'))
+rpcError=null;stopUpdates()
+check('关闭页面清理更新检查定时器与事件',cleared&&focusListener===null)
 
 console.log(failures === 0 ? '全部通过' : `${failures} 项失败`)
 process.exit(failures === 0 ? 0 : 1)

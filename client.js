@@ -89,6 +89,7 @@ window.__ModuleLoader__.load({
       const value = String(method || '')
       if (!value) return '独立校验'
       if (value.startsWith('two-step')) return '两步：出题 → 独立视角校验'
+      if (value.startsWith('blind-solve')) return '盲解 → 比对 → 分歧主裁'
       if (value === 'import-parse') return '题库导入解析'
       if (value === 'online-search') return '官方渠道联网核验'
       if (value === 'catalog') return '内置官方日期表'
@@ -608,6 +609,7 @@ window.__ModuleLoader__.load({
 .kd-dot { width:6px; height:6px; border-radius:50%; background:var(--kd-state-success-primary); }
 .kd-dot-idle { background:var(--kd-state-idle-primary); }
 .kd-nav-spacer { flex:1 1 auto; }
+.kd-update { display:flex; flex-direction:column; gap:4px; }
 .kd-main { flex:1 1 auto; min-width:0; overflow:hidden; display:flex; flex-direction:column; }
 .kd-main-toolbar { flex:none; padding:24px 28px 20px; display:flex; align-items:center; gap:12px; }
 .kd-main-toolbar > .kd-btn { flex:none; align-self:stretch; aspect-ratio:1; padding:0; min-height:0; white-space:nowrap; border-radius:12px; }
@@ -690,7 +692,7 @@ window.__ModuleLoader__.load({
   background:color-mix(in srgb, var(--kd-state-success-primary) 8%, transparent); }
 .kd-option.is-wrong { border-color:var(--kd-state-error-primary);
   background:color-mix(in srgb, var(--kd-state-error-primary) 8%, transparent); }
-.kd-option-key { flex:0 0 auto; width:24px; height:24px; border-radius:8px; display:inline-flex;
+.kd-option-key { flex:0 0 auto; align-self:center; width:24px; height:24px; border-radius:8px; display:inline-flex;
   align-items:center; justify-content:center; font-size:12px; font-weight:600;
   border:1px solid var(--kd-border-l2); background:var(--kd-bg-base); }
 .kd-option.is-selected .kd-option-key { color:var(--kd-brand-primary); border-color:var(--kd-brand-primary); }
@@ -926,10 +928,12 @@ window.__ModuleLoader__.load({
       try {
         response = await fetch('/api/daily-question/rpc', {
           method: 'POST',
+          signal: AbortSignal.timeout(op === 'ensureDaily' || op === 'revise' ? 16*60*1000 : op === 'followup' ? 6*60*1000 : 60_000),
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ op, args: args || {} }),
         })
       } catch (error) {
+        if (error.name === 'TimeoutError') throw new Error('等待服务响应超时，请重试')
         throw new Error(`无法连接插件后端（${error.message}）。请确认「考研每日一题」插件已启用。`)
       }
       let payload = null
@@ -1128,6 +1132,39 @@ window.__ModuleLoader__.load({
     }
 
     /* ============================== 导航 ============================== */
+    function UpdateCheck({ currentVersion }) {
+      const [state,setState]=useState({busy:true,result:null,error:''})
+      const checking=useRef(false)
+      const active=useRef(true)
+      const check=async(force=false)=>{
+        if(checking.current)return
+        checking.current=true
+        setState((value)=>({...value,busy:true,error:''}))
+        try {
+          const result=await rpc('checkUpdates',{force})
+          if(active.current)setState({busy:false,result,error:''})
+        } catch(error) {
+          if(active.current)setState((value)=>({...value,busy:false,error:error.message}))
+        } finally {checking.current=false}
+      }
+      useEffect(()=>{
+        active.current=true
+        const automatic=()=>{if(!window.document.hidden)check(false)}
+        automatic()
+        const timer=window.setInterval(automatic,6*60*60*1000)
+        window.addEventListener('focus',automatic)
+        return ()=>{active.current=false;window.clearInterval(timer);window.removeEventListener('focus',automatic)}
+      },[])
+      return h('div',{className:'kd-update'},
+        h(Btn,{variant:'ghost',disabled:state.busy,onClick:()=>check(true)},
+          state.busy?h('span',{className:'kd-spinner'}):h(Icon,{name:'refresh'}),state.busy?'正在检查…':'检查更新'),
+        h('div',{className:'kd-msg-meta',style:{padding:'0 8px'}},`当前版本 v${currentVersion||state.result?.currentVersion||'—'}`),
+        h('div',{className:'kd-msg-meta',role:'status','aria-live':'polite',title:state.error||'',style:{padding:'4px 8px',overflowWrap:'anywhere'}},
+          state.error?'暂时无法检查，请重试':state.result?.updateAvailable
+            ? h('a',{className:'kd-link',href:state.result.packageUrl,target:'_blank',rel:'noreferrer noopener'},`发现新版本 v${state.result.latestVersion} ↗`)
+            : state.result?'已是最新版本':null))
+    }
+
     function SubjectNav({ boot, subjectId, onPick, onManage, onBanks }) {
       const enabled = (boot.subjects || []).filter((subject) => subject.enabled)
       return h('div', { className: 'kd-nav' },
@@ -1153,7 +1190,8 @@ window.__ModuleLoader__.load({
         h('div', { className: 'kd-nav-group' },
           h('div', { className: 'kd-nav-group-label' }, '设置'),
           h(Btn, { variant: 'ghost', onClick: onManage }, h(Icon, { name: 'plus' }), T.manageSubjects),
-          h(Btn, { variant: 'ghost', onClick: onBanks }, h(Icon, { name: 'book' }), T.manageBanks)))
+          h(Btn, { variant: 'ghost', onClick: onBanks }, h(Icon, { name: 'book' }), T.manageBanks),
+          h(UpdateCheck,{currentVersion:boot.pluginVersion})))
     }
 
     function TabBar({ kind, counts, onPick }) {
@@ -1273,6 +1311,7 @@ window.__ModuleLoader__.load({
     function QuestionPane({
       q, busy, choice, onSelect, onReveal, onJudge, onFavorite, onRedo, localRedo,
       onRevise, revising, onToggleThread, threadOpen, onRemoveWrong,
+      onCancel,
     }) {
       if (!q) return null
       const revealed = !localRedo && q.answerState === 'revealed' && q.attemptCount > 0
@@ -1286,9 +1325,9 @@ window.__ModuleLoader__.load({
           h('div', { className: 'kd-chips' },
             h('span', { className: 'kd-tag kd-tag-brand' }, q.typeLabel),
             h('span', { className: 'kd-tag' }, q.subjectName),
-            h('span', { className: 'kd-tag' }, `难度 ${q.difficulty}/5`),
+            h('span', { className: 'kd-tag', title: q.examAlignment ? '独立评审参考历年真题给出的难度，不是考生正确率统计' : '原始难度标签，尚无真题对照评审' }, `难度 ${q.difficulty}/5`),
             h('span', { className: 'kd-tag' }, formatDate(q.assignedDate)),
-            h('span', { className: 'kd-tag' }, `作答 ${q.attemptCount} 次`),
+            h('span', { className: 'kd-tag' }, `累计作答 ${q.attemptCount} 次`),
             h('span', { className: 'kd-tag' }, q.source?.kind === 'bank' ? q.source.label : '在线出题'),
             q.answerStatus === 'verified'
               ? h(Badge, { tone: 'ok' }, T.verified)
@@ -1300,6 +1339,17 @@ window.__ModuleLoader__.load({
             ? h('div', { className: 'kd-meta', style: { marginTop: '10px' } },
               h('span', null, `${T.knowledge}：${q.knowledge.join('、')}`))
             : null,
+          q.examAlignment ? h('details', { className: 'kd-verify' },
+            h('summary', null, `范围与难度依据 · 大纲 ${q.examAlignment.outlineYear} · 独立真题对照`),
+            h('div', null, q.examAlignment.note),
+            h('div', null, `参考考试：${q.examAlignment.basisSubject?.name || q.subjectName} · 检索时间：${formatDateTime(q.examAlignment.checkedAt)}`),
+            ...(q.examAlignment.sources || []).map((source) => h('div', { key: source.id },
+              h('a', { className: 'kd-link', href: source.url, target: '_blank', rel: 'noreferrer noopener' },
+                `${source.year} ${source.title}（${source.official ? '官方来源' : source.kind === 'outline' ? source.verificationLabel || '非官方大纲转载' : '非官方真题转载'}）`),
+              source.coverage ? h('div', null, source.coverage) : null,
+              source.publisherUrl ? h('a', { className:'kd-link', href:source.publisherUrl, target:'_blank', rel:'noreferrer noopener' }, `出版社版本记录 · ISBN ${source.isbn}`) : null)),
+            revealed ? h('div', null, q.examAlignment.rationale,
+              ...(q.examAlignment.warnings || []).map((warning,i)=>h('div',{key:i,className:'kd-meta'},warning))) : null) : null,
           h('div', { className: 'kd-stem' }, h(Markdown, { text: q.stem })),
           isChoice && q.options?.length
             ? h('div', { className: 'kd-options' }, q.options.map((option) => {
@@ -1345,6 +1395,7 @@ window.__ModuleLoader__.load({
               : null,
             revealed ? h(Btn, { variant: 'ghost', onClick: onToggleThread }, h(Icon, { name: 'book' }), threadOpen ? '收起追问' : T.followup) : null),
           revealed ? h(AnswerBlock, { question: q, onRevise, revising, onRemoveWrong }) : null,
+          revising && onCancel ? h(Btn,{variant:'ghost',onClick:onCancel},'取消修订') : null,
           revealed && last?.result === 'pending'
             ? h('div', { className: 'kd-actions', style: { marginTop: '12px' } },
               h('span', { className: 'kd-meta' }, '这道题由你自己判定（系统不会替你把“作答完毕”当成答对）：'),
@@ -1416,7 +1467,7 @@ window.__ModuleLoader__.load({
       return h('div', { ref, className: 'kd-list-summary' + (truncated ? ' is-truncated' : '') }, h(Markdown, { text }))
     }
 
-    function ListPane({ list, kind, subjectName, onOpen, managing, selected, onManage, onToggle, onSelectAll, onBulk, busy }) {
+    function ListPane({ list, kind, subjectName, onOpen, managing, selected, onManage, onToggle, onSelectAll, onBulk, onPage, busy }) {
       if (!list) return h('div', { className: 'kd-loading' }, h('span', { className: 'kd-spinner' }), '加载中…')
       if (!list.items.length) {
         const icon = kind === 'favorite' ? 'star' : kind === 'wrong' ? 'check' : kind === 'all' ? 'book' : 'spark'
@@ -1428,8 +1479,12 @@ window.__ModuleLoader__.load({
       }
       return h('div', null,
         h('div', { className: 'kd-meta', style: { marginBottom: '10px' } },
-          h('span', null, `${subjectName} · ${T.tabs[kind]} · 共 ${list.items.length} 道`),
+          h('span', null, `${subjectName} · ${T.tabs[kind]} · 共 ${list.total ?? list.items.length} 道`),
           h(Btn, { small: true, onClick: onManage, disabled: busy }, managing ? '完成管理' : '批量管理')),
+        list.totalPages>1?h('div',{className:'kd-row',style:{marginBottom:'12px'},'aria-label':'题目分页'},
+          h(Btn,{small:true,disabled:busy||list.page<=1,onClick:()=>onPage(list.page-1)},'上一页'),
+          h('span',{className:'kd-meta'},`第 ${list.page} / ${list.totalPages} 页`),
+          h(Btn,{small:true,disabled:busy||list.page>=list.totalPages,onClick:()=>onPage(list.page+1)},'下一页')):null,
         managing ? h('div', { className: 'kd-bulkbar', 'aria-label': '批量管理' },
           h('div', { className: 'kd-row' },
             h('strong', { 'aria-live': 'polite' }, `已选 ${selected.length} 道`),
@@ -1464,13 +1519,14 @@ window.__ModuleLoader__.load({
     }
 
     /* ============================== 追问侧栏 ============================== */
-    function ThreadPane({ thread, questionId, busy, onSend, onClear, onClose, narrow, ratio = 33, onRatioChange }) {
+    function ThreadPane({ thread, questionId, busy, onSend, onClear, onClose, onCancel, narrow, ratio = 33, onRatioChange }) {
       const [draft, setDraft] = useState('')
       const [sending, setSending] = useState(false)
       const [localError, setLocalError] = useState('')
       const [pending, setPending] = useState(null)
       const scrollRef = useRef(null)
       const sendingRef = useRef(false)
+      const sendingMessage = useRef(null)
       const messages = thread?.messages || []
 
       useEffect(() => {
@@ -1482,6 +1538,7 @@ window.__ModuleLoader__.load({
         const value = String(text || '').trim()
         if (!value || sendingRef.current) return
         sendingRef.current = true
+        sendingMessage.current = messageId
         setSending(true)
         setLocalError('')
         try {
@@ -1493,6 +1550,7 @@ window.__ModuleLoader__.load({
           setPending({ id: messageId, text: value })
         } finally {
           sendingRef.current = false
+          sendingMessage.current = null
           setSending(false)
         }
       }, [onSend])
@@ -1581,6 +1639,7 @@ window.__ModuleLoader__.load({
               },
             }),
             h('div', { className: 'kd-row', style: { justifyContent: 'flex-end', marginTop: '2px' } },
+              sending && onCancel ? h(Btn,{small:true,variant:'ghost',onClick:()=>onCancel(sendingMessage.current)},'取消回复') : null,
               h(Btn, {
                 variant: 'primary',
                 small: true,
@@ -1599,9 +1658,27 @@ window.__ModuleLoader__.load({
       const [types, setTypes] = useState([])
       const [customTypes, setCustomTypes] = useState([])
       const [typeDraft, setTypeDraft] = useState('')
+      const [referenceSubjectId, setReferenceSubjectId] = useState('auto')
+      const [referenceExamName, setReferenceExamName] = useState('')
+      const [referenceExamCode, setReferenceExamCode] = useState('')
+      const [subjectCode, setSubjectCode] = useState('')
+      const referenceExams = boot.referenceExams || (boot.subjects || []).filter((s) => !s.custom)
+      const referenceEditor = (value, change, label) => h('div', { className:'kd-field', style:{ marginBottom:0 } },
+        h('select', { className:'kd-select', 'aria-label':label, value:value.referenceSubjectId || 'auto',
+          onChange:(event)=>change({referenceSubjectId:event.target.value}) },
+          h('option', {value:'auto'}, '自动检索与核验（按科目名称和代码）'),
+          ...referenceExams.map((exam)=>h('option',{key:exam.id,value:exam.id},`${exam.name}${exam.code ? `（${exam.code}）` : ''}`)),
+          h('option',{value:'independent'},'另行指定参考考试名称…')),
+        !value.referenceSubjectId || value.referenceSubjectId === 'auto' ? h('input',{className:'kd-input','aria-label':`${label}代码（考试科目或专业）`,
+          placeholder:'考试科目或专业代码（选填）',value:value.code || '',maxLength:20,onChange:(event)=>change({code:event.target.value})}) : null,
+        value.referenceSubjectId === 'independent' ? h('div',{className:'kd-row'},
+          h('input',{className:'kd-input','aria-label':`${label}名称`,placeholder:'考试名称，院校自命题请包含院校',value:value.referenceExamName || '',maxLength:100,
+            onChange:(event)=>change({referenceExamName:event.target.value})}),
+          h('input',{className:'kd-input','aria-label':`${label}代码`,placeholder:'科目代码（选填）',value:value.referenceExamCode || '',maxLength:20,style:{width:'150px'},
+            onChange:(event)=>change({referenceExamCode:event.target.value})})) : null)
       const enabled = new Set(draft.subjects)
       const subjects = [...(boot.subjects || []), ...draft.customSubjects.filter((item) => !(boot.subjects || []).some((s) => s.id === item.id)).map((item) => ({
-        ...item, typeLabels: item.types.map((type) => ({ single: '单项选择题', multiple: '多项选择题', fill: '填空题', solution: '解答题' })[type] || type), bankItemCount: 0,
+        ...item, custom: true, typeLabels: item.types.map((type) => ({ single: '单项选择题', multiple: '多项选择题', fill: '填空题', solution: '解答题' })[type] || type), bankItemCount: 0,
       }))]
       const close = () => { if (!saving) onClose() }
       const toggleSubject = (id) => setDraft((current) => ({ ...current,
@@ -1621,18 +1698,22 @@ window.__ModuleLoader__.load({
         setTypes((current) => current.filter((item) => item !== value))
       }
       const selectedTypes = [...new Set([...types, ...(typeDraft.trim() ? [typeDraft.trim().slice(0, 24)] : [])])]
-      const canAdd = Boolean(name.trim()) && selectedTypes.length > 0
+      const canAdd = Boolean(name.trim()) && selectedTypes.length > 0 && (referenceSubjectId !== 'independent' || Boolean(referenceExamName.trim()))
       const withCustomSubject = (current) => {
-        const subject = { id: 'custom_' + newAttemptId(), name: name.trim(), types: selectedTypes }
+        const subject = { id: 'custom_' + newAttemptId(), name: name.trim(), code:subjectCode.trim(), types: selectedTypes, referenceSubjectId, referenceExamName:referenceExamName.trim(), referenceExamCode:referenceExamCode.trim() }
         return { ...current, subjects: [...current.subjects, subject.id], customSubjects: [...current.customSubjects, subject] }
       }
       const finish = async () => {
         if (saving) return
-        if ((name.trim() || types.length || typeDraft.trim()) && !canAdd) {
-          setSaveError('请填写自定义科目名称并至少选择一个题型，或清空未完成的输入。')
+        if ((name.trim() || types.length || typeDraft.trim() || (referenceSubjectId && referenceSubjectId !== 'auto') || referenceExamName.trim() || referenceExamCode.trim() || subjectCode.trim()) && !canAdd) {
+          setSaveError('请填写自定义科目名称并至少选择一个题型；选择独立参考考试时，还需填写考试名称。或清空未完成的输入。')
           return
         }
         const next = canAdd ? withCustomSubject(draft) : draft
+        if (next.customSubjects.some((s)=>s.referenceSubjectId === 'independent' && !s.referenceExamName?.trim())) {
+          setSaveError('独立参考考试请填写准确的考试名称（院校自命题请包含院校名称）。')
+          return
+        }
         setSaving(true)
         setSaveError('')
         try { await onDone(next) }
@@ -1646,6 +1727,10 @@ window.__ModuleLoader__.load({
         setTypes([])
         setCustomTypes([])
         setTypeDraft('')
+        setReferenceSubjectId('auto')
+        setReferenceExamName('')
+        setReferenceExamCode('')
+        setSubjectCode('')
       }
       return h(Modal, {
         title: T.manageSubjects,
@@ -1676,6 +1761,8 @@ window.__ModuleLoader__.load({
           h('div', { className: 'kd-msg-meta' }, subject.typeLabels.join(' / ')))),
       enabled.has(subject.id)
         ? h('div', { className: 'kd-row' },
+          subject.custom ? referenceEditor(draft.customSubjects.find((s)=>s.id === subject.id) || subject,
+            (patch)=>setDraft((current)=>({...current,customSubjects:current.customSubjects.map((s)=>s.id === subject.id ? {...s,...patch} : s)})),`${subject.name} 参考考试科目`) : null,
           h('select', {
             className: 'kd-select',
             value: draft.subjectSource[subject.id] || 'auto',
@@ -1692,6 +1779,13 @@ window.__ModuleLoader__.load({
       h('div', { className: 'kd-divider' }),
       h('div', { className: 'kd-field kd-custom-subject' },
         h('div', { className: 'kd-field-label' }, '添加自定义科目'),
+        referenceEditor({referenceSubjectId,referenceExamName,referenceExamCode,code:subjectCode},(patch)=>{
+          if (patch.referenceSubjectId !== undefined) setReferenceSubjectId(patch.referenceSubjectId)
+          if (patch.referenceExamName !== undefined) setReferenceExamName(patch.referenceExamName)
+          if (patch.referenceExamCode !== undefined) setReferenceExamCode(patch.referenceExamCode)
+          if (patch.code !== undefined) setSubjectCode(patch.code)
+        },'自定义科目的参考考试'),
+        h('div',{className:'kd-meta'},'默认由模型按名称和代码自主检索、独立核验大纲及两年真题。专业代码不等于考试科目代码；信息不足时可在「另行指定参考考试名称」补充院校和准确考试名称，资料不足不会发布。'),
         h('div', { className: 'kd-row' },
           h('input', {
             className: 'kd-input',
@@ -1856,6 +1950,35 @@ window.__ModuleLoader__.load({
     }
 
     /* ============================== 主页面 ============================== */
+    function watchDayChange(snapshot, onSnapshot) {
+      let timer, stopped = false, checking = false
+      const schedule = (retry = false) => {
+        const delay = Date.parse(snapshot.nextDayAt) - Date.parse(snapshot.now)
+        timer = window.setTimeout(check, retry || !Number.isFinite(delay) ? 60_000 : Math.max(1000, delay))
+      }
+      const check = async () => {
+        if (stopped || checking) return
+        checking = true
+        window.clearTimeout(timer)
+        let retry = false
+        try {
+          const fresh = await rpc('bootstrap')
+          if (!stopped) { snapshot = fresh; onSnapshot(fresh) }
+        } catch { retry = true }
+        finally { checking = false; if (!stopped) schedule(retry) }
+      }
+      const onVisible = () => { if (window.document.visibilityState === 'visible') check() }
+      schedule()
+      window.addEventListener('focus', check)
+      window.document.addEventListener('visibilitychange', onVisible)
+      return () => {
+        stopped = true
+        window.clearTimeout(timer)
+        window.removeEventListener('focus', check)
+        window.document.removeEventListener('visibilitychange', onVisible)
+      }
+    }
+
     function Page() {
       const [boot, setBoot] = useState(null)
       const [loading, setLoading] = useState(true)
@@ -1883,6 +2006,13 @@ window.__ModuleLoader__.load({
       const mainScroll = useRef(null)
       const listScroll = useRef(0)
       const redoQuestions = useRef(new Set())
+      const dailyRequest = useRef(0)
+      const lastDay = useRef(null)
+      const currentView = useRef(null)
+      const bootRequest = useRef(0)
+      const threadRequest = useRef(0)
+      const selectionRequest = useRef(0)
+      currentView.current = { subjectId, kind, view, page:list?.page||1, loading:busy==='list' }
 
       useEffect(() => {
         if (view === 'list' && list && mainScroll.current) mainScroll.current.scrollTop = listScroll.current
@@ -1898,9 +2028,10 @@ window.__ModuleLoader__.load({
       useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
 
       const refreshBoot = useCallback(async () => {
+        const request = ++bootRequest.current
         try {
           const result = await rpc('bootstrap')
-          setBoot(result)
+          if (request === bootRequest.current) setBoot(result)
           return result
         } catch {
           return null
@@ -1909,6 +2040,7 @@ window.__ModuleLoader__.load({
 
       const loadToday = useCallback(async (sid) => {
         if (!sid) return
+        const request = ++dailyRequest.current
         // 高亮必须跟着视图走：从「全部 / 收藏 / 错题本」切回今日题目时要一起复位
         setKind('today')
         setThreadOpen(false)
@@ -1922,31 +2054,67 @@ window.__ModuleLoader__.load({
         attemptRef.current = newAttemptId()
         try {
           const result = await rpc('ensureDaily', { subjectId: sid })
-          setQuestion(result.question)
-          setLocalRedo(redoQuestions.current.has(result.question.id))
-          setThread(result.thread || null)
+          if (request === dailyRequest.current) {
+            setQuestion(result.question)
+            setLocalRedo(redoQuestions.current.has(result.question.id))
+            setThread(result.thread || null)
+          }
+          await refreshBoot()
         } catch (issue) {
-          setFail(issue.message)
+          if (request === dailyRequest.current) setFail(issue.message)
         } finally {
-          setBusy('')
+          if (request === dailyRequest.current) setBusy('')
         }
-      }, [])
+      }, [refreshBoot])
 
-      const loadList = useCallback(async (sid, nextKind) => {
+      useEffect(() => {
+        if (!boot?.today) return undefined
+        return watchDayChange(boot, setBoot)
+      }, [boot?.today])
+
+      useEffect(() => {
+        if (!boot?.today || lastDay.current === boot.today) return undefined
+        const previous = lastDay.current
+        lastDay.current = boot.today
+        if (!previous) return undefined
+        redoQuestions.current.clear()
+        const { subjectId: sid, kind: activeKind } = currentView.current
+        if (!sid) return undefined
+        if (activeKind === 'today') { loadToday(sid); return undefined }
+        let cancelled = false
+        const request=dailyRequest.current
+        rpc('ensureDaily', { subjectId: sid }).then(async () => {
+          if (cancelled) return
+          await refreshBoot()
+          const current = currentView.current
+          if (cancelled || request!==dailyRequest.current || current.loading || current.subjectId !== sid || current.kind === 'today' || current.view !== 'list') return
+          const result = await rpc('listQuestions', { subjectId: sid, kind: current.kind, page:current.page })
+          const latest = currentView.current
+          if (!cancelled && request===dailyRequest.current && !latest.loading && latest.page===current.page && latest.subjectId === sid && latest.kind === current.kind && latest.view === 'list') {
+            listScroll.current = mainScroll.current?.scrollTop || 0
+            setList(result)
+          }
+        }).catch((issue) => { if (!cancelled) notify(`今日题目更新失败：${issue.message}`, 'warn') })
+        return () => { cancelled = true }
+      }, [boot?.today, loadToday, refreshBoot, notify])
+
+      const loadList = useCallback(async (sid, nextKind, page = 1) => {
         if (!sid) return
+        const request = ++dailyRequest.current
         listScroll.current = 0
         setKind(nextKind)
         setThreadOpen(false)
         setView('list')
+        setFail('')
         setBusy('list')
         setList(null)
         try {
-          const result = await rpc('listQuestions', { subjectId: sid, kind: nextKind })
-          setList(result)
+          const result = await rpc('listQuestions', { subjectId: sid, kind: nextKind, page })
+          if (request === dailyRequest.current) setList(result)
         } catch (issue) {
-          notify(issue.message, 'bad')
+          if (request === dailyRequest.current) notify(issue.message, 'bad')
         } finally {
-          setBusy('')
+          if (request === dailyRequest.current) setBusy('')
         }
       }, [notify])
 
@@ -1961,10 +2129,12 @@ window.__ModuleLoader__.load({
       }, [subjectId, loadToday])
 
       const openQuestion = useCallback(async (qid) => {
+        const request = ++dailyRequest.current
         listScroll.current = mainScroll.current?.scrollTop || 0
         setBusy('question')
         try {
           const result = await rpc('getQuestion', { qid })
+          if (request !== dailyRequest.current) return
           const canResume = result.isToday && result.question.answerState === 'revealed'
             && result.question.attemptCount > 0 && !redoQuestions.current.has(qid)
           if (!canResume) redoQuestions.current.add(qid)
@@ -1976,19 +2146,20 @@ window.__ModuleLoader__.load({
           setThreadOpen(false)
           attemptRef.current = newAttemptId()
         } catch (issue) {
-          notify(issue.message, 'bad')
+          if (request === dailyRequest.current) notify(issue.message, 'bad')
         } finally {
-          setBusy('')
+          if (request === dailyRequest.current) setBusy('')
         }
       }, [notify])
 
       const backToList = async () => {
+        const request = ++dailyRequest.current
         setThreadOpen(false)
         setView('list')
         try {
-          const result = await rpc('listQuestions', { subjectId, kind })
-          setList(result)
-        } catch (issue) { notify(issue.message, 'bad') }
+          const result = await rpc('listQuestions', { subjectId, kind, page:list?.page||1 })
+          if (request === dailyRequest.current) setList(result)
+        } catch (issue) { if (request === dailyRequest.current) notify(issue.message, 'bad') }
       }
 
       useEffect(() => {
@@ -2017,6 +2188,7 @@ window.__ModuleLoader__.load({
 
       const reveal = useCallback(async (mode) => {
         if (!question) return
+        const request = dailyRequest.current
         setBusy('reveal')
         try {
           const result = await rpc('reveal', {
@@ -2025,49 +2197,58 @@ window.__ModuleLoader__.load({
             choice: mode === 'submit' ? choice : '',
             attemptId: attemptRef.current,
           })
-          setQuestion(result.question)
-          redoQuestions.current.delete(question.id)
-          setLocalRedo(false)
+          if (request === dailyRequest.current) {
+            setQuestion(result.question)
+            redoQuestions.current.delete(question.id)
+            setLocalRedo(false)
+          }
           refreshBoot()
         } catch (issue) {
           notify(issue.message, 'bad')
         } finally {
-          setBusy('')
+          if (request === dailyRequest.current) setBusy('')
         }
       }, [question, choice, notify, refreshBoot])
 
       const judge = useCallback(async (verdict) => {
         if (!question) return
+        if (!question.lastAttempt?.id) { notify('缺少本次作答记录，请重新打开题目后判定','bad'); return }
+        const request = dailyRequest.current
         setBusy('judge')
         try {
-          const result = await rpc('judge', { qid: question.id, verdict })
-          setQuestion(result.question)
+          const result = await rpc('judge', { qid: question.id, verdict, attemptId:question.lastAttempt.id })
+          if (request === dailyRequest.current) setQuestion(result.question)
           refreshBoot()
         } catch (issue) {
-          notify(issue.message, 'bad')
+          if (request === dailyRequest.current) notify(issue.message, 'bad')
         } finally {
-          setBusy('')
+          if (request === dailyRequest.current) setBusy('')
         }
       }, [question, notify, refreshBoot])
 
       const favorite = useCallback(async () => {
         if (!question) return
+        const request = dailyRequest.current
         setBusy('favorite')
         try {
           const result = await rpc('favorite', { qid: question.id, value: !question.favorite })
-          setQuestion(result.question)
-          notify(question.favorite ? '已取消收藏' : '已加入收藏')
+          if (request === dailyRequest.current) {
+            setQuestion(result.question)
+            notify(question.favorite ? '已取消收藏' : '已加入收藏')
+          }
           refreshBoot()
         } catch (issue) {
-          notify(issue.message, 'bad')
+          if (request === dailyRequest.current) notify(issue.message, 'bad')
         } finally {
-          setBusy('')
+          if (request === dailyRequest.current) setBusy('')
         }
       }, [question, notify, refreshBoot])
 
       const sendFollowup = useCallback(async (text, messageId) => {        if (!question) throw new Error('没有打开任何题目')
+        const request = dailyRequest.current
+        const threadVersion = ++threadRequest.current
         const result = await rpc('followup', { qid: question.id, message: text, clientMessageId: messageId })
-        setThread(result.thread)
+        if (request === dailyRequest.current && threadVersion === threadRequest.current) setThread(result.thread)
       }, [question])
 
       const clearThread = useCallback(async () => {
@@ -2079,11 +2260,15 @@ window.__ModuleLoader__.load({
           confirmLabel: '清空',
           danger: true,
           onConfirm: async () => {
+            const request = dailyRequest.current
+            const threadVersion = ++threadRequest.current
             setModal(null)
             try {
               const result = await rpc('clearThread', { qid: question.id })
-              setThread(result.thread)
-              notify('本题追问已清空')
+              if (request === dailyRequest.current && threadVersion === threadRequest.current) {
+                setThread(result.thread)
+                notify('本题追问已清空')
+              }
             } catch (issue) {
               notify(issue.message, 'bad')
             }
@@ -2091,47 +2276,58 @@ window.__ModuleLoader__.load({
         })
       }, [question, notify])
 
+      const cancelWork = async (kind, qid, clientMessageId) => {
+        try { await rpc('cancelTask',{kind,subjectId,qid,clientMessageId}) }
+        catch (issue) { notify(issue.message,'bad') }
+      }
+
       const revise = useCallback(async () => {
         if (!question) return
+        const request = dailyRequest.current
         setBusy('revise')
         try {
           const result = await rpc('revise', { qid: question.id })
+          if (request !== dailyRequest.current) return
           setQuestion(result.question)
           setModal({ kind: 'revision' })
         } catch (issue) {
-          notify(issue.message, 'bad')
+          if (request === dailyRequest.current) notify(issue.message, 'bad')
         } finally {
-          setBusy('')
+          if (request === dailyRequest.current) setBusy('')
         }
       }, [question, notify])
 
       const confirmRevision = useCallback(async () => {
         if (!question?.pendingRevision) return
+        const request = dailyRequest.current
         setBusy('revise')
         try {
           const result = await rpc('confirmRevision', {
             qid: question.id,
             candidateId: question.pendingRevision.candidateId,
           })
+          if (request !== dailyRequest.current) return
           setQuestion(result.question)
           setModal(null)
           notify('已替换为通过校验的新版本，旧版本已保留')
         } catch (issue) {
-          notify(issue.message, 'bad')
+          if (request === dailyRequest.current) notify(issue.message, 'bad')
         } finally {
-          setBusy('')
+          if (request === dailyRequest.current) setBusy('')
         }
       }, [question, notify])
 
       const discardRevision = useCallback(async () => {
         if (!question) return
+        const request = dailyRequest.current
         setModal(null)
         try {
           const result = await rpc('discardRevision', { qid: question.id })
+          if (request !== dailyRequest.current) return
           setQuestion(result.question)
           notify('已放弃候选版本，正式答案保持不变')
         } catch (issue) {
-          notify(issue.message, 'bad')
+          if (request === dailyRequest.current) notify(issue.message, 'bad')
         }
       }, [question, notify])
 
@@ -2245,13 +2441,15 @@ window.__ModuleLoader__.load({
 
       const bulkQuestions = async (action) => {
         if (bulkLock.current || !selected.length) return
+        const request = dailyRequest.current
         const qids = [...selected]
         const execute = async (confirmProtected = false) => {
-          if (bulkLock.current) return
+          if (bulkLock.current || request !== dailyRequest.current) return
           bulkLock.current = true
           setBusy('bulk')
           try {
             const result = await rpc('bulkQuestions', { qids, action, confirmProtected })
+            if (request !== dailyRequest.current) { refreshBoot(); return }
             if (result.requiresConfirmation) {
               setModal({ kind: 'confirm', title: '再次确认删除收藏或错题', danger: true,
                 message: `选中的题目中有 ${result.protectedCount} 道已收藏或在错题本中。继续将永久删除所选 ${qids.length} 道题及其作答和追问，无法恢复。确定仍要删除吗？`,
@@ -2260,13 +2458,14 @@ window.__ModuleLoader__.load({
             }
             setModal(null)
             setSelected([])
-            await loadList(subjectId, kind)
+            const loading = loadList(subjectId, kind, list?.page||1)
+            const listRequest = dailyRequest.current
+            await loading
             await refreshBoot()
-            notify(`已处理 ${result.affected} 道题目`)
+            if (listRequest === dailyRequest.current) notify(`已处理 ${result.affected} 道题目`)
           } catch (issue) {
-            setModal(null)
-            notify(issue.message, 'bad')
-          } finally { bulkLock.current = false; setBusy('') }
+            if (request === dailyRequest.current) { setModal(null); notify(issue.message, 'bad') }
+          } finally { bulkLock.current = false; if (request === dailyRequest.current) setBusy('') }
         }
         if (action === 'delete') {
           setModal({ kind: 'confirm', title: '删除所选题目', danger: true,
@@ -2276,6 +2475,18 @@ window.__ModuleLoader__.load({
       }
 
       const counts = subjectId ? boot?.counts?.[subjectId] : null
+      const selectAllQuestions = async (value) => {
+        if(bulkLock.current)return
+        const request=dailyRequest.current,selection=++selectionRequest.current
+        const isCurrent=()=>request===dailyRequest.current&&selection===selectionRequest.current
+        if(!value){setSelected([]);setBusy(current=>current==='selection'?'':current);return}
+        setBusy('selection')
+        try {
+          const result=await rpc('listQuestions',{subjectId,kind,idsOnly:true})
+          if(isCurrent())setSelected(result.ids)
+        } catch(issue){if(isCurrent())notify(issue.message,'bad')}
+        finally{if(isCurrent())setBusy(current=>current==='selection'?'':current)}
+      }
       const narrow = useMediaQuery('(max-width: 1180px)')
 
       const mainContent = (() => {
@@ -2308,7 +2519,8 @@ window.__ModuleLoader__.load({
             h('span', { className: 'kd-spinner' }),
             T.generating,
             h('div', { className: 'kd-msg-meta', style: { marginTop: '8px' } },
-              '题目会先生成，再由另一个独立视角重新求解并校验；校验不通过就不会发布。首次出题可能需要几十秒。'))
+              '先出题，再仅凭题干和选项盲解并比对答案；分歧交由主裁，仍无法确定就重新出题或阻止发布。首次出题可能需要较长时间。'),
+            h(Btn,{variant:'ghost',onClick:()=>cancelWork('daily')},'取消生成'))
         }
         if (fail) {
           return h(EmptyState, {
@@ -2339,10 +2551,11 @@ window.__ModuleLoader__.load({
             kind,
             subjectName: currentSubject?.name || '',
             onOpen: openQuestion,
-            managing, selected, busy: busy === 'bulk',
+            managing, selected, busy: busy === 'bulk' || busy === 'selection',
             onManage: () => { setManaging(!managing); setSelected([]) },
             onToggle: (id) => setSelected((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]),
-            onSelectAll: (value) => setSelected(value ? list.items.map((item) => item.id) : []),
+            onSelectAll: selectAllQuestions,
+            onPage: (page) => loadList(subjectId,kind,page),
             onBulk: bulkQuestions,
           })
         }
@@ -2366,6 +2579,8 @@ window.__ModuleLoader__.load({
             onJudge: judge,
             onFavorite: favorite,
             onRedo: () => {
+              dailyRequest.current++
+              setBusy('')
               redoQuestions.current.add(question.id)
               setLocalRedo(true)
               setThreadOpen(false)
@@ -2373,17 +2588,21 @@ window.__ModuleLoader__.load({
               attemptRef.current = newAttemptId()
             },
             onRevise: revise,
+            onCancel: () => cancelWork('revise',question.id),
             revising: busy === 'revise',
             onToggleThread: () => setThreadOpen((value) => !value),
             onRemoveWrong: async () => {
               if (!question) return
+              const request = dailyRequest.current
               try {
                 const result = await rpc('removeFromWrongBook', { qid: question.id })
-                setQuestion(result.question)
-                notify('已移出错题本，历史作答记录仍然保留')
+                if (request === dailyRequest.current) {
+                  setQuestion(result.question)
+                  notify('已移出错题本，历史作答记录仍然保留')
+                }
                 refreshBoot()
               } catch (issue) {
-                notify(issue.message, 'bad')
+                if (request === dailyRequest.current) notify(issue.message, 'bad')
               }
             },
           })
@@ -2459,6 +2678,7 @@ window.__ModuleLoader__.load({
               onRatioChange: setThreadRatio,
               onSend: sendFollowup,
               onClear: clearThread,
+              onCancel: (messageId) => cancelWork('followup',question.id,messageId),
               onClose: () => setThreadOpen(false),
             })
             : null)),
