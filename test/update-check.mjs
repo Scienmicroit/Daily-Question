@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
-import { Readable } from 'node:stream'
 import { createUpdateChecker, newerVersion, PLUGIN_VERSION, UPDATE_INTERVAL } from '../lib/updates.js'
 import { registerRoutes } from '../lib/routes.js'
+import { apply } from '../index.js'
 
 for(const [latest,current,expected] of [
   ['2.0.1','2.0.0',true],['2.10.0','2.9.0',true],['2.0.0','2.0.0',false],['1.9.0','2.0.0',false],
@@ -25,10 +25,36 @@ at+=UPDATE_INTERVAL;await checker();assert.equal(calls,3)
 for(mode of ['network','http','wrong','invalid'])await assert.rejects(checker({force:true}),/检查更新失败/)
 mode='ok';assert((await checker({force:true})).ok)
 
-const registrations=[];let received
-registerRoutes({register:route=>{registrations.push(route);return ()=>{}}},{checkUpdates:async args=>{received=args;return first[1]}},{info(){}})
-const request=Readable.from([Buffer.from(JSON.stringify({op:'checkUpdates',args:{force:true}}))]);request.method='POST';request.headers={host:'localhost',origin:'http://localhost'}
-let status,body
-await registrations.find(r=>r.path.endsWith('/rpc')).handler(request,{writeHead(code){status=code},end(value){body=JSON.parse(value)}})
-assert.equal(status,200);assert.deepEqual(received,{force:true});assert.equal(body.result.latestVersion,'2.1.0')
+const registrations = new Map()
+let received
+const dispose = registerRoutes({ fetch: { register(route) {
+  registrations.set(route.path, route)
+  return async () => { registrations.delete(route.path) }
+} } }, { checkUpdates: async (args) => { received = args; return first[1] } }, { info() {} })
+const path = '/api/daily-question/rpc'
+const rpcRoute = registrations.get(path)
+assert.deepEqual(rpcRoute.methods, ['POST'])
+assert.equal(rpcRoute.requestBody, 'streaming')
+const post = (body, headers) => rpcRoute.fetch(new Request('http://localhost' + path, { method: 'POST', body, headers }))
+const response = await post(JSON.stringify({ op: 'checkUpdates', args: { force: true } }))
+assert.equal(response.status, 200)
+assert.deepEqual(received, { force: true })
+assert.equal((await response.json()).result.latestVersion, '2.1.0')
+assert.equal((await post('{')).status, 400)
+assert.equal((await post('{"op":"constructor"}')).status, 400)
+assert.equal((await post('{}', { 'content-length': String(61 * 1024 * 1024) })).status, 413)
+const chunk = new Uint8Array(1024 * 1024)
+let chunksSent = 0
+const oversized = new ReadableStream({ pull(controller) {
+  if (chunksSent++ < 61) controller.enqueue(chunk)
+  else controller.close()
+} })
+assert.equal((await rpcRoute.fetch(new Request('http://localhost' + path, {
+  method: 'POST', body: oversized, duplex: 'half',
+}))).status, 413)
+await dispose()
+assert.equal(registrations.size, 0)
+let injected
+apply({ logger: () => ({ info() {}, warn() {} }), effect() {}, inject(services) { injected = services } })
+assert.deepEqual(injected, ['connection'], '插件只经宿主鉴权通道注册接口')
 console.log('ok   npm更新：语义版本、预发布、缓存、并发、手动重查、过期、异常恢复及RPC入口')

@@ -181,7 +181,7 @@ let rpcError = null
 const mockWindow = { __ModuleLoader__: { load(module) {
   components = module.factory(() => ({ createElement: h, useState: (v) => stateHook(v), useEffect: (fn, deps) => effectHook(fn, deps), useRef: (v) => refHook(v), useMemo: (fn) => fn(), useCallback: (fn) => fn }))
 } } }
-new Function('window', 'fetch', source.replace("    return {\n      inject: ['slots'],", "    return { ListPane, CountdownLines, Page, TabBar, ThreadPane, QuestionPane, SubjectsModal, UpdateCheck, mathState, previewFadePosition, watchDayChange };\n    return {\n      inject: ['slots'],"))(mockWindow, async (_, options) => {
+new Function('window', 'fetch', source.replace("    return {\n      inject: ['slots'],", "    return { ListPane, CountdownLines, Page, TabBar, ThreadPane, QuestionPane, SubjectsModal, BanksModal, SubjectNav, MobileBar, UpdateCheck, mathState, previewFadePosition, watchDayChange };\n    return {\n      inject: ['slots'],"))(mockWindow, async (_, options) => {
   const payload = JSON.parse(options.body)
   requests.push(payload)
   if (rpcError) throw rpcError
@@ -211,9 +211,25 @@ check('最后一行是公式时使用公式外框且忽略隐藏公式', JSON.st
 check('公式后的短文字决定渐隐末端', JSON.stringify(fadeFixture([[rect(100, 210, 500)], [rect(350, 282, 40)]], [rect(100, 260, 240, 40)], 60))
   === JSON.stringify({ top: 60, start: 218, end: 290 }))
 for (const secondary of ['', '约1个月2天']) {
-  const tree = components.CountdownLines({ countdown: { lines: { primary: '还剩32天', secondary, target: '目标日' } } })
-  check('倒计时时长行按内容显示或隐藏', tree.children.filter(Boolean).length === (secondary ? 3 : 2))
+  const tree = components.CountdownLines({ countdown: { year: 2028, days: secondary ? 32 : 30, approx: true, lines: { secondary, target: '目标日' } } })
+  check('倒计时时长行按内容显示或隐藏', tree.children.filter(Boolean).length === (secondary ? 4 : 3))
 }
+const estimatedCountdown = components.CountdownLines({ countdown: {
+  year: 2028, days: 407, approx: true,
+  lines: { secondary: '约1年1个月12天', target: '目标日：约2027年12月19日' },
+} })
+const [countdownTitle, countdownDays, countdownDuration, countdownTarget] = estimatedCountdown.children
+check('倒计时标题与天数分行，只有天数使用加粗节点',
+  textOf(countdownTitle) === '距离 2028 考研还剩'
+  && textOf(countdownDays) === '约 407 天'
+  && countdownDays.children.find((node) => node?.type === 'strong')?.children[0] === '407')
+check('倒计时时长与目标日期的数字、汉字之间加空格',
+  textOf(countdownDuration) === '约 1 年 1 个月 12 天'
+  && textOf(countdownTarget) === '目标日：约 2027 年 12 月 19 日')
+const examDay = components.CountdownLines({ countdown: { year: 2027, days: 0, approx: false } })
+check('正式日期省略约字，开考当天保留提示', textOf(examDay.children[1]) === '0 天' && textOf(examDay.children[2]) === '今日开考')
+const expiredCountdown = components.CountdownLines({ countdown: { days: -1, lines: { primary: '2027考研的考试日期已过' } } })
+check('已过期时保留原提示并给年份加空格', textOf(expiredCountdown.children[0]) === '2027 考研的考试日期已过' && !expiredCountdown.children[1])
 function resolve(node) {
   if (node == null || typeof node !== 'object') return node
   if (Array.isArray(node)) return node.map(resolve)
@@ -298,13 +314,60 @@ for (const [isToday, hasViewed] of [[false, false], [false, true], [true, false]
 stateHook = useState
 const redo = resolve(components.QuestionPane({ localRedo: true, choice: '', q: {
   id: 'q', type: 'single', isChoice: true, typeLabel: '单选题', answerState: 'revealed', attemptCount: 1,
-  options: [{ key: 'A', text: '选项' }], lastAttempt: { choice: 'A', result: 'correct' },
+  options: [{ key: 'A', text: '选项 A' }, { key: 'B', text: '选项 B' }], lastAttempt: { choice: 'A', result: 'correct' },
   answer: { answerKey: 'A', answer: 'SECRET ANSWER', explanation: 'SECRET EXPLANATION' },
   publishVerification: { status: 'passed', summary: 'SECRET REVIEW' },
   examAlignment: { outlineYear:2027, rationale:'SECRET FIT', sources:[{ id:'ref-1',url:'https://www.neea.edu.cn/test',title:'官方大纲',year:2027,official:true }], checkedAt:'2026-11-05T00:00:00Z' },
 } }))
 check('重新作答隐藏答案解析和可能泄题的校验结论', !textOf(redo).includes('SECRET') && textOf(redo).includes('提交答案'))
 check('重新作答时隐藏追问按钮', !textOf(redo).includes('本题追问'))
+let fallbackMode, skipped = false
+const brokenChoice = resolve(components.QuestionPane({
+  q: { id: 'broken', type: 'single', canSelect: false, options: [{ key: 'A', text: '仅一个选项' }] },
+  onReveal: (mode) => { fallbackMode = mode }, onSkip: () => { skipped = true },
+}))
+walk(brokenChoice, (node) => {
+  if (node.type !== 'button') return
+  const label = textOf(node)
+  if (label === '作答完毕' || label === '跳过本题') node.props.onClick()
+})
+check('残缺选择题有作答完毕和跳过入口', !textOf(brokenChoice).includes('提交答案') && fallbackMode === 'done' && skipped)
+const archivedBoot = { subjects: [
+  { id: 'math1', name: '数学一', enabled: true },
+  { id: 'math2', name: '数学二', enabled: false },
+  { id: 'english1', name: '英语一', enabled: false },
+], counts: { math2: { all: 1 } } }
+const navLabels = [], mobileLabels = []
+walk(components.SubjectNav({ boot: archivedBoot }), (node) => {
+  if (node.props.className === 'kd-nav-group-label') navLabels.push(textOf(node))
+})
+walk(components.MobileBar({ boot: archivedBoot }), (node) => {
+  if (node.type === 'optgroup') mobileLabels.push(node.props.label)
+})
+check('桌面和窄屏的分组数量与实际列出的科目一致',
+  navLabels.join() === '已启用科目1,已停用科目1,设置' && mobileLabels.join() === '已启用科目（1）,已停用科目（1）')
+
+let previewStateIndex = 0, submittedExclusions
+const previewStates = []
+stateHook = (value) => {
+  const index = previewStateIndex++
+  previewStates[index] ??= value
+  return [previewStates[index], (next) => { previewStates[index] = typeof next === 'function' ? next(previewStates[index]) : next }]
+}
+const previewImport = { name: '预览', usable: 2, stats: { total: 3 }, warnings: [],
+  items: [true, false, true].map((usable, index) => ({ index: index + 1, usable, stem: '导入预览测试题', issues: [], options: [] })) }
+const bankPreviewNodes = () => {
+  previewStateIndex = 0
+  const nodes = []
+  walk(resolve(components.BanksModal({ importResult: previewImport, onCommit(_result, excluded) { submittedExclusions = excluded } })), (node) => nodes.push(node))
+  return nodes
+}
+const previewChecks = bankPreviewNodes().filter((node) => node.props.type === 'checkbox')
+previewChecks[0].props.onChange({ target: { checked: false } })
+bankPreviewNodes().find((node) => node.type === 'button' && textOf(node) === '确认入库').props.onClick()
+check('题库预览可取消单题，问题条目默认禁选',
+  previewChecks[1].props.disabled && !previewChecks[1].props.checked && String(submittedExclusions) === '1')
+stateHook = useState
 const sessionBoot = { settings: { subjects: ['math1'] }, subjects: [] }
 const sessionQuestion = { id: 'session-q', answerState: 'revealed', attemptCount: 1 }
 const sessionState = new Map([[0, sessionBoot], [1, false], [3, 'math1'], [4, 'all'], [5, 'list'], [8, { items: [] }]])

@@ -135,7 +135,10 @@ check('拒绝跨题复用作答 ID', typeof collision === 'string' && collision.
 const bankSubject = { id: 'math1' }
 const selectionData = {
   customSubjects: [],
-  banks: [{ id: 'selection', subjectId: 'math1', items: ['old', 'recent', 'new'].map((id) => ({ id, stem: id, type: 'single' })) }],
+  banks: [{ id: 'selection', subjectId: 'math1', items: [
+    ...['old', 'recent', 'new'].map((id) => ({ id, stem: `足够长的选择题 ${id}`, type: 'single', options: daily1.question.options })),
+    { id: 'invalid', stem: '这道选择题缺少选项', type: 'single', options: [] },
+  ] }],
   questions: {
     'bank:selection:old': { subjectId: 'math1', lastAssignedDate: '2026-11-01' },
     'bank:selection:recent': { subjectId: 'math1', lastAssignedDate: '2026-11-03' },
@@ -181,6 +184,8 @@ const removed = await service.removeSubject({ subjectId: 'math1' })
 check('删除科目保留历史数据', removed.settings.subjects.length === 2 && !removed.settings.subjects.includes('math1') && Object.values(data.questions).some((q) => q.subjectId === 'math1'), JSON.stringify(removed.settings.subjects))
 const kept = await service.listQuestions({ subjectId: 'math1', kind: 'all' })
 check('删除科目后仍可查看历史题目', kept.items.length >= 1)
+check('停用科目仍有历史列表计数且不继续出题', removed.counts.math1.all === kept.total
+  && await service.ensureDaily('math1').then(() => false, (error) => /未启用/.test(error.message)))
 
 // ---- 自定义科目与自定义题型 ----
 const withCustom = await service.saveSettings({
@@ -283,6 +288,41 @@ const ungraded = await service.reveal({qid:'no-answer-choice',choice:'A',attempt
 check('缺少选择题答案时记为待判定，保留选项且不加入错题本',ungraded.question.lastAttempt.result==='pending'
   &&ungraded.question.lastAttempt.choice==='A'&&!ungraded.question.wrongEver&&service.store.data.attempts.at(-1).judgedAt===null)
 check('无法自动判分的选择题可由用户判定', (await service.judge({qid:'no-answer-choice',verdict:'correct',attemptId:'ungraded-choice'})).question.lastAttempt.result==='correct')
+
+const malformedImport = await service.importBank({ kind: 'md', text: [
+  '## 第 1 题\n题型：单选\n这是缺少选项的题目。\nA. 只有一个选项\n答案：A',
+  '## 第 2 题\n题型：解答题\n求导数\n答案：1',
+  '## 第 3 题\n题型：解答题\n请解释连续函数的性质。',
+  '## 第 4 题\n题型：解答题\n请证明闭区间的最值定理。',
+].join('\n\n---\n\n') })
+const pickedImports = await Promise.allSettled([1, 2].map(() =>
+  service.commitBank({ importId: malformedImport.importId, excludedIndexes: [4] })))
+check('预览与入库共同拒绝短题干和残缺选项，允许缺答案的完整题干',
+  malformedImport.usable === 2 && malformedImport.stats.blocked === 2
+  && pickedImports[0].value?.bank.itemCount === 1
+  && pickedImports[1].status === 'rejected'
+  && (await service.data()).banks.find((bank) => bank.id === pickedImports[0].value.bank.id).items[0].stem.includes('连续函数'))
+
+await service.store.update((draft) => {
+  const legacy = { subjectId: 'english2', stem: '阅读下面的句子并选择。', assignedDate: '2026-01-01',
+    currentAnswer: { answer: 'AB', answerKey: 'AB' }, options: [{ key: 'A', text: '甲' }, { key: 'B', text: '乙' }] }
+  draft.questions['old-reading'] = { ...legacy, id: 'old-reading', type: 'reading', lastAssignedDate: '2026-01-03' }
+  draft.questions['old-cloze'] = { ...legacy, id: 'old-cloze', type: 'cloze', assignedDate: '2026-01-02' }
+  draft.questions['missing-options'] = { ...legacy, id: 'missing-options', type: 'reading', options: [] }
+})
+for (const qid of ['old-reading', 'old-cloze']) {
+  const submitted = await service.reveal({ qid, choice: 'A' })
+  check(`${qid} 拒绝多选提交，旧题多字母参考答案改为待判定`,
+    await service.reveal({ qid, choice: 'AB' }).then(() => false, (error) => /只能选择一个/.test(error.message))
+    && submitted.question.lastAttempt.result === 'pending' && submitted.question.answer.answerKey === '')
+}
+const fallback = await service.reveal({ qid: 'missing-options', mode: 'done' })
+check('残缺选择题可查看答案并自判', !fallback.question.canSelect && fallback.question.answerState === 'revealed'
+  && fallback.question.lastAttempt.result === 'pending')
+const latestList = await service.listQuestions({ subjectId: 'english2' })
+check('历史题按最近出题日期排序并显示该日期',
+  latestList.items[0].id === 'old-reading' && latestList.items[0].assignedDate === '2026-01-03'
+  && (await service.getQuestion({ qid: 'old-reading' })).question.assignedDate === '2026-01-03')
 
 await rm(tmpRoot, { recursive: true, force: true })
 console.log(failures ? `\n${failures} 个检查未通过` : '\n全部通过')

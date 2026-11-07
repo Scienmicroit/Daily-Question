@@ -19,5 +19,20 @@ try {
   for(const args of [{qid:'q',verdict:'wrong'},{qid:'q',attemptId:'tab-a',verdict:'wrong'},
     {qid:'other',attemptId:'tab-b',verdict:'correct'},{qid:'q',attemptId:'missing',verdict:'correct'}])await assert.rejects(service.judge(args))
   assert.equal((await service.judge({qid:'q',attemptId:'tab-b',verdict:'wrong'})).question.lastAttempt.id,'tab-b')
+  await service.store.update((draft) => {
+    draft.questions.choice = { id: 'choice', type: 'single', stem: '测试选项提交',
+      options: [{ key: 'A', text: '甲' }, { key: 'B', text: '乙' }], currentAnswer: { answer: 'A', answerKey: 'A' } }
+  })
+  const original = { qid: 'choice', choice: 'A', attemptId: 'lost-response' }
+  await service.reveal(original)
+  await service.reveal({ ...original, choice: 'B', attemptId: 'other-tab' })
+  assert((await service.reveal(original)).duplicated)
+  await assert.rejects(service.reveal({ ...original, choice: 'B' }), { code: 'ATTEMPT_CONFLICT' })
+  await assert.rejects(service.reveal({ ...original, mode: 'giveup' }), { code: 'ATTEMPT_CONFLICT' })
+  const readback = (await service.getQuestion(original)).question
+  assert.equal(readback.lastAttempt.id, original.attemptId)
+  assert.equal(readback.lastAttempt.choice, 'A')
+  assert.equal(readback.attemptCount, 2)
+  assert.equal((await service.getQuestion({ ...original, attemptId: 'unknown' })).question.lastAttempt, null)
   console.log('ok   判分绑定作答ID：双标签隔离、自己的结果、幂等重试及拒绝缺ID/串题/改判')
 } finally {await rm(root,{recursive:true,force:true})}

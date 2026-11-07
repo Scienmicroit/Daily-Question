@@ -63,6 +63,42 @@ oldBulk.resolve({affected:1});await bulk
 assert.equal(f.state.get(4),'wrong');assert.equal(f.state.get(8).kind,'wrong','旧批量操作完成后不会跳回旧栏目')
 console.log('ok   页面竞态：栏目、连续开题、收藏、判分与追问的旧响应不会覆盖新页面')
 
+const retries = []
+let persisted
+f = fixture((op, args) => {
+  if (op === 'reveal') {
+    retries.push(args)
+    persisted ??= { id: args.attemptId, mode: args.mode, choice: args.choice }
+    throw new Error(retries.length === 1 ? '响应丢失' : '本轮已保存另一份作答')
+  }
+  assert.equal(op, 'getQuestion')
+  assert.equal(args.attemptId, persisted.id)
+  return { question: { id: 'A', lastAttempt: retries.length === 1 ? null : persisted } }
+}, true)
+f.state.set(15, 'A')
+await f.props('QuestionPane').onReveal('submit')
+f.state.set(15, 'B')
+await f.props('QuestionPane').onReveal('submit')
+assert.equal(retries[0].attemptId, retries[1].attemptId)
+assert.deepEqual(retries.map((item) => item.choice), ['A', 'B'])
+assert.equal(f.state.get(6).lastAttempt.choice, 'A')
+assert.match(f.state.get(13).message, /本次改选未提交/)
+
+const archiveCalls = []
+f = fixture((op, args) => {
+  archiveCalls.push([op, args])
+  return { kind: args.kind, items: [] }
+})
+f.state.get(0).subjects = [{ id: 'math2', name: '数学二', enabled: false }]
+f.state.get(0).counts.math2 = { all: 2 }
+f.props('SubjectNav').onPick('math2')
+await tick()
+assert.equal(f.state.get(3), 'math2')
+assert.equal(f.state.get(4), 'all')
+assert.equal(f.props('TabBar').todayDisabled, true)
+f.props('TabBar').onPick('today')
+assert.deepEqual(archiveCalls.map(([op]) => op), ['saveSettings', 'listQuestions'])
+
 const lateThread=deferred()
 f=fixture((op)=>op==='followup'?lateThread.promise:{thread:{messages:[]}},true)
 f.state.set(17,true)

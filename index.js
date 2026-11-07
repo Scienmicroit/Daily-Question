@@ -6,7 +6,7 @@ import { registerRoutes } from './lib/routes.js'
  *
  * 职责：题库与学习数据的持久化、在线出题 + 独立答案校验、
  * 答案详解的固定版本、按题目隔离的追问线程、考研日期核验，
- * 以及把这些能力通过 ctx.webServer 的同源接口暴露给本包的 Client 半。
+ * 以及通过宿主 Connection 的鉴权接口向本包的 Client 半提供这些能力。
  *
  * 界面全部由 client.js 以 Slot 组件渲染；这里不提供 HTML 页面。
  */
@@ -38,13 +38,13 @@ export function apply(ctx) {
     return () => { stopped = true; service.dispose() }
   }, `${PREFIX}.store`)
 
-  ctx.inject(['webServer'], (scoped) => {
-    const webServer = scoped.webServer
-    if (!webServer || typeof webServer.register !== 'function') {
-      logger.warn?.('webServer 不可用，界面接口没有启动')
+  ctx.inject(['connection'], (scoped) => {
+    const connection = scoped.connection
+    if (typeof connection?.fetch?.register !== 'function') {
+      logger.warn?.('宿主 Connection Fetch 不可用，界面接口没有启动')
       return undefined
     }
-    return registerRoutes(webServer, service, logger)
+    return registerRoutes(connection, service, logger)
   })
 }
 

@@ -3,7 +3,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     const React = require('react')
     const h = React.createElement
-    const { useState, useEffect, useRef, useMemo, useCallback } = React
+    const { useState, useEffect, useRef, useMemo, useCallback, useId } = React
 
     /* ============================== 文案 ============================== */
     const T = {
@@ -568,9 +568,7 @@ window.__ModuleLoader__.load({
   display:flex; flex-direction:column; gap:12px; }
 .kd-header-top { display:flex; gap:20px; justify-content:space-between; align-items:center; flex-wrap:wrap; }
 .kd-header-left { min-width:0; flex:1 1 320px; display:flex; gap:12px; align-items:center; }
-.kd-brand { flex:0 0 40px; width:40px; height:40px; border-radius:12px; display:flex; align-items:center;
-  justify-content:center; border:0; background:color-mix(in srgb, var(--kd-brand-primary) 10%, var(--kd-surface));
-  color:var(--kd-brand-primary); }
+.kd-brand { flex:0 0 40px; }
 .kd-title { margin:0; font-size:19px; font-weight:650; letter-spacing:.01em; line-height:1.4; }
 .kd-sub { margin-top:3px; font-size:12px; color:var(--kd-label-secondary); line-height:1.6; }
 .kd-select { height:30px; padding:0 10px; border-radius:8px; font-size:13px; font-family:inherit;
@@ -580,9 +578,10 @@ window.__ModuleLoader__.load({
 .kd-select-sm { height:26px; font-size:12px; padding:0 6px; }
 .kd-cd-lines { min-width:0; flex:0 1 auto; display:flex; flex-direction:column; align-items:flex-end;
   gap:2px; text-align:right; }
-.kd-cd-primary { font-size:21px; font-weight:650; color:var(--kd-brand-primary); font-variant-numeric:tabular-nums; letter-spacing:.01em; line-height:1.25; }
+.kd-cd-primary, .kd-cd-days { font-size:21px; font-weight:400; color:var(--kd-brand-primary); font-variant-numeric:tabular-nums; line-height:1.25; }
+.kd-cd-days strong { font-size:36px; font-weight:700; }
 .kd-cd-secondary { font-size:12px; color:var(--kd-label-secondary); }
-.kd-cd-target { font-size:11px; font-weight:400; color:var(--kd-label-secondary); }
+.kd-cd-target { font-size:11px; font-weight:400; color:var(--kd-label-primary); color:light-dark(#000, var(--kd-label-primary)); }
 .kd-exam-strip { display:flex; align-items:center; gap:6px 14px; flex-wrap:wrap; padding:8px 0 0;
   border:0; border-top:1px solid var(--kd-border-l1); background:transparent;
   font-size:11.5px; color:var(--kd-label-secondary); }
@@ -592,7 +591,8 @@ window.__ModuleLoader__.load({
 .kd-nav { width:204px; flex:0 0 204px; background:var(--kd-surface); border-right:1px solid var(--kd-border-l1);
   padding:24px 14px; overflow:auto; display:flex; flex-direction:column; gap:18px; }
 .kd-nav-group { display:flex; flex-direction:column; gap:4px; }
-.kd-nav-group-label { font-size:10.5px; letter-spacing:.1em; color:var(--kd-label-secondary);
+.kd-nav-group-label { display:flex; justify-content:space-between; gap:6px;
+  font-size:10.5px; letter-spacing:.1em; color:var(--kd-label-secondary);
   padding:0 8px 4px; }
 .kd-nav-item { position:relative; display:flex; align-items:center; justify-content:space-between; gap:7px; flex-direction:column; align-items:flex-start;
   width:100%; padding:12px; border-radius:9px; border:1px solid transparent; background:transparent;
@@ -645,6 +645,7 @@ window.__ModuleLoader__.load({
   border:0; background:transparent; color:var(--kd-label-secondary); font:inherit; font-size:13px;
   cursor:pointer; border-radius:8px; transition:color .15s, background-color .15s; }
 .kd-tab:hover { color:var(--kd-label-primary); background:var(--kd-bg-layer-2); }
+.kd-tab:disabled { opacity:.5; cursor:default; background:none; transform:none; }
 .kd-tab.is-active { color:var(--kd-brand-primary); font-weight:600; background:color-mix(in srgb, var(--kd-brand-primary) 10%, var(--kd-surface)); }
 
 .kd-tab-count { min-width:17px; padding:0 5px; border-radius:999px; font-size:10.5px; line-height:17px;
@@ -1075,13 +1076,17 @@ window.__ModuleLoader__.load({
       return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
     }
 
-    /** 剩余不超过 30 天时省略中间的时长行。 */
+    /** 剩余不超过 30 天时省略按年、月拆分的时长。 */
     function CountdownLines({ countdown }) {
-      const lines = (countdown || {}).lines || {}
+      const { year, days, approx, lines = {} } = countdown || {}
+      const showDays = Number.isInteger(days) && days >= 0
+      const duration = days === 0 ? '今日开考' : lines.secondary
+      const spaceDigits = (line = '') => line.replace(/\p{Script=Han}(?=\d)|\d(?=\p{Script=Han})/gu, '$& ')
       return h('div', { className: 'kd-cd-lines' },
-        h('div', { className: 'kd-cd-primary' }, lines.primary || ''),
-        lines.secondary ? h('div', { className: 'kd-cd-secondary' }, lines.secondary) : null,
-        h('div', { className: 'kd-cd-target' }, lines.target || ''))
+        h('div', { className: 'kd-cd-primary' }, showDays ? `距离 ${year} 考研还剩` : spaceDigits(lines.primary)),
+        showDays ? h('div', { className: 'kd-cd-days' }, approx ? '约 ' : null, h('strong', null, String(days)), ' 天') : null,
+        duration ? h('div', { className: 'kd-cd-secondary' }, spaceDigits(duration)) : null,
+        h('div', { className: 'kd-cd-target' }, spaceDigits(lines.target)))
     }
 
     /** 年份、日期口径与来源：一条紧凑的状态带，横跨整个头部。 */
@@ -1095,9 +1100,6 @@ window.__ModuleLoader__.load({
       const sourceLabel = cd.status === 'official'
         ? `来源 ${hostOf(sourceUrl) || '官方'}`
         : basis ? `依据 ${basis.year} 官方（${hostOf(basis.sourceUrl) || '官方'}）` : '无来源记录'
-      const noteText = cd.status === 'estimated' && basis
-        ? `按 ${basis.year} 官方日期推后一年估算`
-        : cd.status === 'unverified' ? '官方日期尚未核实' : (cd.note || '')
 
       return h('div', { className: 'kd-exam-strip' },
         h('label', { className: 'kd-strip-item' },
@@ -1117,7 +1119,7 @@ window.__ModuleLoader__.load({
           : h('span', null, sourceLabel)),
         cd.verifiedAt
           ? h('span', { className: 'kd-strip-item', title: formatDateTime(cd.verifiedAt) },
-            `核验 ${formatShort(cd.verifiedAt)}`)
+            `核验成功 ${formatShort(cd.verifiedAt)}`)
           : null,
         h(Btn, {
           small: true,
@@ -1128,7 +1130,9 @@ window.__ModuleLoader__.load({
         }, busy ? h('span', { className: 'kd-spinner' }) : h(Icon, { name: 'refresh', size: 13 }), '核验'),
         cd.expired
           ? h('span', { className: 'kd-strip-item kd-strip-warn' }, '目标日期已过，请重新选择考研年份')
-          : (noteText ? h('span', { className: 'kd-strip-item kd-strip-warn', title: cd.note || '' }, noteText) : null))
+          : cd.status === 'unverified'
+            ? h('span', { className: 'kd-strip-item kd-strip-warn', title: cd.note || '' }, '官方日期尚未核实')
+            : null)
     }
 
     /* ============================== 导航 ============================== */
@@ -1167,25 +1171,29 @@ window.__ModuleLoader__.load({
 
     function SubjectNav({ boot, subjectId, onPick, onManage, onBanks }) {
       const enabled = (boot.subjects || []).filter((subject) => subject.enabled)
+      const archived = archivedSubjects(boot, subjectId)
+      const subjectButton = (subject) => {
+        const done = Boolean(boot.todayMap?.[subject.id])
+        return h('button', {
+          key: subject.id,
+          type: 'button',
+          className: `kd-nav-item${subject.id === subjectId ? ' is-active' : ''}`,
+          onClick: () => onPick(subject.id),
+          title: subject.name,
+        },
+        h('span', null, subject.name),
+        subject.enabled ? h('span', { className: 'kd-nav-status' },
+          h('span', { className: `kd-dot${done ? '' : ' kd-dot-idle'}` }),
+          done ? '今日已出' : '待出题') : null)
+      }
       return h('div', { className: 'kd-nav' },
         h('div', { className: 'kd-nav-group' },
-          h('div', { className: 'kd-nav-group-label' }, '科目'),
-          enabled.length
-            ? enabled.map((subject) => {
-              const done = Boolean(boot.todayMap?.[subject.id])
-              return h('button', {
-                key: subject.id,
-                type: 'button',
-                className: `kd-nav-item${subject.id === subjectId ? ' is-active' : ''}`,
-                onClick: () => onPick(subject.id),
-                title: subject.name,
-              },
-              h('span', null, subject.name),
-              h('span', { className: 'kd-nav-status' },
-                h('span', { className: `kd-dot${done ? '' : ' kd-dot-idle'}` }),
-                done ? '今日已出' : '待出题'))
-            })
+          h('div', { className: 'kd-nav-group-label' }, '已启用科目', h('span', null, String(enabled.length))),
+          enabled.length ? enabled.map(subjectButton)
             : h('div', { className: 'kd-msg-meta', style: { padding: '4px 8px' } }, '还没有启用科目')),
+        archived.length ? h('div', { className: 'kd-nav-group' },
+          h('div', { className: 'kd-nav-group-label' }, '已停用科目', h('span', null, String(archived.length))),
+          archived.map(subjectButton)) : null,
         h('div', { className: 'kd-nav-spacer' }),
         h('div', { className: 'kd-nav-group' },
           h('div', { className: 'kd-nav-group-label' }, '设置'),
@@ -1194,7 +1202,11 @@ window.__ModuleLoader__.load({
           h(UpdateCheck,{currentVersion:boot.pluginVersion})))
     }
 
-    function TabBar({ kind, counts, onPick }) {
+    function archivedSubjects(boot, subjectId) {
+      return (boot.subjects || []).filter((subject) => !subject.enabled && (boot.counts?.[subject.id]?.all || subject.id === subjectId))
+    }
+
+    function TabBar({ kind, counts, onPick, todayDisabled }) {
       const items = [
         ['today', T.tabs.today, null],
         ['all', T.tabs.all, counts?.all],
@@ -1206,19 +1218,24 @@ window.__ModuleLoader__.load({
           key: value,
           type: 'button',
           className: `kd-tab${kind === value ? ' is-active' : ''}`,
+          disabled: value === 'today' && todayDisabled,
           onClick: () => onPick(value),
         }, label, count ? h('span', { className: 'kd-tab-count' }, String(count)) : null)))
     }
 
     function MobileBar({ boot, subjectId, onPick, onManage, onBanks }) {
       const enabled = (boot.subjects || []).filter((subject) => subject.enabled)
+      const archived = archivedSubjects(boot, subjectId)
+      const option = (subject) => h('option', { key: subject.id, value: subject.id }, subject.name)
       return h('div', { className: 'kd-mobilebar' },
         h('select', {
           className: 'kd-select',
           value: subjectId || '',
           'aria-label': '切换科目',
           onChange: (event) => onPick(event.target.value),
-        }, enabled.map((subject) => h('option', { key: subject.id, value: subject.id }, subject.name))),
+        }, !subjectId ? h('option', { value: '', disabled: true }, '选择科目') : null,
+        enabled.length ? h('optgroup', { label: `已启用科目（${enabled.length}）` }, enabled.map(option)) : null,
+        archived.length ? h('optgroup', { label: `已停用科目（${archived.length}）` }, archived.map(option)) : null),
         // 窄屏隐藏了左侧栏，科目的增删与题库入口必须在这里保留。
         h(Btn, { small: true, variant: 'ghost', onClick: onManage }, h(Icon, { name: 'plus', size: 13 }), T.manageSubjects),
         h(Btn, { small: true, variant: 'ghost', onClick: onBanks }, h(Icon, { name: 'book', size: 13 }), T.manageBanks))
@@ -1311,12 +1328,13 @@ window.__ModuleLoader__.load({
     function QuestionPane({
       q, busy, choice, onSelect, onReveal, onJudge, onFavorite, onRedo, localRedo,
       onRevise, revising, onToggleThread, threadOpen, onRemoveWrong,
-      onCancel,
+      onCancel, onSkip,
     }) {
       if (!q) return null
       const revealed = !localRedo && q.answerState === 'revealed' && q.attemptCount > 0
       const last = q.lastAttempt
       const isChoice = typeof q.isChoice === 'boolean' ? q.isChoice : isChoiceType(q.type)
+      const canSelect = isChoice && (q.canSelect ?? q.options?.length >= 2)
       const answerKey = q.answer?.answerKey || ''
       const selected = revealed ? (last?.choice || '') : choice
       const meta = [q.subjectName, q.typeLabel]
@@ -1351,11 +1369,12 @@ window.__ModuleLoader__.load({
             revealed ? h('div', null, q.examAlignment.rationale,
               ...(q.examAlignment.warnings || []).map((warning,i)=>h('div',{key:i,className:'kd-meta'},warning))) : null) : null,
           h('div', { className: 'kd-stem' }, h(Markdown, { text: q.stem })),
-          isChoice && q.options?.length
+          isChoice && !canSelect ? h('div', { className: 'kd-msg-meta' }, '本题选项不完整，可跳过或查看答案后自行判定。') : null,
+          canSelect
             ? h('div', { className: 'kd-options' }, q.options.map((option) => {
               const isSelected = selected.split('').includes(option.key)
               const isRight = revealed && answerKey.split('').includes(option.key)
-              const isWrongPick = revealed && isSelected && !isRight
+              const isWrongPick = revealed && answerKey && isSelected && !isRight
               const cls = ['kd-option']
               if (isSelected && !revealed) cls.push('is-selected')
               if (isRight) cls.push('is-correct')
@@ -1373,14 +1392,16 @@ window.__ModuleLoader__.load({
             : null,
           revealed ? h(ResultBanner, { attempt: last }) : null,
           h('div', { className: 'kd-actions' },
-            !revealed && isChoice
+            !revealed && canSelect
               ? h(Btn, { variant: 'primary', disabled: busy === 'reveal' || !choice, onClick: () => onReveal('submit') },
                 busy === 'reveal' ? h('span', { className: 'kd-spinner' }) : null, T.submit)
               : null,
-            !revealed && !isChoice
+            !revealed && !canSelect
               ? [
                 h(Btn, { key: 'done', variant: 'primary', disabled: busy === 'reveal', onClick: () => onReveal('done') }, T.done),
-                h(Btn, { key: 'giveup', variant: 'danger', disabled: busy === 'reveal', onClick: () => onReveal('giveup') }, T.giveup),
+                isChoice
+                  ? h(Btn, { key: 'skip', disabled: busy === 'reveal', onClick: onSkip }, '跳过本题')
+                  : h(Btn, { key: 'giveup', variant: 'danger', disabled: busy === 'reveal', onClick: () => onReveal('giveup') }, T.giveup),
               ]
               : null,
             revealed && last?.result === 'pending'
@@ -1838,8 +1859,13 @@ window.__ModuleLoader__.load({
           canAdd ? `将添加：${name.trim()}（${types.join(' / ')}）` : '填写科目名称并至少选择一个题型后即可添加'))))
     }
 
-    function BanksModal({ boot, importResult, onClose, onPickFile, onDelete, onCommit, onCancelImport }) {
+    function BanksModal({ boot, importResult, onClose, onPickFile, onDelete, onCommit, onCancelImport, committing }) {
+      const [excluded, setExcluded] = useState([])
+      const [previewPage, setPreviewPage] = useState(0)
       if (importResult) {
+        const pageSize = 60
+        const pageCount = Math.ceil(importResult.items.length / pageSize)
+        const selectedCount = importResult.usable - excluded.length
         return h(Modal, {
           title: `${T.preview}（${importResult.name}）`,
           onClose: onCancelImport,
@@ -1849,23 +1875,40 @@ window.__ModuleLoader__.load({
             h(Btn, {
               key: 'ok',
               variant: 'primary',
-              disabled: !importResult.usable,
-              onClick: () => onCommit(importResult),
+              disabled: !selectedCount || committing,
+              onClick: () => onCommit(importResult, excluded),
             }, T.commit),
           ],
         },
         h('div', { className: 'kd-meta', style: { marginBottom: '10px' } },
-          `共识别 ${importResult.stats.total} 道，其中带答案 ${importResult.stats.withAnswer} 道，可用 ${importResult.usable} 道。`),
+          `共识别 ${importResult.stats.total} 道，可用 ${importResult.usable} 道，已选 ${selectedCount} 道入库。`),
         importResult.warnings.length
           ? h('div', { className: 'kd-verify' },
             h('div', null, '解析提示：'),
             h('ul', null, importResult.warnings.map((item, index) => h('li', { key: index }, item))))
           : null,
+        pageCount > 1
+          ? h('div', { className: 'kd-actions' },
+            h(Btn, { small: true, disabled: previewPage === 0, onClick: () => setPreviewPage(previewPage - 1) }, '上一页'),
+            h('span', { className: 'kd-meta' }, `${previewPage + 1} / ${pageCount}`),
+            h(Btn, { small: true, disabled: previewPage + 1 === pageCount, onClick: () => setPreviewPage(previewPage + 1) }, '下一页'))
+          : null,
         h('div', { style: { marginTop: '12px' } },
-          importResult.items.slice(0, 60).map((item) => h('div', { key: item.index, className: 'kd-preview-item' },
+          importResult.items.slice(previewPage * pageSize, (previewPage + 1) * pageSize).map((item) => h('div', { key: item.index, className: 'kd-preview-item' },
             h('div', { className: 'kd-meta' },
+              h('input', {
+                type: 'checkbox',
+                'aria-label': `第 ${item.index} 题入库`,
+                disabled: !item.usable || committing,
+                checked: item.usable && !excluded.includes(item.index),
+                onChange: (event) => {
+                  const checked = event.target.checked
+                  setExcluded((items) => checked ? items.filter((index) => index !== item.index) : [...items, item.index])
+                },
+              }),
               h(Badge, null, `第 ${item.index} 题`),
               h(Badge, null, item.typeLabel),
+              item.usable === false ? h(Badge, { tone: 'warn' }, '不入库') : null,
               item.answerStatus === 'missing'
                 ? h(Badge, { tone: 'warn' }, T.missing)
                 : h(Badge, { tone: 'ok' }, '含参考答案（待核验）'),
@@ -1874,10 +1917,7 @@ window.__ModuleLoader__.load({
               h(Markdown, { text: (item.stem || '(未识别到题干)').slice(0, 400) })),
             item.issues.length
               ? h('div', { className: 'kd-warn-text', style: { marginTop: '6px' } }, `问题：${item.issues.join('；')}`)
-              : null))),
-        importResult.items.length > 60
-          ? h('div', { className: 'kd-msg-meta' }, `仅预览前 60 道，其余 ${importResult.items.length - 60} 道同样会按上述规则入库。`)
-          : null)
+              : null))))
       }
 
       return h(Modal, {
@@ -2079,7 +2119,7 @@ window.__ModuleLoader__.load({
         if (!previous) return undefined
         redoQuestions.current.clear()
         const { subjectId: sid, kind: activeKind } = currentView.current
-        if (!sid) return undefined
+        if (!sid || !boot.settings.subjects.includes(sid)) return undefined
         if (activeKind === 'today') { loadToday(sid); return undefined }
         let cancelled = false
         const request=dailyRequest.current
@@ -2125,8 +2165,9 @@ window.__ModuleLoader__.load({
         setSubjectId(sid)
         setList(null)
         rpc('saveSettings', { activeSubject: sid }).catch(() => {})
-        loadToday(sid)
-      }, [subjectId, loadToday])
+        if (boot.settings.subjects.includes(sid)) loadToday(sid)
+        else loadList(sid, 'all')
+      }, [boot, subjectId, loadToday, loadList])
 
       const openQuestion = useCallback(async (qid) => {
         const request = ++dailyRequest.current
@@ -2168,12 +2209,14 @@ window.__ModuleLoader__.load({
           if (cancelled) return
           setBoot(result)
           const preferred = result.settings?.activeSubject
-          const first = preferred && result.settings.subjects.includes(preferred)
+          const archived = archivedSubjects(result)
+          const first = preferred && (result.settings.subjects.includes(preferred) || archived.some((subject) => subject.id === preferred))
             ? preferred
-            : (result.settings.subjects[0] || null)
+            : (result.settings.subjects[0] || archived[0]?.id || null)
           setSubjectId(first)
           setLoading(false)
-          if (first) loadToday(first)
+          if (first && result.settings.subjects.includes(first)) loadToday(first)
+          else if (first) loadList(first, 'all')
           else setView('empty')
         }).catch((issue) => {
           if (cancelled) return
@@ -2181,7 +2224,7 @@ window.__ModuleLoader__.load({
           setLoading(false)
         })
         return () => { cancelled = true }
-      }, [loadToday])
+      }, [loadToday, loadList])
 
       const currentSubject = useMemo(() => (boot?.subjects || []).find((subject) => subject.id === subjectId) || null,
         [boot, subjectId])
@@ -2189,22 +2232,35 @@ window.__ModuleLoader__.load({
       const reveal = useCallback(async (mode) => {
         if (!question) return
         const request = dailyRequest.current
+        const attemptId = attemptRef.current
         setBusy('reveal')
+        const showSaved = (saved) => {
+          setQuestion(saved)
+          redoQuestions.current.delete(question.id)
+          setLocalRedo(false)
+        }
         try {
           const result = await rpc('reveal', {
             qid: question.id,
             mode,
             choice: mode === 'submit' ? choice : '',
-            attemptId: attemptRef.current,
+            attemptId,
           })
-          if (request === dailyRequest.current) {
-            setQuestion(result.question)
-            redoQuestions.current.delete(question.id)
-            setLocalRedo(false)
-          }
+          if (request === dailyRequest.current) showSaved(result.question)
           refreshBoot()
         } catch (issue) {
-          notify(issue.message, 'bad')
+          if (request !== dailyRequest.current) return
+          const saved = await rpc('getQuestion', { qid: question.id, attemptId }).catch(() => null)
+          if (request !== dailyRequest.current) return
+          if (saved?.question?.lastAttempt?.id === attemptId) {
+            showSaved(saved.question)
+            const last = saved.question.lastAttempt
+            const changed = last.mode !== mode || (mode === 'submit' && last.choice !== choice)
+            notify(changed ? '已找回先前保存的作答。本次改选未提交，可点击「重新作答」再提交。' : '已找回本轮保存的作答', changed ? 'warn' : 'ok')
+            refreshBoot()
+          } else {
+            notify(`${issue.message}。未确认本轮是否保存，可再次提交以核对。`, 'warn')
+          }
         } finally {
           if (request === dailyRequest.current) setBusy('')
         }
@@ -2364,15 +2420,21 @@ window.__ModuleLoader__.load({
       }, [boot, notify, refreshBoot])
 
       const saveSubjects = async (draft) => {
-        const next = draft.subjects.includes(subjectId) ? subjectId : (draft.subjects[0] || null)
+        const keepHistory = boot.counts?.[subjectId]?.all > 0
+        const next = draft.subjects.includes(subjectId) || keepHistory ? subjectId : (draft.subjects[0] || null)
         const result = await rpc('saveSettings', { ...draft, activeSubject: next })
+        bootRequest.current++
         setBoot((current) => ({ ...current, ...result, customSubjects: draft.customSubjects }))
         setModal(null)
         notify('科目设置已保存')
-        if (next !== subjectId) {
+        if (next !== subjectId || (kind === 'today' && !result.settings.subjects.includes(next))) {
           setSubjectId(next)
-          if (next) loadToday(next)
-          else { setQuestion(null); setThread(null); setThreadOpen(false); setView('empty') }
+          if (next && result.settings.subjects.includes(next)) loadToday(next)
+          else if (next) loadList(next, 'all')
+          else {
+            dailyRequest.current++
+            setBusy(''); setFail(''); setQuestion(null); setThread(null); setThreadOpen(false); setView('empty')
+          }
         }
       }
 
@@ -2405,10 +2467,10 @@ window.__ModuleLoader__.load({
         }
       }, [subjectId, notify])
 
-      const commitBank = useCallback(async (result) => {
+      const commitBank = useCallback(async (result, excludedIndexes) => {
         setBusy('commit')
         try {
-          const saved = await rpc('commitBank', { importId: result.importId, name: result.name, subjectId: subjectId || '' })
+          const saved = await rpc('commitBank', { importId: result.importId, name: result.name, subjectId: subjectId || '', excludedIndexes })
           setModal({ kind: 'banks' })
           await refreshBoot()
           notify(`题库《${saved.bank.name}》已入库，共 ${saved.bank.itemCount} 道题`)
@@ -2499,7 +2561,7 @@ window.__ModuleLoader__.load({
           })
         }
         if (loading) return h('div', { className: 'kd-loading' }, h('span', { className: 'kd-spinner' }), '正在读取学习数据…')
-        if (!boot?.settings?.subjects?.length) {
+        if (!subjectId && !boot?.settings?.subjects?.length && !archivedSubjects(boot || {}).length) {
           return h(EmptyState, {
             icon: 'plus',
             title: T.noSubjects,
@@ -2576,6 +2638,7 @@ window.__ModuleLoader__.load({
               })
             },
             onReveal: reveal,
+            onSkip: () => kind === 'today' ? loadList(subjectId, 'all') : backToList(),
             onJudge: judge,
             onFavorite: favorite,
             onRedo: () => {
@@ -2616,7 +2679,9 @@ window.__ModuleLoader__.load({
 
       const pickTab = (value) => {
         if (value === kind && (value === 'today' || view === 'list')) return
-        if (value === 'today') loadToday(subjectId)
+        if (value === 'today') {
+          if (boot?.settings.subjects.includes(subjectId)) loadToday(subjectId)
+        }
         else loadList(subjectId, value)
       }
       const showThread = view === 'detail' && question && threadOpen && !localRedo
@@ -2627,13 +2692,12 @@ window.__ModuleLoader__.load({
         h('div', { className: 'kd-header' },
           h('div', { className: 'kd-header-top' },
             h('div', { className: 'kd-header-left' },
-              h('div', { className: 'kd-brand' }, h(SidebarIcon, { size: 18 })),
+              h(PluginLogo, { size: 40, className: 'kd-brand' }),
               h('div', { style: { minWidth: 0 } },
                 h('h1', { className: 'kd-title' }, T.title),
                 h('div', { className: 'kd-sub', title: T.subtitle },
-                  boot?.today ? `${formatDate(boot.today)} · ` : '',
-                  boot ? `已启用 ${boot.settings.subjects.length} 个科目 · ` : '',
-                  '每天一道，稳步向前'))),
+                  boot?.today ? `今日日期：${formatDate(boot.today)}\u00a0\u00a0` : '',
+                  '每日一题，稳步向前'))),
             boot ? h(CountdownLines, { countdown: boot.countdown }) : null),
           boot ? h(ExamStrip, {
             boot,
@@ -2662,6 +2726,7 @@ window.__ModuleLoader__.load({
                 kind,
                 counts,
                 onPick: pickTab,
+                todayDisabled: !boot.settings.subjects.includes(subjectId),
               }) : null,
               kind !== 'today' && view === 'detail'
                 ? h(Btn, { small: true, onClick: backToList, title: '返回列表', ariaLabel: '返回列表' }, h(Icon, { name: 'chevron-left', size: 16 })) : null),
@@ -2699,8 +2764,10 @@ window.__ModuleLoader__.load({
           : null,
         modal?.kind === 'banks' && boot
           ? h(BanksModal, {
+            key: modal.importResult?.importId || 'banks',
             boot,
             importResult: modal.importResult,
+            committing: busy === 'commit',
             onClose: () => setModal(null),
             onPickFile: pickFile,
             onDelete: deleteBank,
@@ -2758,33 +2825,25 @@ window.__ModuleLoader__.load({
       return matches
     }
 
-    /* ============================== 侧栏入口 ============================== */
-    function SidebarIcon({ size = 16 }) {
+    /* ============================== 插件图标 ============================== */
+    function PluginLogo({ size = 16, className }) {
+      const gradientId = useId()
       return h('svg', {
         width: size,
         height: size,
-        viewBox: '0 0 24 24',
-        fill: 'none',
+        viewBox: '0 0 64 64',
+        className,
         'aria-hidden': true,
       },
-      h('path', {
-        d: 'M4.6 2h14.8A2.6 2.6 0 0 1 22 4.6v14.8A2.6 2.6 0 0 1 19.4 22H4.6A2.6 2.6 0 0 1 2 19.4V4.6A2.6 2.6 0 0 1 4.6 2Z',
-        fill: 'currentColor',
-        opacity: 0.16,
-      }),
-      h('path', {
-        d: 'M8 5.2c.5 0 .9.4.9.9v.9h6.2v-.9a.9.9 0 0 1 1.8 0v.9h.3c.9 0 1.6.7 1.6 1.6v8.6c0 .9-.7 1.6-1.6 1.6H6.8c-.9 0-1.6-.7-1.6-1.6V8.6c0-.9.7-1.6 1.6-1.6h.3v-.9c0-.5.4-.9.9-.9Z',
-        stroke: 'currentColor',
-        strokeWidth: 1.6,
-        strokeLinejoin: 'round',
-      }),
-      h('path', {
-        d: 'M8.6 12.6l1.7 1.7 3.5-3.6',
-        stroke: 'currentColor',
-        strokeWidth: 1.8,
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round',
-      }))
+      h('defs', null,
+        h('linearGradient', { id: gradientId, x1: 0, y1: 0, x2: 1, y2: 1 },
+          h('stop', { offset: 0, stopColor: '#5676ff' }),
+          h('stop', { offset: 1, stopColor: '#3b55e8' }))),
+      h('rect', { x: 2, y: 2, width: 60, height: 60, rx: 16, fill: `url(#${gradientId})` }),
+      h('g', { fill: 'none', stroke: '#fff', strokeLinecap: 'round', strokeLinejoin: 'round' },
+        h('rect', { x: 15.5, y: 20, width: 33, height: 30, rx: 6.5, strokeWidth: 3.6 }),
+        h('path', { d: 'M23 15.5V23M41 15.5V23', strokeWidth: 3.6 }),
+        h('path', { d: 'm27.4 33.2 5.5-3.9v13.3m-4.4 0h9.2', strokeWidth: 4 })))
     }
 
     return {
@@ -2822,7 +2881,7 @@ window.__ModuleLoader__.load({
               id: 'daily-question',
               order: 20,
               label: () => T.title,
-            }, SidebarIcon)),
+            }, PluginLogo)),
             slots.inject('main', () => slots.register({
               name: 'main',
               key: 'daily-question',

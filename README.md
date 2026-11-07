@@ -2,7 +2,14 @@
 
 面向 **DeepSeek Harness（DSH）** 的考研练习插件。按科目每天分配一道题，把作答、答案解析、收藏、错题整理和针对本题的追问放在同一个页面中。
 
-当前版本：**2.1.0**。本插件需要 DSH 宿主，不是独立运行的网站或命令行应用。
+当前版本：**2.1.1**。本插件需要 DSH 宿主。
+
+## 2.1.1 更新
+
+- 插件接口接入 DSH 会话鉴权，联网核验按届次和实际考试年份读取官方公告中的初试区间。
+- 题库预览支持逐题勾选，避免将解析步骤或残缺选择题导入为可抽取的题目。阅读和完形按单选校验，提交重试会核对原作答记录。
+- 停用科目保留历史入口，重复题按最近出题日期排序，默认考研届次按初试结束日切换。
+- 统一新版 Logo、科目分组数量和倒计时样式。完整改动见[更新记录](CHANGELOG.md)。
 
 ## 2.1.0 更新
 
@@ -14,7 +21,7 @@
 - PDF按实际页序提取，采用受限工作线程与资源上限；支持图片试卷识别，扫描PDF仍不提供OCR。
 - 设置区新增当前版本与npm检查更新，打开页面自动检查，支持手动重查。
 
-**验收边界：** 本次发布通过完整离线回归及安装包内容检查，未重新执行真实浏览器和付费模型联网验收。自主检索为实验性能力：最近记录的408自主检索未取得足够的大纲正文，因此停止发布；不能保证任意科目都能取得可靠公开资料。更多限制见下文及[更新记录](CHANGELOG.md)。
+自主检索仍为实验性能力。最近记录的408自主检索未取得足够的大纲正文，因此停止出题；能否取得足够资料取决于具体科目的公开来源。更多限制见下文及[更新记录](CHANGELOG.md)。
 
 ## 2.0.0 界面与练习功能
 
@@ -32,7 +39,7 @@
 
 ### 环境要求
 
-- 已安装并能运行的 DSH。
+- 已安装并能运行的 DSH，宿主需提供 Connection Fetch 路由接口。
 - Node.js **20.3.0 或更新版本**（由运行宿主的环境提供）。
 - 在线出题、答案修订和追问需要宿主配置可用的默认模型。在线出题还需要可用的 `web.search` 与 `web.fetch` 服务，用于读取考试依据。
 - 公式引擎随包提供，无需单独下载字体或公式依赖。
@@ -42,33 +49,33 @@
 仓库的 `dist/` 目录提供：
 
 ```text
-dist/daily-question-2.1.0.tgz
+dist/daily-question-2.1.1.tgz
 ```
 
 在 DSH Desktop 的插件安装入口填写该文件的绝对路径。命令行使用与你运行宿主一致的 profile，例如：
 
 ```bash
-dsh plugin --profile web add ./dist/daily-question-2.1.0.tgz
+dsh plugin --profile web add ./dist/daily-question-2.1.1.tgz
 ```
 
 Desktop 管理的 `desktop` profile 请通过 Desktop 插件界面操作。安装完成后重启相应宿主或刷新客户端，左侧栏出现「考研每日一题」入口。
 
 ### 从 npm 安装
 
-**维护者发布 2.1.0 后**，可以安装指定版本：
+可以通过 npm 安装指定版本：
 
 ```bash
-dsh plugin --profile web add daily-question@2.1.0
+dsh plugin --profile web add daily-question@2.1.1
 ```
 
-DSH Desktop 可在插件安装入口填写 `daily-question@2.1.0`。命令行安装还需满足宿主对包管理器的要求；若提示缺少 pnpm，先安装或启用 pnpm。
+DSH Desktop 可在插件安装入口填写 `daily-question@2.1.1`。命令行安装还需满足宿主对包管理器的要求；若提示缺少 pnpm，先安装或启用 pnpm。
 
 ### 从 GitHub 或源码安装
 
-发布 `v2.1.0` 标签后，可锁定该标签安装；此方式需要 Git：
+可以锁定 `v2.1.1` 标签安装，此方式需要 Git：
 
 ```bash
-dsh plugin --profile web add github:Scienmicroit/Daily-Question#v2.1.0
+dsh plugin --profile web add github:Scienmicroit/Daily-Question#v2.1.1
 ```
 
 本地开发也可以直接安装源码目录：
@@ -160,7 +167,7 @@ dsh plugin --profile web remove daily-question
 
 删除题目会同时清理该题的作答、追问和今日分配引用。包含收藏或错题时，会在普通删除确认之后再要求一次确认。删除不可恢复。
 
-停用科目或删除题库只会停止相应的后续分配，不会删除已出题目及其作答、收藏和追问；需要永久删除题目时使用列表的删除功能。
+停用科目或删除题库只会停止相应的后续分配，已出题目及其作答、收藏和追问会保留。有历史题目的停用科目会出现在「已停用科目」中，可继续查看全部、收藏和错题。历史列表按最近出题日期排序。
 
 ## 在线出题的范围与难度依据
 
@@ -194,7 +201,7 @@ dsh plugin --profile web remove daily-question
 
 在线 PDF 和题库 PDF 均按实际页树顺序提取，在受限工作线程中解析，单份解析含排队最多20秒；限制单流展开8MiB、累计展开32MiB、1000页及400万量级字符。最多同时解析2份，排队最多8份且总大小不超过64MiB；达到限制会明确报错，可缩小文件或稍后重试。
 
-建议按下面的结构组织 Markdown，以题号或分隔线区分题目：
+建议按下面的结构组织 Markdown，以「第 N 题」或分隔线区分题目。解析中的普通编号列表会随解析保留。
 
 ```markdown
 ## 第 1 题
@@ -219,7 +226,7 @@ D. 4
 解析：结合闭区间紧致性与连续函数的性质说明结论。
 ```
 
-导入答案标记为「待核验」，缺少答案的题目标记为「缺少答案」。导入成功只表示解析完成，不代表参考答案已经验证。
+导入答案标记为「待核验」，缺少答案的题目标记为「缺少答案」。题干缺失或过短、选择题有效选项不足时，预览会标记「不入库」。确认前可以逐题取消勾选。导入成功只表示解析完成，参考答案仍需核对。
 
 ## 公式、代码与日期
 
@@ -227,7 +234,7 @@ D. 4
 
 公式基准字号固定，长公式可横向滚动，保留上下标和分式的正常排版比例。代码块保留缩进与换行。界面包含轻量动效，并尊重系统的「减少动态效果」设置。
 
-考研年份使用入学年份口径，例如 **2028 考研对应 2027 年末的初试**。日期区分官方公布、估算和尚未核实；估算日期标注「约」。联网核验只采信教育部、研招网与教育考试院的指定官方域名。
+考研年份使用入学年份口径，例如 **2028 考研对应 2027 年末的初试**。日期区分官方公布、估算和尚未核实，估算日期标注「约」。联网核验按考研届次和实际考试年份检索教育部、研招网和教育考试院，只采用官方公告正文明确给出的完整初试起止日期。
 
 倒计时第一行显示剩余总天数，中间一行按 **365 天为一年、30 天为一个月**拆分，并省略数值为零的单位，例如「1年23天」「3个月」「2年」；剩余不超过 30 天时隐藏中间一行。这一拆分是显示换算，不是自然月的日历差。
 
@@ -302,13 +309,13 @@ npm test
 npm pack --pack-destination dist
 ```
 
-2.1.0 对应产物为 `dist/daily-question-2.1.0.tgz`。建议将确认过的安装包同时作为 GitHub Release 附件，并直接发布同一份文件到 npm：
+2.1.1 对应产物为 `dist/daily-question-2.1.1.tgz`。建议将确认过的安装包同时作为 GitHub Release 附件，并直接发布同一份文件到 npm：
 
 ```bash
 npm login --registry=https://registry.npmjs.org/
 npm whoami --registry=https://registry.npmjs.org/
-npm publish ./dist/daily-question-2.1.0.tgz --access public --registry=https://registry.npmjs.org/
-npm view daily-question@2.1.0 version --registry=https://registry.npmjs.org/
+npm publish ./dist/daily-question-2.1.1.tgz --access public --registry=https://registry.npmjs.org/
+npm view daily-question@2.1.1 version --registry=https://registry.npmjs.org/
 ```
 
 按 npm 提示完成浏览器登录与发布验证。发布账号需要拥有 `daily-question` 包的发布权限；若该版本已经发布，不可用相同版本号覆盖。GitHub 标签、npm 版本和安装包版本应保持一致。

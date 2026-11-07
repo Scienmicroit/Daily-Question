@@ -1,7 +1,7 @@
 # 考研每日一题 bundle patch
 #
 # 插入一个宿主插件行：持有题库、答题记录、追问线程与考研日期核验，
-# 并通过 ctx.webServer 暴露 /api/daily-question/* 供本包的 Client 半调用。
+# 并通过宿主 Connection 注册鉴权接口供本包的 Client 半调用。
 - insert:
     - id: daily-question
       name: daily-question

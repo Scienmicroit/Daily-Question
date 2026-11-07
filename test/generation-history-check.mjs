@@ -89,5 +89,11 @@ try {
   const question=(await service.data()).questions[published.questionId]
   assert.equal(question.type,'fill');assert.equal(question.coverageTopic,'矩阵秩')
   assert.equal(question.publishVerification.coverage.historyCount,1,'正式保存本轮覆盖目标和历史统计依据')
+  service.dispose()
+  run = context({ onFit: () => service.saveSettings({ subjects: [] }) })
+  service = new DailyQuestionService(run.ctx); service.store = new Store(join(root, 'disabled'))
+  await service.saveSettings({ subjects: ['math1'], subjectSource: { math1: 'online' } })
+  await assert.rejects(service.createDaily(subject, '2026-11-06', '2026-11-06|math1'), /已停用/)
+  assert.deepEqual(Object.keys((await service.data()).questions), [], '停用后阻止进行中的出题发布')
 } finally {service?.dispose();await rm(root,{recursive:true,force:true})}
 console.log('ok   历史去重与覆盖：全历史精确/近期相似去重、题型和主题频次、独立覆盖评审、盲解隔离及发布前复检')

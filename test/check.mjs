@@ -2,9 +2,9 @@ import { referenceWeb, fitResponse } from './reference-fixture.mjs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { resolveExamDate, computeCountdown, calendarDiff, daysBetween, addYears, addDays, yearOptions } from '../lib/exam-dates.js'
+import { resolveExamDate, computeCountdown, calendarDiff, daysBetween, addYears, addDays, yearOptions, verifyExamDateOnline } from '../lib/exam-dates.js'
 import { parseBankText } from '../lib/bank.js'
-import { Store } from '../lib/store.js'
+import { emptyData, Store } from '../lib/store.js'
 import { CHOICE_TYPES, findSubject, subjectTypes } from '../lib/subjects.js'
 import { normalizeCandidate, structuralProblems, createVerifiedQuestion, reviseAnswer } from '../lib/generate.js'
 import { parseJsonLoose } from '../lib/llm-json.js'
@@ -52,6 +52,18 @@ check('窗口内每个年份的初试都还没结束', yearOptions('2026-11-04')
   .every((year) => daysBetween('2026-11-04', resolveExamDate(year).date) >= 0),
   JSON.stringify(yearOptions('2026-11-04').map((year) => [year, resolveExamDate(year).date])))
 
+const SystemDate = Date
+for (const [day, expected] of [[1, 2027], [20, 2027], [21, 2028]]) {
+  globalThis.Date = class extends SystemDate {
+    constructor(...args) { super(...(args.length ? args : [2026, 11, day, 12])) }
+  }
+  try {
+    check(`12 月 ${day} 日初始化默认 ${expected} 考研`, emptyData().settings.targetYear === expected)
+  } finally {
+    globalThis.Date = SystemDate
+  }
+}
+
 const cd2027 = computeCountdown(2027, y2027, '2026-11-03')
 check('2027 正式日期不带“约”', !cd2027.lines.primary.includes('约'), cd2027.lines.primary)
 
@@ -64,6 +76,64 @@ check('无依据时标记未核实', unverified.status === 'unverified', JSON.st
 check('跨月借位', JSON.stringify(calendarDiff('2026-01-31', '2026-03-01')) === JSON.stringify({ years: 0, months: 1, days: 1 }), JSON.stringify(calendarDiff('2026-01-31', '2026-03-01')))
 check('跨年借位', JSON.stringify(calendarDiff('2026-12-31', '2027-01-01')) === JSON.stringify({ years: 0, months: 0, days: 1 }), JSON.stringify(calendarDiff('2026-12-31', '2027-01-01')))
 check('闰年 2/29 退化', addYears('2024-02-29', 1) === '2025-02-28')
+
+// ---- 联网核验：搜索结果只用于定位公告，日期必须来自公告正文 ----
+const examPage = 'https://www.moe.gov.cn/notice'
+const mirrorPage = 'https://yz.chsi.com.cn/notice'
+const examTitle = (year) => `${year}年全国硕士研究生招生工作管理规定`
+const notice = (year, body) => `<title>${examTitle(year)}</title><p>${body}</p>`
+const searchResult = (url) => ({ url, title: '搜索摘要声称初试时间为2025年12月1日至2日' })
+for (const [year, body, start, end] of [
+  [2026, '初试方式均为笔试。初试时间为2025年12月20日至21日。', '2025-12-20', '2025-12-21'],
+  [2027, '初试时间：２０２６ 年 １２ 月 １９ 日—<strong>１２月２０日</strong>。', '2026-12-19', '2026-12-20'],
+  [2025, '初试时间定于2024年12月21日至2024年12月23日。', '2024-12-21', '2024-12-23'],
+]) {
+  const queries = []
+  const result = await verifyExamDateOnline({ year, web: {
+    async search({ query }) { queries.push(query); return { sources: [searchResult(examPage)] } },
+    async fetch({ url }) { return { url, body: { kind: 'html', content: notice(year, body) } } },
+  } })
+  check(`${year} 届同时按届次和实际考试年份检索，并取正文的起止日`,
+    queries.length === 1 && queries[0].includes(examTitle(year)) && queries[0].includes(`${year - 1}年12月`)
+    && result.record?.date === start && result.record?.endDate === end && result.record?.method === 'online-search')
+}
+for (const [label, content, url = examPage] of [
+  ['报名日期', notice(2026, '网上报名时间为2025年12月10日至12日。')],
+  ['材料提交日期', notice(2026, '初试时间另行公布，材料提交时间为2025年12月10日至12日。')],
+  ['同句的其他日期', notice(2026, '初试时间以准考证为准，材料提交时间为2025年12月10日至12日。')],
+  ['复试日期', notice(2026, '复试时间为2025年12月10日至12日。')],
+  ['不完整区间', notice(2026, '初试时间为2025年12月20日。')],
+  ['倒序区间', notice(2026, '初试时间为2025年12月21日至20日。')],
+  ['非法日期', notice(2026, '初试时间为2025年12月30日至32日。')],
+  ['公告内有冲突区间', notice(2026, '初试时间为2025年12月20日至21日。初试时间为2025年12月25日至26日。')],
+  ['其他届次', notice(2027, '初试时间为2025年12月20日至21日。')],
+  ['实际年份错误', notice(2026, '初试时间为2026年12月20日至21日。')],
+  ['只有标题有日期', '<title>2026考研初试时间为2025年12月20日至21日</title><p>详情另行公布。</p>'],
+  ['只有正文标题有日期', '<h1>2026考研初试时间为2025年12月20日至21日</h1><p>详情另行公布。</p>'],
+  ['仅链接文字含日期', notice(2026, '<a href="/previous">初试时间为2025年12月20日至21日</a>')],
+  ['网页最终跳转到非官方域名', notice(2026, '初试时间为2025年12月20日至21日。'), 'https://www.moe.gov.cn.example.com/notice'],
+]) {
+  const result = await verifyExamDateOnline({ year: 2026, web: {
+    async search() { return { sources: [searchResult(examPage)] } },
+    async fetch() { return { url, body: { kind: 'html', content } } },
+  } })
+  check(`不采信${label}`, !result.ok && !result.record)
+}
+const visitedPages = []
+const mirrored = await verifyExamDateOnline({ year: 2026, web: {
+  async search({ query }) {
+    return { sources: (query.startsWith('site:moe.gov.cn')
+      ? ['https://www.moe.gov.cn.example.com/notice', examPage + '#1', examPage + '#2']
+      : [mirrorPage]).map(searchResult) }
+  },
+  async fetch({ url }) {
+    visitedPages.push(url)
+    if (url === examPage) throw new Error('官方页面跳转被宿主阻止')
+    return { url, body: { kind: 'text', content: '2026年全国硕士研究生招生考试初试时间为2025年12月20日至21日。' } }
+  },
+} })
+check('首选站点不可读时改查官方备用站点，过滤仿冒域名及重复链接',
+  visitedPages.join() === [examPage, mirrorPage].join() && mirrored.record?.sourceUrl === mirrorPage)
 
 // ---- 题库解析 ----
 const md = `# 数学一 每日一题题库
@@ -107,6 +177,17 @@ check('缺少答案时标记缺答案', (() => {
   const r = parseBankText('1. 求 $1+1$ 的值。\n\n解析：略')
   return r.items[0].answerStatus === 'missing' && r.items[0].issues.some((i) => i.includes('参考答案'))
 })())
+const numberedSteps = parseBankText([
+  '# 第1题', '题型：解答题', '计算函数的导数并说明原因。', '答案：1', '解析：按定义计算。',
+  '1. 求导得到分子。', '', '2. 计算分母。', '',
+  '2. 设函数为 $f(x)=x^2$，求导函数。', '答案：$2x$',
+].join('\n'))
+check('编号解析步骤留在本题，明确的下一题仍单独切分', numberedSteps.items.length === 2
+  && numberedSteps.items[0].explanation.includes('1. 求导得到分子。\n\n2. 计算分母。')
+  && numberedSteps.items[1].stem.startsWith('设函数'))
+const readingImport = parseBankText('## 第 1 题\n题型：阅读理解\n阅读下面的句子并选择。\nA. 甲\nB. 乙\n答案：AB')
+check('阅读理解导入保留题干，但多字母答案不作自动判分依据',
+  readingImport.usable === 1 && readingImport.items[0].type === 'reading' && readingImport.items[0].answerKey === '')
 
 // ---- 模型回复的 JSON 修复 ----
 const jsonBadEscape = '{"explanation": "由 $\\sqrt{2}$ 得 $\\alpha$，故 $a \\to 0$"}'
@@ -150,6 +231,11 @@ const cand = normalizeCandidate({
 check('从 answer 推出 answerKey', cand.answerKey === 'B', JSON.stringify(cand))
 check('难度被夹到 5', cand.difficulty === 5)
 check('结构检查通过', structuralProblems(cand, ['single']).length === 0, JSON.stringify(structuralProblems(cand, ['single'])))
+for (const type of ['cloze', 'reading']) {
+  check(`${type} 在线出题只接受单字母答案`,
+    structuralProblems({ ...cand, type, answerKey: 'AB' }, [type]).length > 0
+    && structuralProblems({ ...cand, type }, [type]).length === 0)
+}
 
 // ---- 科目 ----
 check('政治只考单选与多选', JSON.stringify(subjectTypes('politics')) === JSON.stringify(['single', 'multiple']))
@@ -213,6 +299,17 @@ store.write = originalWrite
 await store.update((draft) => { draft.settings.activeSubject = 'math1' })
 const recovered = await new Store(dir).read()
 check('写入失败后队列能恢复且不带入失败修改', recovered.settings.activeSubject === 'math1' && recovered.settings.targetYear === 2030)
+
+const olderStore = new Store(join(tmpRoot, 'missing-target'))
+await olderStore.write({ examDates: verifiedDates })
+globalThis.Date = class extends SystemDate {
+  constructor(...args) { super(...(args.length ? args : [2026, 11, 21, 12])) }
+}
+try {
+  check('已有核验日期但未设置目标年份时，按核验日期选默认届次', (await olderStore.read()).settings.targetYear === 2027)
+} finally {
+  globalThis.Date = SystemDate
+}
 
 await rm(tmpRoot, { recursive: true, force: true })
 console.log(failures ? `\n${failures} 个检查未通过` : '\n全部通过')
