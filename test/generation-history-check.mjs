@@ -49,7 +49,7 @@ function context({coverage=false,matched=true,duplicateFirst=false,onFit,forceWr
       const system=options.system,prompt=options.messages[0].content[0].text
       calls.push({system,prompt})
       let result
-      if(system.includes('范围与难度评审员')) {fits++;await onFit?.();result={...fitResponse(),coverageMatched:matched};if(coverage)assert.equal(JSON.parse(prompt).coverageTarget,'矩阵秩')}
+      if(system.includes('范围与难度评审员')) {fits++;await onFit?.();result={...fitResponse(JSON.parse(prompt).question.type),coverageMatched:matched};if(coverage)assert.equal(JSON.parse(prompt).coverageTarget,'矩阵秩')}
       else if(system.includes('独立解题专家')){solvers++;assert.deepEqual(Object.keys(JSON.parse(prompt)).sort(),['options','stem']);result={...fresh,solvable:true,issues:[]}}
       else if(system.includes('答案比对专家'))result={agree:true,writerValid:true,solverValid:true,issues:[]}
       else {writers++;assert(!prompt.includes('HISTORY SECRET'));result=duplicateFirst&&writers===1?{...old,answer:'B',answerKey:'B',explanation:fresh.explanation}

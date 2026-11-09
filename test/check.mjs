@@ -263,7 +263,7 @@ const ctx = { get(name) {
   if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'test', model: 'test' }) }
   if (name === 'llm') return { async *stream(options) {
     modelCalls++
-    if (options.system.includes('独立的考研范围与难度评审员')) {
+    if (options.system.includes('独立的考研范围评审员')) {
       yield { type: 'text-delta', text: JSON.stringify(fitResponse()) }
       return
     }

@@ -8,12 +8,12 @@ const now=new Date('2026-11-05T00:00:00Z'),examInfo={year:2027}
 const subject={id:'custom_research',name:'示例大学数据结构',code:'801',types:['single'],outline:[],guidance:'',custom:true,referenceSubjectId:'auto'}
 const basis=referenceExamFor(subject)
 const scope='考试内容与考查要求：掌握线性表、树与图的存储结构和基本算法，能够分析时间复杂度与空间复杂度。'
-const paper='一、单项选择题：顺序存储的线性表按下标访问元素，求基本操作的时间复杂度并选择正确答案。 A. O(1) B. O(n) C. O(n²) D. O(log n)'
+const paper='顺序存储的线性表按下标访问元素，求基本操作的时间复杂度并选择正确答案。 A. O(1) B. O(n) C. O(n²) D. O(log n)'
 const docs=[
   {id:'doc-1',url:'https://exam.study.edu.cn/outline',title:'示例大学2027年801数据结构考试大纲',identity:'示例大学2027年801数据结构考试大纲正文',content:scope},
   {id:'doc-2',url:'https://exam.study.edu.cn/2025-paper',title:'示例大学2025年801数据结构真题',identity:'示例大学2025年801数据结构考试真题正文',content:paper},
   {id:'doc-3',url:'https://exam.study.edu.cn/2024-paper',title:'示例大学2024年801数据结构真题',identity:'示例大学2024年801数据结构考试真题正文',content:paper},
-].map((d)=>({...d,text:d.identity+'\n'+d.content+'\n'+d.content.repeat(5),extraction:'web-text'}))
+].map((d,i)=>({...d,text:d.identity+'\n'+(i?'一、单项选择题：':'')+d.content+'\n'+d.content.repeat(5),extraction:'web-text'}))
 function audit() {return {identityVerified:true,needsClarification:'',issues:[],warnings:[],
   identity:{name:'数据结构',examCode:'801',institution:'示例大学',institutionUserText:'示例大学',nationalUnified:false,evidence:{sourceId:'doc-1',quote:docs[0].identity}},
   sources:docs.map((d,i)=>({sourceId:d.id,kind:i?'paper':'outline',year:i?2027-i-1:2027,fullText:true,primarySource:true,identityEvidence:d.identity,contentEvidence:d.content,corroboration:[]}))}}
@@ -73,7 +73,8 @@ const count=f.counts().calls
 first.sources[0].text='changed outside cache'
 const second=await discoverExamReferences({ctx:f.ctx,basis,examInfo,now:new Date(now.getTime()+1000),readPage:f.reader})
 assert(second.fromCache);assert.notEqual(second.sources[0].text,'changed outside cache');assert.equal(f.counts().calls,count)
-await discoverExamReferences({ctx:f.ctx,basis,examInfo,now:new Date(),readPage:f.reader})
+const typed=await discoverExamReferences({ctx:f.ctx,basis,examInfo,now:new Date(),readPage:f.reader,plannedType:'single'})
+assert(!typed.fromCache,'定向真题检索与通用资料缓存分开')
 const generated=await createVerifiedQuestion({ctx:f.ctx,subject,examInfo,preferredType:'single'})
 assert.equal(generated.verification.status,'passed');assert.equal(generated.question.examAlignment.difficulty,1)
 await discoverExamReferences({ctx:f.ctx,basis,examInfo,now:new Date(Date.now()+7*3600000),readPage:f.reader})
@@ -89,6 +90,17 @@ assert.equal(invented.counts().reads,0);assert.equal(invented.counts().turns,6)
 const insufficient=fixture({auditor:()=>({...audit(),issues:['需要另一年真实试卷，不能用摘要代替']})})
 await assert.rejects(discoverExamReferences({ctx:insufficient.ctx,basis,examInfo,now,readPage:insufficient.reader}),/另一年/)
 assert(insufficient.counts().searches<=6&&insufficient.counts().reads<=8&&insufficient.counts().turns<=6)
+const outlineOnly=fixture({results:[docs[0]],planner:(turn,options)=>{
+  const request=JSON.parse(options.messages[0].content[0].text)
+  assert.equal(request.plannedType,'填空题')
+  if(turn>2)assert.match(request.independentAuditIssues[0],/补检/)
+  return turn===1?{searches:['示例大学801考试大纲和填空题真题'],reads:[]}
+    :{searches:[],reads:[{url:docs[0].url,kind:'outline'}],done:true}
+},auditor:()=>({...audit(),sources:audit().sources.slice(0,1)})})
+const partial=await discoverExamReferences({ctx:outlineOnly.ctx,basis,examInfo,now,readPage:outlineOnly.reader,plannedType:'fill'})
+assert.deepEqual(partial.sources.map((source)=>source.kind),['outline'])
+assert.equal(partial.research.audits,2)
+assert.throws(()=>validate({...audit(),sources:audit().sources.slice(0,1)}),/两个年份/)
 const shortNotice=fixture({readPage:(source)=>source.url===docs[0].url?{...notice,url:source.url}:docs.find(d=>d.url===source.url)})
 await assert.rejects(discoverExamReferences({ctx:shortNotice.ctx,basis,examInfo,now,readPage:shortNotice.reader}),error=>
   error.details.documents.some(doc=>doc.title===notice.title&&doc.chars<100),'简短新版公告不能因不足100字而从已读资料中丢失')

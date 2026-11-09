@@ -52,6 +52,14 @@ const oversized = new ReadableStream({ pull(controller) {
 assert.equal((await rpcRoute.fetch(new Request('http://localhost' + path, {
   method: 'POST', body: oversized, duplex: 'half',
 }))).status, 413)
+for (const asset of ['tex-svg.js', 'a11y/assistive-mml.js', 'newcm/svg/dynamic/arabic.js', 'input/tex/extensions/mathtools.js']) {
+  const assetPath = '/api/daily-question/vendor/mathjax-4.1.3/' + asset
+  const route = registrations.get(assetPath)
+  const head = await route.fetch(new Request('http://localhost' + assetPath, { method: 'HEAD' }))
+  assert.equal(head.status, 200)
+  assert(head.headers.get('content-length') > 0)
+  assert.equal(await head.text(), '')
+}
 await dispose()
 assert.equal(registrations.size, 0)
 let injected

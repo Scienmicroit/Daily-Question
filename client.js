@@ -110,10 +110,8 @@ window.__ModuleLoader__.load({
       return { text: '未作答', tone: 'idle' }
     }
 
-    /* ============================== 公式（MathJax 3） ============================== */
-    // MathJax 的 SVG 输出自带字形路径，不依赖任何字体文件；单文件 bundle 随包分发，
-    // 由宿主在 /api/daily-question/vendor/tex-svg.js 提供。
-    const MATHJAX_SRC = '/api/daily-question/vendor/tex-svg.js'
+    /* ============================== 公式（MathJax 4） ============================== */
+    const MATHJAX_PATH = '/api/daily-question/vendor/mathjax-4.1.3'
     const mathState = { status: 'idle' }
     const mathWatchers = new Set()
 
@@ -131,26 +129,59 @@ window.__ModuleLoader__.load({
     function ensureMathJax() {
       if (mathState.status !== 'idle') return
       mathState.status = 'loading'
+      const assetRoot = new URL(MATHJAX_PATH, document.baseURI).href
+      const failed = (error) => {
+        mathState.status = 'failed'
+        console.warn('[daily-question] 公式引擎启动失败', error)
+        notifyMath()
+      }
       window.MathJax = {
-        startup: { typeset: false },
+        loader: { paths: { mathjax: assetRoot }, load: ['a11y/assistive-mml'] },
+        startup: {
+          typeset: false,
+          ready() {
+            const { startup } = window.MathJax
+            startup.defaultReady()
+            // 旧菜单设置可能重新开启依赖外部资源的语音组件。
+            startup.document.options.enableEnrichment = false
+            startup.document.options.enableAssistiveMml = true
+            startup.output.options.displayOverflow = 'overflow'
+            startup.output.options.linebreaks.inline = false
+          },
+        },
+        options: {
+          enableMenu: false,
+          menuOptions: { settings: { enrich: false, assistiveMml: true, breakInline: false, overflow: 'Overflow' } },
+        },
+        tex: { packages: { '[-]': ['require', 'html', 'texhtml', 'setoptions'] } },
+        output: {
+          font: 'mathjax-newcm',
+          fontPath: assetRoot + '/newcm',
+          minScale: 1,
+          displayOverflow: 'overflow',
+          linebreaks: { inline: false },
+        },
         // 每条公式自带 <defs>，注入 innerHTML 后不依赖全局字体缓存
-        svg: { fontCache: 'local', scale: 1, matchFontHeight: false },
+        svg: { fontCache: 'local' },
       }
       const script = document.createElement('script')
-      script.src = MATHJAX_SRC
+      script.src = assetRoot + '/tex-svg.js'
       script.async = true
       script.onload = () => {
         const startup = window.MathJax && window.MathJax.startup
         const done = () => {
+          if (typeof window.MathJax?.tex2svgPromise !== 'function') {
+            failed(new Error('MathJax SVG 转换接口不可用'))
+            return
+          }
           mathState.status = 'ready'
           ensureMathStylesheet()
           notifyMath()
         }
-        const failed = () => { mathState.status = 'failed'; notifyMath() }
         if (startup && startup.promise) startup.promise.then(done, failed)
         else done()
       }
-      script.onerror = () => { mathState.status = 'failed'; notifyMath() }
+      script.onerror = () => failed(new Error('无法加载 ' + script.src))
       document.head.appendChild(script)
     }
 
@@ -183,7 +214,7 @@ window.__ModuleLoader__.load({
      * 规范化模型输出的 TeX：
      * - 去掉自带的 $ / $$ 包裹；
      * - 过滤能改页面结构或注入链接的宏（公式来自模型输出，不当作可信内容）；
-     * - 公式块里的裸 \\ 换行在 MathJax 3 需要放进 \displaylines（Typora 也是这么处理的）；
+     * - 兼容旧题公式块中的裸 \\ 换行；
      * - 其余交给 MathJax，不再自己做子集解析。
      */
     const RISKY_TEX = [
@@ -204,25 +235,35 @@ window.__ModuleLoader__.load({
       return tex
     }
 
+    function MathFormula({ tex, display }) {
+      const [html, setHtml] = useState(null)
+      useEffect(() => {
+        let active = true
+        window.MathJax.tex2svgPromise(tex, { display }).then(
+          (node) => { if (active) setHtml(node?.outerHTML || '') },
+          () => { if (active) setHtml('') },
+        )
+        return () => { active = false }
+      }, [tex, display])
+      const tag = display ? 'div' : 'span'
+      const className = display ? 'kd-mathblock' : 'kd-math'
+      return html ? h(tag, { className, dangerouslySetInnerHTML: { __html: html } })
+        : h(tag, { className }, mathFallback(tex, html === '' ? '公式无法渲染' : ''))
+    }
+
+    function mathFallback(tex, error, key) {
+      return h('span', {
+        className: error ? 'kd-math-error' : 'kd-math-pending',
+        title: error || '公式引擎正在加载',
+        key,
+      }, tex)
+    }
+
     function renderMath(source, display) {
       const tex = normalizeTeX(source, display)
       const key = nextKey('math')
-      if (mathState.status !== 'ready') {
-        // 引擎还没就绪（或加载失败）：先显示原文，就绪后组件会重渲染
-        return h('span', { className: 'kd-math-pending', key, title: '公式引擎正在加载' }, tex)
-      }
-      try {
-        const node = window.MathJax.tex2svg(tex, { display: Boolean(display) })
-        const html = node && node.outerHTML
-        if (!html) throw new Error('empty svg')
-        return h(display ? 'div' : 'span', {
-          className: display ? 'kd-mathblock' : 'kd-math',
-          key,
-          dangerouslySetInnerHTML: { __html: html },
-        })
-      } catch (error) {
-        return h('span', { className: 'kd-math-error', key, title: '公式无法渲染' }, tex)
-      }
+      return mathState.status === 'ready' ? h(MathFormula, { tex, display: Boolean(display), key })
+        : mathFallback(tex, mathState.status === 'failed' ? '公式引擎加载失败。若刚更新插件，请重启 DSH 应用和宿主。' : '', key)
     }
 
     /* ============================== Markdown ============================== */
@@ -741,7 +782,7 @@ window.__ModuleLoader__.load({
   background:var(--kd-bg-layer-1); color:var(--kd-label-primary);
   font:inherit; transition:background-color .15s, border-color .15s; }
 .kd-list-row > .kd-btn { flex:none; white-space:nowrap; }
-.kd-list-row[role=button] { cursor:pointer; }
+.kd-list-row { cursor:pointer; }
 .kd-list-open { flex:none; display:flex; align-items:center; gap:6px; font-size:12px; color:var(--kd-label-secondary); white-space:nowrap; }
 .kd-list-row + .kd-list-row { margin-top:8px; }
 .kd-list-row:hover { border-color:var(--kd-border-l2); background:var(--kd-bg-layer-2); }
@@ -753,7 +794,7 @@ window.__ModuleLoader__.load({
 .kd-list-summary .kd-p, .kd-list-summary .kd-h, .kd-list-summary .kd-mathblock { margin:0; }
 .kd-list-summary .kd-p::after { content:' '; }
 .kd-list-summary .kd-mathblock { display:inline; padding:0; text-align:left; vertical-align:baseline; }
-.kd-list-summary mjx-container[display=true] { margin:0; }
+.kd-list-summary .kd-mathblock > mjx-container[display=true] { display:inline; min-width:0; width:auto; }
 .kd-list-summary .kd-code-wrap { margin:0; border:0; }
 .kd-list-summary .kd-code-lang { display:none; }
 .kd-list-summary .kd-code { display:inline; padding:0; line-height:inherit; white-space:pre-wrap; }
@@ -844,15 +885,10 @@ window.__ModuleLoader__.load({
 .kd-image-fallback { display:inline-block; font-family:ui-monospace,monospace; font-size:12px;
   color:var(--kd-state-warn-primary); border:1px dashed var(--kd-state-warn-primary);
   border-radius:6px; padding:2px 6px; }
-.kd-math, .kd-mathblock { font-size:17px; }
-.kd-math { display:inline-flex; vertical-align:baseline; align-items:baseline; max-width:100%; padding:.25em .1em;
-  overflow-x:auto; overflow-y:hidden; }
-.kd-math mjx-container { color:currentColor; flex:none; }
-.kd-mathblock { display:block; max-width:100%; min-width:0; margin:10px 0; padding:.35em .2em; overflow-x:auto; overflow-y:hidden;
-  text-align:center; }
-.kd-page .kd-math mjx-container, .kd-page .kd-mathblock mjx-container {
-  display:inline-block; font-size:100% !important; max-width:none; }
-.kd-page .kd-math svg, .kd-page .kd-mathblock svg { max-width:none !important; }
+.kd-math { display:inline; font-size:1em; }
+.kd-mathblock { max-width:100%; min-width:0; margin:1em 0; overflow-x:auto; text-align:center; }
+.kd-mathblock > mjx-container[display=true] { min-width:100%; width:max-content; margin:0; }
+.kd-math svg, .kd-mathblock svg { max-width:none; }
 .kd-math-pending { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.9em;
   opacity:.55; white-space:pre-wrap; }
 .kd-math-error { color:var(--kd-state-error-primary);
@@ -1103,7 +1139,6 @@ window.__ModuleLoader__.load({
 
       return h('div', { className: 'kd-exam-strip' },
         h('label', { className: 'kd-strip-item' },
-          h('span', null, T.year),
           h('select', {
             className: 'kd-select kd-select-sm',
             value: boot.settings.targetYear,
@@ -1337,13 +1372,15 @@ window.__ModuleLoader__.load({
       const canSelect = isChoice && (q.canSelect ?? q.options?.length >= 2)
       const answerKey = q.answer?.answerKey || ''
       const selected = revealed ? (last?.choice || '') : choice
+      const difficultyUnverified = q.examAlignment?.status === 'difficulty-unverified'
       const meta = [q.subjectName, q.typeLabel]
       return h('div', null,
         h('div', { className: 'kd-card' },
           h('div', { className: 'kd-chips' },
             h('span', { className: 'kd-tag kd-tag-brand' }, q.typeLabel),
             h('span', { className: 'kd-tag' }, q.subjectName),
-            h('span', { className: 'kd-tag', title: q.examAlignment ? '独立评审参考历年真题给出的难度，不是考生正确率统计' : '原始难度标签，尚无真题对照评审' }, `难度 ${q.difficulty}/5`),
+            difficultyUnverified ? h(Badge, { tone: 'warn' }, '未通过真题难度校验')
+              : h('span', { className: 'kd-tag', title: q.examAlignment ? '独立评审参考历年真题给出的难度' : '原始难度标签，尚无真题对照评审' }, `难度 ${q.difficulty}/5`),
             h('span', { className: 'kd-tag' }, formatDate(q.assignedDate)),
             h('span', { className: 'kd-tag' }, `累计作答 ${q.attemptCount} 次`),
             h('span', { className: 'kd-tag' }, q.source?.kind === 'bank' ? q.source.label : '在线出题'),
@@ -1358,7 +1395,7 @@ window.__ModuleLoader__.load({
               h('span', null, `${T.knowledge}：${q.knowledge.join('、')}`))
             : null,
           q.examAlignment ? h('details', { className: 'kd-verify' },
-            h('summary', null, `范围与难度依据 · 大纲 ${q.examAlignment.outlineYear} · 独立真题对照`),
+            h('summary', null, difficultyUnverified ? `范围校验依据 · 大纲 ${q.examAlignment.outlineYear}` : `范围与难度依据 · 大纲 ${q.examAlignment.outlineYear} · 独立真题对照`),
             h('div', null, q.examAlignment.note),
             h('div', null, `参考考试：${q.examAlignment.basisSubject?.name || q.subjectName} · 检索时间：${formatDateTime(q.examAlignment.checkedAt)}`),
             ...(q.examAlignment.sources || []).map((source) => h('div', { key: source.id },
@@ -1483,7 +1520,9 @@ window.__ModuleLoader__.load({
         const observer = new ResizeObserver(measure)
         observer.observe(element)
         if (element.firstElementChild) observer.observe(element.firstElementChild)
-        return () => observer.disconnect()
+        const mutations = new MutationObserver(measure)
+        mutations.observe(element, { childList: true, subtree: true })
+        return () => { observer.disconnect(); mutations.disconnect() }
       }, [text, mathStatus])
       return h('div', { ref, className: 'kd-list-summary' + (truncated ? ' is-truncated' : '') }, h(Markdown, { text }))
     }
@@ -1498,9 +1537,10 @@ window.__ModuleLoader__.load({
           body: T.tabEmpty[kind] || '暂无内容',
         })
       }
+      const total = list.total ?? list.items.length
       return h('div', null,
         h('div', { className: 'kd-meta', style: { marginBottom: '10px' } },
-          h('span', null, `${subjectName} · ${T.tabs[kind]} · 共 ${list.total ?? list.items.length} 道`),
+          h('span', null, `${subjectName} · ${T.tabs[kind]} · 共 ${total} 道`),
           h(Btn, { small: true, onClick: onManage, disabled: busy }, managing ? '完成管理' : '批量管理')),
         list.totalPages>1?h('div',{className:'kd-row',style:{marginBottom:'12px'},'aria-label':'题目分页'},
           h(Btn,{small:true,disabled:busy||list.page<=1,onClick:()=>onPage(list.page-1)},'上一页'),
@@ -1509,7 +1549,7 @@ window.__ModuleLoader__.load({
         managing ? h('div', { className: 'kd-bulkbar', 'aria-label': '批量管理' },
           h('div', { className: 'kd-row' },
             h('strong', { 'aria-live': 'polite' }, `已选 ${selected.length} 道`),
-            h(Btn, { small: true, disabled: busy, onClick: () => onSelectAll(true) }, '全选'),
+            h(Btn, { small: true, disabled: busy || selected.length === total, onClick: () => onSelectAll(true) }, '全选'),
             h(Btn, { small: true, disabled: busy || !selected.length, onClick: () => onSelectAll(false) }, '全不选')),
           h('div', { className: 'kd-row' },
             ...[['favorite', '收藏'], ['unfavorite', '取消收藏'], ['wrong', '加入错题本'], ['unwrong', '移出错题本'], ['delete', '删除题目']].map(([action, label]) =>
@@ -1519,7 +1559,14 @@ window.__ModuleLoader__.load({
           className: 'kd-list-row' + (managing && selected.includes(item.id) ? ' is-selected' : ''),
           role: managing ? undefined : 'button',
           tabIndex: managing ? undefined : 0,
-          onClick: managing ? undefined : (event) => { if (!event.target.closest('a,input')) onOpen(item.id) },
+          onClick: (event) => {
+            if (event.target.closest('a,input')) return
+            if (managing) {
+              if (!busy) onToggle(item.id)
+            } else {
+              onOpen(item.id)
+            }
+          },
           onKeyDown: managing ? undefined : (event) => {
             if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key)) { event.preventDefault(); onOpen(item.id) }
           },
@@ -1535,7 +1582,7 @@ window.__ModuleLoader__.load({
             item.favorite ? h(Badge, { tone: 'brand' }, '收藏') : null,
             item.wrongEver ? h(Badge, { tone: 'bad' }, item.mastered ? '错题 · 已掌握' : '错题') : null,
             item.answerStatus !== 'verified' ? h(Badge, { tone: 'warn' }, T.unverified) : null,
-            h('span', null, `难度 ${item.difficulty}/5`))),
+            item.difficultyUnverified ? h(Badge, { tone: 'warn' }, '未通过真题难度校验') : h('span', null, `难度 ${item.difficulty}/5`))),
         !managing ? h('span', { className: 'kd-list-open', 'aria-hidden': true }, '查看题目', h(Icon, { name: 'chevron' })) : null)))
     }
 

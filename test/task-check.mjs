@@ -14,7 +14,7 @@ const ctx={get(name){return name==='web'?referenceWeb():name==='agentDefaultMode
   async *stream(options){
     modelSignal=options.signal;started?.resolve()
     if(mode==='hang')await gate.promise
-    const response=options.system.includes('范围与难度评审员')?fitResponse():options.system.includes('独立解题专家')?{...candidate,solvable:true,issues:[]}
+    const response=options.system.includes('范围与难度评审员')?fitResponse(JSON.parse(options.messages[0].content[0].text).question.type):options.system.includes('独立解题专家')?{...candidate,solvable:true,issues:[]}
       :options.system.includes('答案比对专家')?{agree:true,writerValid:true,solverValid:true,issues:[]}:
         {...candidate,type:/"targetType":"([^"]+)"/.exec(options.messages[0].content[0].text)?.[1]||candidate.type}
     yield {type:'text-delta',text:JSON.stringify(response)}

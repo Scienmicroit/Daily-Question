@@ -3,8 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 /**
  * 渲染层单元测试：切片 client.js 里的「公式 + Markdown」代码段，用只记录结构的
- * React 桩跑一遍。公式现在交给 MathJax，所以这里用一个假的 tex2svg 记录
- * 「最终送给 MathJax 的 TeX 是什么」，而不是检查我们自己画的节点。
+ * React 桩检查传给 MathJax 的 TeX，并验证异步渲染的加载和失败状态。
  */
 const clientPath = fileURLToPath(new URL('../client.js', import.meta.url))
 const source = readFileSync(clientPath, 'utf8')
@@ -14,7 +13,7 @@ if (start < 0 || end < 0) throw new Error('没有找到渲染器代码段')
 const code = `let uid = 0
 const nextKey = (prefix) => prefix + (uid += 1)
 ${source.slice(start, end)}
-return { inlineNodes, renderBlocks, renderMath, Markdown, mathState }`
+return { inlineNodes, renderBlocks, MathFormula, ensureMathJax, mathState }`
 
 const h = (type, props, ...children) => ({ type, props: props || {}, children: children.flat(9) })
 function useState(initial) { return [typeof initial === 'function' ? initial() : initial, () => {}] }
@@ -45,36 +44,16 @@ function textOf(node) {
   return ''
 }
 
-function mathNodes(node) {
-  const found = []
-  walk(node, (n) => { if (n.props && n.props.dangerouslySetInnerHTML) found.push(n) })
-  return found
-}
-
 /** 取出送进 MathJax 的 TeX 和 display 标记。 */
 function texOf(node) {
-  const [first] = mathNodes(node)
+  let first
+  walk(node, (n) => { if (n.type === api.MathFormula) first ??= n.props })
   if (!first) return null
-  const html = first.props.dangerouslySetInnerHTML.__html
-  const match = /data-tex="([\s\S]*?)"/.exec(html)
-  return {
-    tex: match ? match[1] : '',
-    display: /data-display="true"/.test(html),
-    className: first.props.className,
-  }
+  return { ...first, className: api.MathFormula(first).props.className }
 }
 
-// ---- 假的 MathJax ----
 mathState.status = 'ready'
-globalThis.window = {
-  MathJax: {
-    tex2svg(tex, options) {
-      const escaped = String(tex).replace(/"/g, '&#34;')
-      const display = options && options.display ? 'true' : 'false'
-      return { outerHTML: `<mjx-container data-tex="${escaped}" data-display="${display}"></mjx-container>` }
-    },
-  },
-}
+globalThis.window = { MathJax: {} }
 
 // ---- 公式 ----
 const inline = texOf(inlineNodes('斜率 $k=\\frac{1}{2}$ 与法线'))
@@ -147,19 +126,55 @@ const pending = inlineNodes('$x^2$')
 check('引擎未就绪时先显示原文', textOf(pending).includes('x^2'), textOf(pending))
 mathState.status = 'ready'
 
+for (const outcome of ['success', 'error', 'unmount']) {
+  let html = null, cleanup
+  const { MathFormula } = factory(h, () => [html, (value) => { html = value }], (fn) => fn(),
+    (effect) => { if (!cleanup) cleanup = effect() }, () => ({}), (fn) => fn)
+  window.MathJax.tex2svgPromise = async (tex, { display }) => {
+    if (outcome === 'error') throw new Error('boom')
+    if (tex === 'x^2' && display) return { outerHTML: '<mjx-container><svg></svg></mjx-container>' }
+  }
+  const props = { tex: 'x^2', display: true }
+  check('等待字形分片期间显示原文', textOf(MathFormula(props)) === 'x^2')
+  if (outcome === 'unmount') cleanup()
+  await Promise.resolve()
+  const rendered = MathFormula(props)
+  check(`异步 SVG 渲染处理 ${outcome}`, outcome === 'success'
+    ? rendered.props.dangerouslySetInnerHTML?.__html.includes('<svg>')
+    : outcome === 'error' ? rendered.children[0]?.props.className === 'kd-math-error' : html === null)
+}
+
+let engineScript
+globalThis.document = {
+  baseURI: 'dsh-app://app/index.html',
+  createElement: () => ({}),
+  head: { appendChild: (script) => { engineScript = script } },
+}
+mathState.status = 'idle'
+api.ensureMathJax()
+const engine = window.MathJax
+const assetRoot = 'dsh-app://app/api/daily-question/vendor/mathjax-4.1.3'
+check('桌面协议下主程序和分片使用同一个离线资源根目录',
+  engineScript.src === assetRoot + '/tex-svg.js'
+  && engine.loader.paths.mathjax === assetRoot
+  && engine.output.fontPath === assetRoot + '/newcm')
+engine.startup.defaultReady = () => {
+  engine.startup.document = { options: { enableEnrichment: true, enableAssistiveMml: false } }
+  engine.startup.output = { options: { displayOverflow: 'scale', linebreaks: { inline: true } } }
+}
+engine.startup.ready()
+check('历史菜单偏好不再开启语音依赖或缩放长公式',
+  !engine.startup.document.options.enableEnrichment
+  && engine.startup.document.options.enableAssistiveMml
+  && engine.startup.output.options.displayOverflow === 'overflow'
+  && !engine.startup.output.options.linebreaks.inline)
+mathState.status = 'failed'
+check('宿主资源未加载时保留原文并提示重启',
+  inlineNodes('$x$').some((node) => node?.props?.title.includes('重启 DSH 应用和宿主') && textOf(node) === 'x'))
 mathState.status = 'ready'
-globalThis.window.MathJax.tex2svg = () => { throw new Error('boom') }
-const broken = inlineNodes('$\\bad$')
-check('渲染失败时降级为错误样式', textOf(broken).includes('\\bad'), textOf(broken))
-check('渲染失败不抛错', true)
+delete globalThis.document
 
 // ---- 安全过滤 ----
-// 恢复一个可用的 tex2svg（上面测失败路径时把它换成了抛错的桩）
-globalThis.window.MathJax.tex2svg = (tex, options) => {
-  const escaped = String(tex).replace(/"/g, '&#34;')
-  const display = options && options.display ? 'true' : 'false'
-  return { outerHTML: `<mjx-container data-tex="${escaped}" data-display="${display}"></mjx-container>` }
-}
 const xss = texOf(inlineNodes('$\\href{javascript:alert(1)}{click}$'))
 check('去掉 \\href（防 javascript: 链接）', !xss.tex.includes('\\href') && !xss.tex.includes('javascript:'), xss.tex)
 const styled = texOf(inlineNodes('$\\style{color:red}{x}$'))
@@ -181,7 +196,7 @@ let rpcError = null
 const mockWindow = { __ModuleLoader__: { load(module) {
   components = module.factory(() => ({ createElement: h, useState: (v) => stateHook(v), useEffect: (fn, deps) => effectHook(fn, deps), useRef: (v) => refHook(v), useMemo: (fn) => fn(), useCallback: (fn) => fn }))
 } } }
-new Function('window', 'fetch', source.replace("    return {\n      inject: ['slots'],", "    return { ListPane, CountdownLines, Page, TabBar, ThreadPane, QuestionPane, SubjectsModal, BanksModal, SubjectNav, MobileBar, UpdateCheck, mathState, previewFadePosition, watchDayChange };\n    return {\n      inject: ['slots'],"))(mockWindow, async (_, options) => {
+new Function('window', 'fetch', source.replace("    return {\n      inject: ['slots'],", "    return { ListPane, CountdownLines, ExamStrip, Page, TabBar, ThreadPane, QuestionPane, SubjectsModal, BanksModal, SubjectNav, MobileBar, UpdateCheck, mathState, previewFadePosition, watchDayChange };\n    return {\n      inject: ['slots'],"))(mockWindow, async (_, options) => {
   const payload = JSON.parse(options.body)
   requests.push(payload)
   if (rpcError) throw rpcError
@@ -236,24 +251,43 @@ function resolve(node) {
   if (typeof node.type === 'function') return resolve(node.type({ ...node.props, children: node.children }))
   return { ...node, children: node.children.map(resolve) }
 }
+const examStrip = resolve(components.ExamStrip({ boot: { settings: { targetYear: 2028 }, yearOptions: [2028] } }))
+let yearSelect
+walk(examStrip, (node) => { if (node.type === 'select') yearSelect = node })
+check('年份选择器隐藏文字标签并保留无障碍名称',
+  !textOf(examStrip).includes('考研年份') && yearSelect?.props['aria-label'] === '考研年份')
+
 for (const kind of ['all', 'favorite', 'wrong']) {
   const actions = []
-  const props = { list: { items: [{ id: 'q1', summary: '题目一', typeLabel: '单选题' }, { id: 'q2', summary: '题目二', typeLabel: '解答题' }] },
+  const props = { list: { total: 3, items: [{ id: 'q1', summary: '题目一', typeLabel: '单选题' }, { id: 'q2', summary: '题目二', typeLabel: '解答题' }] },
     kind, subjectName: '数学', managing: true, selected: ['q1'],
-    onSelectAll: (value) => actions.push(value), onBulk: (action) => actions.push(action), onToggle: (id) => actions.push(id) }
+    onSelectAll: (value) => actions.push(value), onBulk: (action) => actions.push(action), onToggle: (id) => actions.push(id),
+    onOpen: () => actions.push('open') }
   const tree = resolve(components.ListPane(props))
-  const buttons = [], inputs = []
-  walk(tree, (n) => { if (n.type === 'button') buttons.push(n); if (n.type === 'input') inputs.push(n) })
+  const buttons = [], inputs = [], rows = []
+  walk(tree, (n) => {
+    if (n.type === 'button') buttons.push(n)
+    if (n.type === 'input') inputs.push(n)
+    if (n.props.className?.startsWith('kd-list-row')) rows.push(n)
+  })
   check(`${kind} 列表可逐题选择且保持选中状态`, inputs.length === 2 && inputs[0].props.checked && !inputs[1].props.checked)
+  rows[0].props.onClick({ target: { closest: () => null } })
+  rows[1].props.onClick({ target: { closest: () => inputs[1] } })
   inputs[1].props.onChange()
   for (const label of ['全选', '全不选', '收藏', '取消收藏', '加入错题本', '移出错题本', '删除题目']) {
     buttons.find((b) => textOf(b) === label).props.onClick()
   }
-  check(`${kind} 列表批量动作回调正确`, JSON.stringify(actions) === JSON.stringify(['q2', true, false, 'favorite', 'unfavorite', 'wrong', 'unwrong', 'delete']))
-  const emptySelection = resolve(components.ListPane({ ...props, selected: [] }))
-  const emptyButtons = []
-  walk(emptySelection, (n) => { if (n.type === 'button') emptyButtons.push(n) })
-  check(`${kind} 未选择题目时禁用删除`, emptyButtons.find((b) => textOf(b) === '删除题目').props.disabled === true)
+  check(`${kind} 卡片点击切换选中，复选框只触发一次且不打开详情`,
+    JSON.stringify(actions) === JSON.stringify(['q1', 'q2', true, false, 'favorite', 'unfavorite', 'wrong', 'unwrong', 'delete']))
+  for (const [selected, allDisabled, clearDisabled] of [
+    [[], false, true], [['q1', 'q2'], false, false], [['q1', 'q2', 'off-page'], true, false],
+  ]) {
+    const currentButtons = []
+    walk(resolve(components.ListPane({ ...props, selected })), (node) => { if (node.type === 'button') currentButtons.push(node) })
+    const disabled = (label) => Boolean(currentButtons.find((button) => textOf(button) === label).props.disabled)
+    check(`${kind} 选中 ${selected.length} 道时按整栏数量控制批量按钮`,
+      disabled('全选') === allDisabled && disabled('全不选') === clearDisabled && disabled('删除题目') === clearDisabled)
+  }
 }
 
 components.mathState.status = 'ready'
@@ -321,6 +355,15 @@ const redo = resolve(components.QuestionPane({ localRedo: true, choice: '', q: {
 } }))
 check('重新作答隐藏答案解析和可能泄题的校验结论', !textOf(redo).includes('SECRET') && textOf(redo).includes('提交答案'))
 check('重新作答时隐藏追问按钮', !textOf(redo).includes('本题追问'))
+const scopeOnly = resolve(components.QuestionPane({ q: {
+  id:'scope-only',type:'fill',options:[],difficulty:3,
+  examAlignment:{status:'difficulty-unverified',outlineYear:2027,sources:[]},
+} }))
+const scopeOnlyList = resolve(components.ListPane({list:{items:[
+  {id:'scope-only',stem:'题干',answerStatus:'verified',difficulty:3,difficultyUnverified:true},
+]},kind:'all',onOpen(){}}))
+check('难度未校验的题目在详情与列表均显示标记，省去未校验的分数',
+  [scopeOnly,scopeOnlyList].every((pane)=>textOf(pane).includes('未通过真题难度校验')&&!textOf(pane).includes('难度 3/5')))
 let fallbackMode, skipped = false
 const brokenChoice = resolve(components.QuestionPane({
   q: { id: 'broken', type: 'single', canSelect: false, options: [{ key: 'A', text: '仅一个选项' }] },

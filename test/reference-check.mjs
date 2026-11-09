@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { loadExamReferences, reviewExamFit } from '../lib/references.js'
 import { createVerifiedQuestion } from '../lib/generate.js'
-import { referenceWeb, referencePages, referenceYear, fitResponse } from './reference-fixture.mjs'
+import { referenceWeb, referencePages, referenceYear, fitResponse, fillQuotes } from './reference-fixture.mjs'
 import { DailyQuestionService } from '../lib/service.js'
 import { Store } from '../lib/store.js'
 import { SUBJECT_CATALOG, REFERENCE_EXAMS, referenceExamFor } from '../lib/subjects.js'
@@ -120,6 +120,77 @@ await assert.rejects(createVerifiedQuestion({ ctx:modelContext, subject }), /已
 assert.equal(generated,2); assert.equal(reviews,2)
 console.log('ok   即使答案一致，范围难度不合格仍重新命题，两轮不合格则不发布')
 
+const choiceOnly = referencePages.slice(1).map((page) => ({...page,text:page.text.split('\n二、填空题：')[0]}))
+const fillOnly = referencePages.slice(1).map((page,i) => ({...page,url:page.url+'-full',
+  text:page.text.split('\n')[0]+'\n二、填空题：'+fillQuotes[i]}))
+function typedRun({initial,extra=[],fitOverride,scopeOverride}={}) {
+  const calls = [], searches = []
+  const allPages = [referencePages[0],...initial,...extra]
+  const web = referenceWeb(allPages)
+  const ctx = { get(name) {
+    if (name==='web') return {...web, search:async ({query}) => {
+      searches.push(query)
+      return {sources:(query.includes('完整试卷') ? extra : [referencePages[0],...initial]).map(({title,url})=>({title,url}))}
+    }}
+    if (name==='agentDefaultModel') return { currentSelection:() => ({provider:'test',model:'test'}) }
+    if (name==='llm') return { async *stream({system,messages}) {
+      const prompt = messages[0].content[0].text
+      let reply
+      if (system.includes('范围与难度评审员')) {
+        const payload = JSON.parse(prompt)
+        calls.push({role:'difficulty',payload})
+        const type = payload.question.type
+        const response = fitResponse(type)
+        response.paperEvidence = payload.references.sources.filter((s)=>s.kind==='paper').map((source,i) => ({
+          sourceId:source.id,quote:response.paperEvidence[i].quote,
+        }))
+        reply = {...response,...fitOverride}
+      } else if (system.includes('考研范围评审员')) {
+        calls.push({role:'scope',payload:JSON.parse(prompt)})
+        reply = {...fitResponse(),...scopeOverride}
+      } else if (system.includes('独立解题专家')) {
+        calls.push({role:'solve',payload:JSON.parse(prompt)})
+        reply = {...candidate,solvable:true,issues:[]}
+      } else if (system.includes('答案比对专家')) {
+        reply = {agree:true,writerValid:true,solverValid:true,issues:[]}
+      } else {
+        const type = /"targetType":"([^"]+)"/.exec(prompt)[1]
+        calls.push({role:'writer',type})
+        reply = {...candidate,type,stem:'本轮第'+calls.filter((call)=>call.role==='writer').length+'题：'+candidate.stem}
+      }
+      yield {type:'text-delta',text:JSON.stringify(reply)}
+    }}
+  }}
+  return {run:() => createVerifiedQuestion({ctx,subject:{...subject,types:['single','fill']},preferredType:'fill'}),calls,searches}
+}
+const supplemented = typedRun({initial:choiceOnly,extra:fillOnly})
+const filled = await supplemented.run()
+assert(supplemented.searches.filter((q)=>q.includes('真题')).every((q)=>q.includes('填空题')))
+assert(supplemented.searches.some((q)=>q.includes('完整试卷')))
+assert.equal(filled.question.type,'fill')
+assert.equal(filled.question.examAlignment.status,'passed')
+const checked = supplemented.calls.find((call)=>call.role==='difficulty').payload.references.sources.filter((s)=>s.kind==='paper')
+assert.deepEqual(checked.map((s)=>s.year),[referenceYear-1,referenceYear-2])
+assert(checked.every((source)=>source.text.includes('填空题')&&!source.text.includes('选择题')))
+assert.deepEqual(Object.keys(supplemented.calls.find((call)=>call.role==='solve').payload).sort(),['options','stem'])
+const switched = typedRun({initial:choiceOnly,extra:[fillOnly[0],{...fillOnly[0],url:fillOnly[0].url+'-mirror'}]})
+const changed = await switched.run()
+assert.equal(changed.question.type,'single','同一年两个来源不能支持难度校验，应改用有两年证据的题型')
+assert.equal(changed.question.examAlignment.status,'passed')
+const sparse = typedRun({initial:[choiceOnly[0]]})
+const downgraded = await sparse.run()
+assert.equal(downgraded.question.type,'fill')
+assert.equal(downgraded.question.examAlignment.status,'difficulty-unverified')
+assert.match(downgraded.question.examAlignment.note,/未通过真题难度校验/)
+assert.deepEqual(downgraded.question.examAlignment.paperEvidence,[])
+assert(!sparse.calls.some((call)=>call.role==='difficulty'))
+assert(sparse.calls.find((call)=>call.role==='scope').payload.references.sources.every((s)=>s.kind==='outline'))
+const incomplete = typedRun({initial:referencePages.slice(1),fitOverride:{inScope:true,examComparable:false,difficultyUnavailable:true,issues:['真实题干缺页']}})
+assert.equal((await incomplete.run()).question.examAlignment.status,'difficulty-unverified')
+assert(incomplete.calls.some((call)=>call.role==='scope'))
+await assert.rejects(typedRun({initial:[choiceOnly[0]],scopeOverride:{inScope:false,issues:['超出大纲']}}).run(),/已阻止发布/)
+console.log('ok   定向检索和补检、同题型两年对照、切换题型、证据不足标记及大纲失败拦截')
+
 const temp=await mkdtemp(join(tmpdir(),'daily-question-fit-'))
 try {
   const service=new DailyQuestionService({ get() {} }); service.store=new Store(temp)
@@ -132,6 +203,9 @@ try {
   const shown=await service.reveal({qid:'q',choice:'A',attemptId:'fit-attempt'})
   assert.equal(shown.question.examAlignment.rationale,'SECRET_REASON')
   assert.deepEqual(shown.question.examAlignment.warnings,['SECRET_WARNING'])
+  await service.store.update((data)=>{ data.questions.q.examAlignment=downgraded.question.examAlignment })
+  assert.equal((await service.getQuestion({qid:'q'})).question.examAlignment.status,'difficulty-unverified')
+  assert.equal((await service.listQuestions({subjectId:'math1'})).items[0].difficultyUnverified,true)
   console.log('ok   保存来源供检查，但未作答时不泄露可能含答案的评审依据')
 } finally {
   assert(resolve(temp).startsWith(resolve(tmpdir())+sep)); await rm(temp,{recursive:true,force:true})
