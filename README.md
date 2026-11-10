@@ -2,50 +2,7 @@
 
 面向 **DeepSeek Harness（DSH）** 的考研练习插件。按科目每天分配一道题，把作答、答案解析、收藏、错题整理和针对本题的追问放在同一个页面中。
 
-当前版本：**2.1.3**。本插件需要 DSH 宿主。
-
-## 2.1.3 更新
-
-- 大纲和真题改为手动导入，在线出题不再等待检索。未导入大纲时仍可按本地练习范围出题，并注明依据。
-- 真题难度对照需有两个不同年份的同题型真题。资料不足时仍可出题，并标明未进行真题难度校验；盲解、答案比对和分歧主裁继续运行。
-- 侧栏只显示已启用的科目，停用保留记录。科目管理支持经两次确认后删除科目及其本地记录。
-- 完整改动见[更新记录](CHANGELOG.md)。
-
-## 2.1.2 更新
-
-- 在线出题按计划题型检索两年同题型真题，证据不足时补检或切换题型。
-- 未进行真题难度校验的题目仍可在独立答案核验后发布，详情和列表会显示对应标签。没有导入大纲时，详情显示「未进行考试大纲校验」。
-- 公式引擎升级到 MathJax 4.1.3，使用 New Computer Modern 字形和离线 SVG。批量管理支持点击整张题目卡片选择。
-- 完整改动见[更新记录](CHANGELOG.md)。
-
-## 2.1.1 更新
-
-- 插件接口接入 DSH 会话鉴权，联网核验按届次和实际考试年份读取官方公告中的初试区间。
-- 题库预览支持逐题勾选，避免将解析步骤或残缺选择题导入为可抽取的题目。阅读和完形按单选校验，提交重试会核对原作答记录。
-- 停用科目保留历史入口，重复题按最近出题日期排序，默认考研届次按初试结束日切换。
-- 统一新版 Logo、科目分组数量和倒计时样式。完整改动见[更新记录](CHANGELOG.md)。
-
-## 2.1.0 更新
-
-- 在线出题增加真正盲解、分歧主裁和独立范围与难度评审；加入历史去重、近期题型及知识主题覆盖安排。
-- 自定义科目支持按名称与代码自主检索，独立核对考试身份、大纲和两年真题；资料不足时阻止发布。区分专业代码与考试科目代码。
-- 修复无答案选择题误判、多标签页判分串记录及旧请求覆盖新页面；今日重复题按当天练习状态展示答案。
-- 全部、收藏和错题本分页读取，使用作答索引；保留跨页全选、批量管理和返回原页功能。
-- 出题、修订和追问支持超时与取消；追问支持重启恢复、并发去重和失败重试，清空后不再恢复迟到回复。
-- PDF按实际页序提取，采用受限工作线程与资源上限；支持图片试卷识别，扫描PDF仍不提供OCR。
-- 设置区新增当前版本与npm检查更新，打开页面自动检查，支持手动重查。
-
-## 2.0.0 界面与练习功能
-
-- 采用蓝色主题，正确与错误分别使用绿色、红色；统一科目管理、题库管理和确认弹窗的样式。
-- 科目管理支持草稿：勾选科目、切换来源、添加自定义科目和题型后，点击右下角「完成」统一保存；取消或关闭不生效。
-- 全部、收藏、错题本支持批量收藏、取消收藏、加入或移出错题本、删除，以及全选和全不选。
-- 题目卡片最多预览两行，支持公式和代码；截断时在最后一行实际可见内容末端渐隐，不添加省略号。
-- 点击整张卡片进入详情；独立的方形「‹」按钮返回原列表与滚动位置。
-- 栏目栏固定在内容区左上方；重复点击当前栏目不重复请求。
-- 追问默认收起，查看本次答案后才显示入口；宽屏支持拖动分隔线调整比例，收起后题目填满可用宽度。
-- Enter 发送追问，Shift+Enter 换行；中文输入法确认候选词不会误发送。
-- 修复保存失败后内存状态不回退、并发作答重复计数、自定义题型在线生成失效、题库过早重复出题，以及考试结束前提前切换年份等问题。
+发布版本及历史改动见[更新记录](CHANGELOG.md)。
 
 ## 安装
 
@@ -58,32 +15,32 @@
 
 ### 安装本地安装包
 
-从 [GitHub Release v2.1.3](https://github.com/Scienmicroit/Daily-Question/releases/tag/v2.1.3) 下载附件 `daily-question-2.1.3.tgz`。
+在 [GitHub Releases](https://github.com/Scienmicroit/Daily-Question/releases) 选择所需版本，下载对应的 `daily-question-<版本号>.tgz` 附件。
 
 在 DSH Desktop 的插件安装入口填写该文件的绝对路径。命令行使用与你运行宿主一致的 profile，例如：
 
 ```bash
-dsh plugin --profile web add ./daily-question-2.1.3.tgz
+dsh plugin --profile web add "./下载的安装包.tgz"
 ```
 
 Desktop 管理的 `desktop` profile 请通过 Desktop 插件界面操作。安装完成后重启相应宿主或刷新客户端，左侧栏出现「考研每日一题」入口。
 
 ### 从 npm 安装
 
-可以通过 npm 安装指定版本：
+安装 npm 上的最新版本：
 
 ```bash
-dsh plugin --profile web add daily-question@2.1.3
+dsh plugin --profile web add daily-question
 ```
 
-DSH Desktop 可在插件安装入口填写 `daily-question@2.1.3`。命令行安装还需满足宿主对包管理器的要求；若提示缺少 pnpm，先安装或启用 pnpm。
+DSH Desktop 可在插件安装入口填写 `daily-question`。命令行安装还需满足宿主对包管理器的要求；若提示缺少 pnpm，先安装或启用 pnpm。
 
 ### 从 GitHub 或源码安装
 
-可以锁定 `v2.1.3` 标签安装，此方式需要 Git：
+此方式需要 Git。将命令中的 `版本号` 换成所需发布标签的版本号：
 
 ```bash
-dsh plugin --profile web add github:Scienmicroit/Daily-Question#v2.1.3
+dsh plugin --profile web add "github:Scienmicroit/Daily-Question#v版本号"
 ```
 
 本地开发也可以直接安装源码目录：
@@ -251,9 +208,14 @@ D. 4
 本项目使用原生 JavaScript ES Modules，没有独立的前端构建步骤。
 
 ```bash
+npm ci
+npm run build:client
+npm run check:client
 npm test
-node --check client.js
+npm run test:coverage
 ```
+
+覆盖率命令使用 Node 自带统计，报告行、分支与函数覆盖率。历史验收与修复记录存放在 [docs/history](docs/history/)。
 
 离线测试覆盖日期换算、题库解析、持久化、业务状态、并发作答、批量管理、科目草稿和渲染组件。不需要真实模型或联网；这些测试不能替代实际 DSH 宿主中的安装与模型联调。
 
@@ -261,13 +223,12 @@ node --check client.js
 
 ```bash
 npm run test:live
-# 408：按自定义科目选择408参考考试的路径验收
 npm run test:live -- cs408
-# 自主检索：不给模型预置408来源，单独验收发现与审查流程
-npm run test:live -- auto408
+# 验收手动导入的大纲和两个不同年份的单选题真题
+npm run test:live -- math1 "./大纲.pdf" "2025:./2025-单选.txt" "2024:./2024-单选.txt"
 ```
 
-脚本读取本机 DSH web profile 的默认模型与凭据，使用已安装的 DSH 检索、读取、附件和模型适配器。它检查真实 PDF、数学一命题、盲解、范围与难度评审，并注入错误候选答案验证主裁是否采纳正确的盲解方。调用记录、题目与报告写入打印出的独立临时目录，不使用正式学习数据；不会自动发布或打包。非默认目录可设置 `DSH_HOME`、`DQ_DSH_PROFILE`。通过脚本验收也不代表已验证所有科目或安装后的界面。
+脚本使用本机 DSH web profile 的默认模型与凭据，在临时目录验收出题、盲解、答案比对与分歧主裁。提供大纲时会验收手动导入和范围评审，提供两个不同年份的单选题真题时也会验收难度评审。默认目录可通过 `DSH_HOME` 和 `DQ_DSH_PROFILE` 指定。
 
 可以额外使用自己的文本型 PDF 检查提取效果：
 
@@ -280,14 +241,13 @@ node test/pdf-check.mjs <PDF文件路径>
 | 路径 | 用途 |
 | --- | --- |
 | `index.js` | 宿主入口与服务注册 |
-| `client.js` | 页面、交互、Markdown 与公式渲染 |
+| `ui/` | 页面、界面组件、样式、Markdown 与文件导入源码 |
+| `client.js` | 由 `npm run build:client` 生成的 DSH 前端入口 |
 | `lib/service.js` | 出题、作答、列表、题库与追问业务 |
 | `lib/store.js` | 数据目录与原子持久化 |
 | `lib/generate.js` | 模型出题、盲解、比对、主裁和修订 |
-| `lib/research.js` | 自定义考试自主搜索、身份核验、独立资料审查与缓存 |
 | `lib/references.js` | 独立范围与难度评审 |
-| `lib/reference-reader.js` | 受限资料下载、正文定位、PDF 文本层与图片真题转录 |
-| `lib/reference-sources.js` | 已核对的大纲转录版本、摘要及稳定真题来源 |
+| `lib/reference-cache.js` | 整理手动导入资料和本地练习范围 |
 | `lib/bank.js`、`lib/pdf.js` | 题库解析与 PDF 文本提取 |
 | `lib/exam-dates.js` | 日期来源、核验和倒计时 |
 | `lib/routes.js` | 同源接口与 MathJax 静态资源 |
@@ -296,20 +256,24 @@ node test/pdf-check.mjs <PDF文件路径>
 
 ## 维护者发布
 
-修改版本号后先验证，再生成安装包：
+更新版本及锁文件，重新生成前端入口并通过测试后，再生成安装包：
 
 ```bash
+npm ci
+npm run build:client
 npm test
+mkdir -p dist
 npm pack --pack-destination dist
 ```
 
-将确认过的 `dist/daily-question-2.1.3.tgz` 上传为 GitHub Release 附件，并直接发布同一份文件到 npm。安装包无需提交到 Git 仓库：
+将验证后的安装包上传为 GitHub Release 附件，并将同一份文件发布到 npm。以下命令从 `package.json` 读取版本：
 
 ```bash
 npm login --registry=https://registry.npmjs.org/
 npm whoami --registry=https://registry.npmjs.org/
-npm publish ./dist/daily-question-2.1.3.tgz --access public --registry=https://registry.npmjs.org/
-npm view daily-question@2.1.3 version --registry=https://registry.npmjs.org/
+version=$(node -p "require('./package.json').version")
+npm publish "./dist/daily-question-$version.tgz" --access public --registry=https://registry.npmjs.org/
+npm view "daily-question@$version" version --registry=https://registry.npmjs.org/
 ```
 
 按 npm 提示完成浏览器登录与发布验证。发布账号需要拥有 `daily-question` 包的发布权限；若该版本已经发布，不可用相同版本号覆盖。GitHub 标签、npm 版本和安装包版本应保持一致。

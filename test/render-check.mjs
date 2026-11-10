@@ -1,23 +1,12 @@
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-
-/**
- * 渲染层单元测试：切片 client.js 里的「公式 + Markdown」代码段，用只记录结构的
- * React 桩检查传给 MathJax 的 TeX，并验证异步渲染的加载和失败状态。
- */
-const clientPath = fileURLToPath(new URL('../client.js', import.meta.url))
-const source = readFileSync(clientPath, 'utf8')
-const start = source.indexOf('    /* ============================== 公式（MathJax')
-const end = source.indexOf('    /* ============================== 样式')
-if (start < 0 || end < 0) throw new Error('没有找到渲染器代码段')
-const code = `let uid = 0
-const nextKey = (prefix) => prefix + (uid += 1)
-${source.slice(start, end)}
-return { inlineNodes, renderBlocks, MathFormula, ensureMathJax, mathState }`
+import { createMarkdown } from '../ui/markdown.js'
+import { createClient } from '../ui/app.js'
 
 const h = (type, props, ...children) => ({ type, props: props || {}, children: children.flat(9) })
 function useState(initial) { return [typeof initial === 'function' ? initial() : initial, () => {}] }
-const factory = new Function('h', 'useState', 'useMemo', 'useEffect', 'useRef', 'useCallback', code)
+const window = { MathJax: {} }
+function factory(h, useState, useMemo, useEffect, useRef, useCallback) {
+  return createMarkdown({ createElement: h, useState, useMemo, useEffect, useRef, useCallback }, { window })
+}
 const api = factory(h, useState, (fn) => fn(), () => {}, (v) => ({ current: v }), (fn) => fn)
 const { inlineNodes, renderBlocks, mathState } = api
 
@@ -53,7 +42,6 @@ function texOf(node) {
 }
 
 mathState.status = 'ready'
-globalThis.window = { MathJax: {} }
 
 // ---- 公式 ----
 const inline = texOf(inlineNodes('斜率 $k=\\frac{1}{2}$ 与法线'))
@@ -108,6 +96,22 @@ check('引用与代码块', types.includes('blockquote') && types.includes('pre'
 check('粗体斜体与行内代码', types.includes('strong') && types.includes('em') && types.includes('code'), types.join(','))
 check('链接', types.includes('a'), types.join(','))
 
+for (const url of ['javascript:alert%281%29', 'JaVaScRiPt:alert%281%29', 'java\tscript:alert%281%29',
+  'data:text/html;base64,PHNjcmlwdD4=', 'file:///private.txt', 'vbscript:evil', '//example.com/page', '/\\example.com/page']) {
+  const nodes = inlineNodes(`[危险链接](${url})`)
+  check(`阻止 Markdown 链接 ${JSON.stringify(url)}`, !nodes.some((node) => node?.type === 'a') && textOf(nodes) === '危险链接')
+}
+for (const url of ['http://example.com/page', 'https://example.com/page', 'mailto:help@example.com', './guide', '#topic']) {
+  check(`保留 Markdown 链接 ${url}`, inlineNodes(`[链接](${url})`)[0]?.props?.href === url)
+}
+for (const url of ['javascript:alert%281%29', 'data:image/svg+xml;base64,PHN2Zz4=', 'file:///private.png']) {
+  check(`阻止 Markdown 图片 ${url}`, textOf(inlineNodes(`![图片说明](${url})`)) === '图片说明')
+}
+for (const url of ['https://example.com/diagram.png', 'data:image/png;base64,iVBORw0KGgo=']) {
+  const [node] = inlineNodes(`![图](${url})`)
+  check(`保留 Markdown 图片 ${url}`, node?.type?.(node.props)?.props?.src === url)
+}
+
 const table = renderBlocks('| a | b |\n| --- | --- |\n| 1 | 2 |')
 const tableTags = []
 walk(table, (n) => { if (n.type) tableTags.push(n.type) })
@@ -145,7 +149,7 @@ for (const outcome of ['success', 'error', 'unmount']) {
 }
 
 let engineScript
-globalThis.document = {
+window.document = {
   baseURI: 'dsh-app://app/index.html',
   createElement: () => ({}),
   head: { appendChild: (script) => { engineScript = script } },
@@ -172,7 +176,7 @@ mathState.status = 'failed'
 check('宿主资源未加载时保留原文并提示重启',
   inlineNodes('$x$').some((node) => node?.props?.title.includes('重启 DSH 应用和宿主') && textOf(node) === 'x'))
 mathState.status = 'ready'
-delete globalThis.document
+delete window.document
 
 // ---- 安全过滤 ----
 const xss = texOf(inlineNodes('$\\href{javascript:alert(1)}{click}$'))
@@ -193,16 +197,16 @@ const requests = []
 let rpcResult = { items: [] }
 let rpcResponder = null
 let rpcError = null
-const mockWindow = { __ModuleLoader__: { load(module) {
-  components = module.factory(() => ({ createElement: h, useState: (v) => stateHook(v), useEffect: (fn, deps) => effectHook(fn, deps), useRef: (v) => refHook(v), useMemo: (fn) => fn(), useCallback: (fn) => fn }))
-} } }
-new Function('window', 'fetch', source.replace("    return {\n      inject: ['slots'],", "    return { ListPane, CountdownLines, ExamStrip, Page, TabBar, ThreadPane, QuestionPane, SubjectsModal, BanksModal, SyllabusesModal, PastPapersModal, SubjectNav, MobileBar, UpdateCheck, mathState, previewFadePosition, watchDayChange };\n    return {\n      inject: ['slots'],"))(mockWindow, async (_, options) => {
+const mockWindow = {}
+const react = { createElement: h, useState: (v) => stateHook(v), useEffect: (fn, deps) => effectHook(fn, deps),
+  useRef: (v) => refHook(v), useMemo: (fn) => fn(), useCallback: (fn) => fn }
+components = createClient(react, { window: mockWindow, fetch: async (_, options) => {
   const payload = JSON.parse(options.body)
   requests.push(payload)
   if (rpcError) throw rpcError
   const result = rpcResponder ? await rpcResponder(payload) : rpcResult
   return { ok: true, json: async () => ({ ok: true, result }) }
-})
+} })
 const rect = (left, top, width, height = 18) => ({ left, top, width, height, right: left + width, bottom: top + height })
 function fadeFixture(textRects, svgRects = [], lineHeight = 28) {
   let index = 0, selected
@@ -291,7 +295,7 @@ for (const kind of ['all', 'favorite', 'wrong']) {
 }
 
 components.mathState.status = 'ready'
-mockWindow.MathJax = globalThis.window.MathJax
+mockWindow.MathJax = window.MathJax
 const preview = resolve(components.ListPane({ list: { items: [{ id: 'preview', stem: '完整题干\n\n$$x^2+1$$\n\n```js\n  return 42\n```' }] }, kind: 'all', onOpen() {} }))
 const previewNodes = []
 walk(preview, (n) => previewNodes.push(n))

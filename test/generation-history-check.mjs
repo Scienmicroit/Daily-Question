@@ -5,8 +5,8 @@ import { join } from 'node:path'
 import { generationPlan,indexQuestionHistory,findQuestionRepeat } from '../lib/generation-history.js'
 import { DailyQuestionService } from '../lib/service.js'
 import { Store } from '../lib/store.js'
-import { referenceWeb,referencePages,fitResponse,generateWithResearch as createVerifiedQuestion } from './reference-fixture.mjs'
-import { loadExamReferences } from '../lib/references.js'
+import { referencePages,referenceSnapshot,fitResponse,generateWithLocalReferences } from './reference-fixture.mjs'
+import { createVerifiedQuestion } from '../lib/generate.js'
 
 const subject={id:'math1',name:'数学一',types:['single','fill','solution'],outline:['函数极限','矩阵秩'],guidance:''}
 const old={id:'old',subjectId:'math1',type:'single',stem:'设一元函数满足指定条件，利用函数极限的定义计算其极限并说明参数的取值范围。',
@@ -44,7 +44,7 @@ function context({coverage=false,matched=true,duplicateFirst=false,onFit,forceWr
   let writers=0,solvers=0,fits=0
   const calls=[]
   const pages=referencePages.map((p,i)=>i===0&&coverage?{...p,text:p.text+'\n# 函数极限\n# 矩阵秩'}:p)
-  const ctx={get(name){return name==='web'?referenceWeb(pages):name==='agentDefaultModel'?{currentSelection:()=>({provider:'test',model:'test'})}:name==='llm'?{
+  const ctx={get(name){return name==='agentDefaultModel'?{currentSelection:()=>({provider:'test',model:'test'})}:name==='llm'?{
     async *stream(options){
       const system=options.system,prompt=options.messages[0].content[0].text
       calls.push({system,prompt})
@@ -57,44 +57,43 @@ function context({coverage=false,matched=true,duplicateFirst=false,onFit,forceWr
       yield {type:'text-delta',text:JSON.stringify(result)}
     },
   }:undefined}}
-  return {ctx,calls,counts:()=>({writers,solvers,fits})}
+  return {ctx,calls,pages,counts:()=>({writers,solvers,fits})}
 }
 let run=context({duplicateFirst:true})
-let result=await createVerifiedQuestion({ctx:run.ctx,subject:{...subject,outline:[]},preferredType:'single',history:[old]})
+let result=await generateWithLocalReferences({ctx:run.ctx,subject:{...subject,outline:[]},preferredType:'single',history:[old]})
 assert.equal(run.counts().writers,2);assert.equal(run.counts().solvers,1,'重复题在盲解前拒绝')
 assert.equal(result.verification.attempts,2);assert.equal(result.verification.coverage.historyCount,1)
 run=context({coverage:true})
-result=await createVerifiedQuestion({ctx:run.ctx,subject,history:[old]})
+result=await createVerifiedQuestion({ctx:run.ctx,subject,history:[old],localReferences:referenceSnapshot(subject,run.pages[0],run.pages.slice(1))})
 assert.equal(result.question.type,'fill');assert.equal(result.question.coverageTopic,'矩阵秩')
 run=context({coverage:true,matched:false})
-await assert.rejects(createVerifiedQuestion({ctx:run.ctx,subject,history:[old]}),/覆盖本轮目标/)
+await assert.rejects(createVerifiedQuestion({ctx:run.ctx,subject,history:[old],localReferences:referenceSnapshot(subject,run.pages[0],run.pages.slice(1))}),/覆盖本轮目标/)
 assert.equal(run.counts().fits,2)
 run=context({forceWrongType:true})
-await assert.rejects(createVerifiedQuestion({ctx:run.ctx,subject,history:[old]}),/指定题型/)
+await assert.rejects(createVerifiedQuestion({ctx:run.ctx,subject,history:[old],localReferences:referenceSnapshot(subject,run.pages[0],run.pages.slice(1))}),/指定题型/)
 assert.equal(run.counts().solvers,0)
 
 const root=await mkdtemp(join(tmpdir(),'dq-generation-history-'))
 let service
-async function cacheReferences() {
-  const {settings}=await service.data()
-  const snapshot=await loadExamReferences({ctx:service.ctx,subject,examInfo:{year:settings.targetYear},plannedType:'fill'})
-  await service.importSyllabus({subjectId:'math1',fileName:'数学一.md',kind:'md',text:snapshot.sources.find(s=>s.kind==='outline').text})
-  for (const paper of snapshot.sources.filter((source)=>source.kind==='paper')) {
-    await service.importPastPaper({subjectId:'math1',year:paper.year,fileName:`${paper.year}.txt`,kind:'md',text:paper.text})
+async function importReferences([outline, ...papers]) {
+  await service.importSyllabus({subjectId:'math1',fileName:'数学一.md',kind:'md',text:outline.text})
+  for (const paper of papers) {
+    const year = Number(paper.title.slice(0, 4))
+    await service.importPastPaper({subjectId:'math1',year,fileName:year+'.txt',kind:'md',text:paper.text})
   }
 }
 try {
   run=context({onFit:async()=>{await service.store.update(d=>{d.questions.race={...fresh,id:'race',subjectId:'math1'}})}})
   service=new DailyQuestionService(run.ctx);service.store=new Store(root)
   await service.store.update(d=>{d.settings.subjects=['math1'];d.settings.subjectSource.math1='online'})
-  await cacheReferences()
+  await importReferences(run.pages)
   await assert.rejects(service.createDaily({...subject,types:['single'],outline:[]},'2026-11-05','2026-11-05|math1'),/重复/)
   assert.deepEqual(Object.keys((await service.data()).questions),['race'])
   assert.equal(Object.keys((await service.data()).daily).length,0,'发布事务再次检查最新历史，拦截并发重复')
   service.dispose()
   run=context({coverage:true});service=new DailyQuestionService(run.ctx);service.store=new Store(join(root,'published'))
   await service.store.update(d=>{d.settings.subjects=['math1'];d.settings.subjectSource.math1='online';d.questions.old=old})
-  await cacheReferences()
+  await importReferences(run.pages)
   const published=await service.createDaily(subject,'2026-11-06','2026-11-06|math1')
   const question=(await service.data()).questions[published.questionId]
   assert.equal(question.type,'fill');assert.equal(question.coverageTopic,'矩阵秩')
@@ -103,14 +102,14 @@ try {
   run = context({ onFit: () => service.saveSettings({ subjects: [] }) })
   service = new DailyQuestionService(run.ctx); service.store = new Store(join(root, 'disabled'))
   await service.saveSettings({ subjects: ['math1'], subjectSource: { math1: 'online' } })
-  await cacheReferences()
+  await importReferences(run.pages)
   await assert.rejects(service.createDaily(subject, '2026-11-06', '2026-11-06|math1'), /已停用/)
   assert.deepEqual(Object.keys((await service.data()).questions), [], '停用后阻止进行中的出题发布')
   service.dispose()
   run=context({onFit:()=>service.saveSettings({deleteSubjectIds:['math1']})})
   service=new DailyQuestionService(run.ctx);service.store=new Store(join(root,'deleted'))
   await service.saveSettings({subjects:['math1'],subjectSource:{math1:'online'}})
-  await cacheReferences()
+  await importReferences(run.pages)
   await assert.rejects(service.createDaily(subject,'2026-11-06','2026-11-06|math1'),/已停用/)
   const afterDelete=await service.data()
   assert(afterDelete.settings.deletedSubjects.includes('math1'))

@@ -1,4 +1,4 @@
-import { referenceWeb, fitResponse, generateWithResearch as createVerifiedQuestion } from './reference-fixture.mjs'
+import { fitResponse, generateWithLocalReferences as createVerifiedQuestion } from './reference-fixture.mjs'
 import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -20,7 +20,6 @@ const roleOf = (system) => system.includes('独立解题专家') ? 'solver' : sy
 function scripted(steps) {
   const calls = [], fitCalls = []
   const ctx = { get(name) {
-    if (name === 'web') return referenceWeb()
     if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'test', model: 'default-model' }) }
     if (name === 'llm') return { async *stream(options) {
       if (options.system.includes('独立的考研范围与难度评审员')) {

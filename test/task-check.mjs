@@ -5,12 +5,12 @@ import { join } from 'node:path'
 import { generateText } from '../lib/llm-json.js'
 import { DailyQuestionService } from '../lib/service.js'
 import { Store } from '../lib/store.js'
-import { referenceWeb,fitResponse } from './reference-fixture.mjs'
+import { fitResponse } from './reference-fixture.mjs'
 
 const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r});return {promise,resolve}}
 let mode='hang',started,gate,modelSignal
 const candidate={type:'single',stem:'设函数f(x)=x，求其在零点的导数。',options:[{key:'A',text:'0'},{key:'B',text:'1'}],answer:'B',answerKey:'B',explanation:'依据导数的定义计算差商，线性函数的斜率恒为一，因此在零点的导数也是一。',knowledge:[]}
-const ctx={get(name){return name==='web'?referenceWeb():name==='agentDefaultModel'?{currentSelection:()=>({provider:'test',model:'test'})}:name==='llm'?{
+const ctx={get(name){return name==='agentDefaultModel'?{currentSelection:()=>({provider:'test',model:'test'})}:name==='llm'?{
   async *stream(options){
     modelSignal=options.signal;started?.resolve()
     if(mode==='hang')await gate.promise

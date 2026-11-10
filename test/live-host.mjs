@@ -12,27 +12,21 @@ export async function liveHost() {
   const profile = process.env.DQ_DSH_PROFILE || join(dshHome,'profiles','web')
   const require = createRequire(join(profile,'package.json'))
   const load = async (name) => import(pathToFileURL(require.resolve('@deepseek-ai/'+name)))
-  const [models,searchModule,fetchModule,{Context},{LocalAttachmentStore}] = await Promise.all([
-    load('dsh-llm-deepseek'),load('dsh-web-search-deepseek'),load('dsh-web-fetch-http'),load('cordis'),load('dsh-attachment-local')])
+  const models = await load('dsh-llm-deepseek')
   const yaml = require('yaml')
   const credentials = yaml.parse(readFileSync(join(dshHome,'.credentials.yaml'),'utf8'))
   const key = process.env.DEEPSEEK_API_KEY || credentials.refs?.DEEPSEEK_API_KEY
-  if (typeof key !== 'string' || !key) throw new Error('未找到本机 DSH 检索凭据')
+  if (typeof key !== 'string' || !key) throw new Error('未找到本机 DSH 模型凭据')
   const patches = yaml.parse(readFileSync(join(profile,'cordis.patch.yml'),'utf8')) || []
   const selection = patches.find((p) => p.id === 'agent-default-model')?.config
   if (!selection?.model) throw new Error('未读取到宿主默认模型')
   const directory = mkdtempSync(join(tmpdir(),'daily-question-live-'))
-  const attachments = new LocalAttachmentStore(new Context(),{dshHome:directory})
   const connection = models.resolveAdapterOptions({})
   const adapter = new models.DeepSeekAdapter({options:()=>connection,
     resolveAuth:async()=>({headers:{'x-api-key':key,authorization:'Bearer '+key}}),
-    resolveUserId:()=>randomUUID(),resolveAttachments:()=>attachments,
-    resolveImageAccess:(_store,ref)=>({readonlyPath:attachments.imageHostPath(ref)}),
+    resolveUserId:()=>randomUUID(),
     prepareExtensions:async()=>({fields:{},accept:async()=>{}})})
-  const search = new searchModule.DeepSeekSearchProvider(()=>({apiKey:key,baseURL:searchModule.DEEPSEEK_DEFAULT_BASE_URL,
-    model:searchModule.DEEPSEEK_DEFAULT_MODEL,apiVersion:searchModule.DEEPSEEK_DEFAULT_API_VERSION,maxTokens:4096,maxUses:5}))
-  const fetcher = new fetchModule.HttpFetchProvider({maxResponseBytes:5e6,maxBodyChars:1e5,timeoutMs:20000,maxRedirects:5,userAgent:fetchModule.DEFAULT_USER_AGENT})
-  const calls = [], searches = [], fetches = []
+  const calls = []
   const llm = {resolveModelInfo:(provider,model,signal)=>adapter.resolveModel(provider,model,signal),async *stream(options) {
     const record={system:options.system.slice(0,90),images:options.messages[0].content.filter((p)=>p.type==='image').length,at:new Date().toISOString()}
     if (options.system.includes('独立解题专家')) {
@@ -46,10 +40,6 @@ export async function liveHost() {
     catch(error){record.error=error.message;throw error}
     finally {writeFileSync(join(directory,'calls.json'),JSON.stringify(calls,null,2))}
   }}
-  const web = {async search(request,signal){const result=await search.search(request,signal);searches.push({query:request.query,sources:result.sources.slice(0,request.maxResults)});return{...result,sources:result.sources.slice(0,request.maxResults)}},async fetch(req,signal){
-    try { const page=await fetcher.fetch(req,signal);fetches.push({url:req.url,finalUrl:page.url,kind:page.body?.kind,chars:page.body?.content?.length});return page }
-    catch(error){fetches.push({url:req.url,error:error.message,code:error.code});throw error}
-  }}
   console.log('验收目录',directory,'默认模型',selection.model)
-  return {ctx:{get:(name)=>({llm,web,attachments,agentDefaultModel:{currentSelection:()=>selection}}[name])},directory,calls,searches,fetches}
+  return {ctx:{get:(name)=>({llm,agentDefaultModel:{currentSelection:()=>selection}}[name])},directory,calls}
 }

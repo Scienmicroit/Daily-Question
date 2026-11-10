@@ -1,4 +1,4 @@
-import { referenceWeb, fitResponse, generateWithResearch as createVerifiedQuestion } from './reference-fixture.mjs'
+import { fitResponse, generateWithLocalReferences as createVerifiedQuestion } from './reference-fixture.mjs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -259,7 +259,6 @@ const customDraft = {
 }
 let modelCalls = 0, answerCalls = 0
 const ctx = { get(name) {
-  if (name === 'web') return referenceWeb()
   if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'test', model: 'test' }) }
   if (name === 'llm') return { async *stream(options) {
     modelCalls++
@@ -303,7 +302,7 @@ const legacyEnglish = new Store(join(tmpRoot, 'legacy-english'))
 await legacyEnglish.write({settings:{subjects:['english1','math2','english2','custom_language'],activeSubject:'english1'},
   customSubjects:[{id:'custom_language',name:'语言专项',referenceSubjectId:'english2'}],
   questions:{old:{id:'old',subjectId:'english1'}},attempts:[{questionId:'old'}]})
-const migratedEnglish = await legacyEnglish.read()
+const migratedEnglish = await new Store(legacyEnglish.dir).read()
 check('旧英语科目退出启用列表，学习记录保留',
   migratedEnglish.settings.subjects.join()==='math2,custom_language' && migratedEnglish.settings.activeSubject==='math2'
   && migratedEnglish.questions.old.subjectId==='english1' && migratedEnglish.attempts[0].questionId==='old')
@@ -317,7 +316,7 @@ globalThis.Date = class extends SystemDate {
   constructor(...args) { super(...(args.length ? args : [2026, 11, 21, 12])) }
 }
 try {
-  check('已有核验日期但未设置目标年份时，按核验日期选默认届次', (await olderStore.read()).settings.targetYear === 2027)
+  check('已有核验日期但未设置目标年份时，按核验日期选默认届次', (await new Store(olderStore.dir).read()).settings.targetYear === 2027)
 } finally {
   globalThis.Date = SystemDate
 }

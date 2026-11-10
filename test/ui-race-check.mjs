@@ -1,26 +1,54 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-
-const source=readFileSync(new URL('../client.js',import.meta.url),'utf8')
+import { createClient } from '../ui/app.js'
+import { BANK_PDF_BYTES, BANK_TEXT_LIMIT } from '../lib/import-limits.js'
 const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r});return {promise,resolve}}
 const tick=()=>new Promise(r=>setImmediate(r))
 function fixture(responder,detail=false) {
-  let components,index,refIndex
+  let index,refIndex
   const boot={settings:{subjects:['math1']},subjects:[],counts:{math1:{all:2}}}
   const state=new Map([[0,boot],[1,false],[3,'math1'],[4,detail?'all':'today'],[5,detail?'detail':'empty'],
     [6,detail?{id:'A',type:'single',favorite:false,answerState:'revealed',attemptCount:1,lastAttempt:{id:'attempt-A'}}:null],[8,{items:[]}]])
   const refs=[]
   const h=(type,props,...children)=>({type,props:props||{},children:children.flat(10)})
-  const window={__ModuleLoader__:{load(module){components=module.factory(()=>({createElement:h,
+  const React = {
+    createElement: h,
     useState(value){const i=index++;if(!state.has(i))state.set(i,typeof value==='function'?value():value);return [state.get(i),v=>state.set(i,typeof v==='function'?v(state.get(i)):v)]},
-    useRef(value){return refs[refIndex++]??={current:value}},useEffect(){},useCallback:f=>f,useMemo:f=>f()}))}}}
-  new Function('window','fetch',source.replace("    return {\n      inject: ['slots'],","    return { Page };\n    return {\n      inject: ['slots'],"))(window,async(_url,options)=>{
+    useRef(value){return refs[refIndex++]??={current:value}},useEffect(){},useCallback:f=>f,useMemo:f=>f(),
+  }
+  const components = createClient(React, { window: {}, fetch: async (_url, options) => {
     const {op,args}=JSON.parse(options.body)
     const result=op==='bootstrap'?boot:await responder(op,args)
     return {ok:true,json:async()=>({ok:true,result})}
-  })
-  function find(node,name){if(node?.type?.name===name)return node;for(const child of node?.children||[]){const found=find(child,name);if(found)return found}}
+  } })
+  function find(node,name){if(node?.type===name||node?.type?.name===name)return node;for(const child of node?.children||[]){const found=find(child,name);if(found)return found}}
   return {state,props(name){index=refIndex=0;const node=find(components.Page(),name);assert(node,`缺少${name}`);return node.props}}
+}
+
+{
+  const requests = []
+  const reads = []
+  const original = globalThis.FileReader
+  globalThis.FileReader = class {
+    readAsText(file) { reads.push('text'); this.result = file.content; this.onload() }
+    readAsDataURL(file) { reads.push('pdf'); this.result = file.content; this.onload() }
+  }
+  try {
+    const importer = fixture((op, args) => { requests.push({ op, args }); return {} })
+    const pick = (file) => importer.props('input').onChange({ target: { files: [file] } })
+    for (const [name, size] of [['photo.png', 1], ['empty.txt', 0], ['large.pdf', BANK_PDF_BYTES + 1], ['large.md', BANK_TEXT_LIMIT + 1]]) {
+      await pick({ name, size })
+    }
+    assert.deepEqual(reads, [], '空文件、不支持的类型和超限文件不会读取')
+    assert.deepEqual(requests, [], '无效文件不会上传到插件后端')
+    await pick({ name: 'exam.MARKDOWN', size: BANK_TEXT_LIMIT, content: '题目' })
+    await pick({ name: 'paper.PDF', size: BANK_PDF_BYTES, content: 'data:application/pdf;base64,JVBERg==' })
+    assert.deepEqual(reads, ['text', 'pdf'])
+    assert.deepEqual(requests.map(({ op, args }) => [op, args.kind, args.text ?? args.base64]),
+      [['importBank', 'md', '题目'], ['importBank', 'pdf', 'JVBERg==']])
+  } finally {
+    if (original === undefined) delete globalThis.FileReader
+    else globalThis.FileReader = original
+  }
 }
 
 const all=deferred(),favorite=deferred()

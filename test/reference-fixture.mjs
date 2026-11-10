@@ -1,12 +1,8 @@
 import { createVerifiedQuestion } from '../lib/generate.js'
-import { rankQuestionTypes } from '../lib/generation-history.js'
-import { loadExamReferences } from '../lib/references.js'
+import { dailyExamReferences } from '../lib/reference-cache.js'
 
-export async function generateWithResearch(options) {
-  const { subject, history = [], preferredType } = options
-  const plannedType = rankQuestionTypes(subject,history,preferredType)[0]
-  const localReferences = await loadExamReferences({...options,plannedType})
-  return createVerifiedQuestion({...options,localReferences})
+export function generateWithLocalReferences({ localReferences, ...options }) {
+  return createVerifiedQuestion({ ...options, localReferences: localReferences ?? referenceSnapshot(options.subject) })
 }
 
 export const referenceYear = new Date().getFullYear() + 1
@@ -22,10 +18,12 @@ export const referencePages = [
   { title: `${referenceYear-2}年考研数学一真题`, url: 'https://www.eol.cn/test-paper-two',
     text: `数学一 301 ${referenceYear-2}年全国硕士研究生招生考试真题转载。\n一、选择题：${paperQuote2} A. 0 B. 1 C. 2 D. 3\n二、填空题：${fillQuotes[1]}\n` + '本段用于模拟试卷其他题目的正文内容。'.repeat(20) },
 ]
-export function referenceWeb(pages = referencePages) {
-  return { search: async () => ({ sources: pages.map(({ title, url }) => ({ title, url })) }),
-    fetch: async ({ url }) => { const page = pages.find((p) => p.url === url); return { url, title: page.title, body: { kind: 'text', content: page.text } } } }
+export function referenceSnapshot(subject, outline = referencePages[0], papers = referencePages.slice(1)) {
+  return dailyExamReferences(subject, { year: referenceYear }, papers.map((paper) => ({
+    subjectId: subject.id, year: Number(paper.title.slice(0, 4)), fileName: paper.title, text: paper.text,
+  })), { fileName: outline.title, text: outline.text })
 }
+
 export function fitResponse(type) {
   return { inScope: true, examComparable: true, difficulty: 3, rationale: '参考大纲极限条目与两个年份试题的概念、步骤和运算负担，评为中等综合题。', issues: [],
     outlineEvidence: [{ sourceId: 'ref-1', quote: outlineQuote }],
