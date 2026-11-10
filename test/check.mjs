@@ -1,12 +1,12 @@
-import { referenceWeb, fitResponse } from './reference-fixture.mjs'
+import { referenceWeb, fitResponse, generateWithResearch as createVerifiedQuestion } from './reference-fixture.mjs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { resolveExamDate, computeCountdown, calendarDiff, daysBetween, addYears, addDays, yearOptions, verifyExamDateOnline } from '../lib/exam-dates.js'
 import { parseBankText } from '../lib/bank.js'
 import { emptyData, Store } from '../lib/store.js'
-import { CHOICE_TYPES, findSubject, subjectTypes } from '../lib/subjects.js'
-import { normalizeCandidate, structuralProblems, createVerifiedQuestion, reviseAnswer } from '../lib/generate.js'
+import { CHOICE_TYPES, findSubject, subjectTypes, SUBJECT_CATALOG, REFERENCE_EXAMS } from '../lib/subjects.js'
+import { normalizeCandidate, structuralProblems, reviseAnswer } from '../lib/generate.js'
 import { parseJsonLoose } from '../lib/llm-json.js'
 
 let failures = 0
@@ -239,8 +239,8 @@ for (const type of ['cloze', 'reading']) {
 
 // ---- 科目 ----
 check('政治只考单选与多选', JSON.stringify(subjectTypes('politics')) === JSON.stringify(['single', 'multiple']))
-check('英语一题型', JSON.stringify(subjectTypes('english1')) === JSON.stringify(['cloze', 'reading', 'translation']))
-check('英语二题型', JSON.stringify(subjectTypes('english2')) === JSON.stringify(['cloze', 'reading', 'translation']))
+check('内置科目仅含思政与三门数学', SUBJECT_CATALOG.map(({id})=>id).join() === 'politics,math1,math2,math3')
+check('参考考试目录无内置英语，保留 408', REFERENCE_EXAMS.map(({id})=>id).join() === 'politics,math1,math2,math3,cs408')
 check('408 已不在默认科目目录', findSubject('cs408') === undefined)
 check('完形填空/阅读理解按选择题判分', CHOICE_TYPES.has('cloze') && CHOICE_TYPES.has('reading'))
 check('数学一题型', JSON.stringify(subjectTypes('math1')) === JSON.stringify(['single', 'fill', 'solution']))
@@ -299,6 +299,17 @@ store.write = originalWrite
 await store.update((draft) => { draft.settings.activeSubject = 'math1' })
 const recovered = await new Store(dir).read()
 check('写入失败后队列能恢复且不带入失败修改', recovered.settings.activeSubject === 'math1' && recovered.settings.targetYear === 2030)
+const legacyEnglish = new Store(join(tmpRoot, 'legacy-english'))
+await legacyEnglish.write({settings:{subjects:['english1','math2','english2','custom_language'],activeSubject:'english1'},
+  customSubjects:[{id:'custom_language',name:'语言专项',referenceSubjectId:'english2'}],
+  questions:{old:{id:'old',subjectId:'english1'}},attempts:[{questionId:'old'}]})
+const migratedEnglish = await legacyEnglish.read()
+check('旧英语科目退出启用列表，学习记录保留',
+  migratedEnglish.settings.subjects.join()==='math2,custom_language' && migratedEnglish.settings.activeSubject==='math2'
+  && migratedEnglish.questions.old.subjectId==='english1' && migratedEnglish.attempts[0].questionId==='old')
+check('旧自定义科目保留独立参考考试身份',
+  migratedEnglish.customSubjects[0].referenceSubjectId==='independent'
+  && migratedEnglish.customSubjects[0].referenceExamName==='英语二' && migratedEnglish.customSubjects[0].referenceExamCode==='204')
 
 const olderStore = new Store(join(tmpRoot, 'missing-target'))
 await olderStore.write({ examDates: verifiedDates })

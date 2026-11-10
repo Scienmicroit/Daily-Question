@@ -1,9 +1,9 @@
-import { referenceWeb, fitResponse } from './reference-fixture.mjs'
+import { referenceWeb, fitResponse, generateWithResearch as createVerifiedQuestion } from './reference-fixture.mjs'
 import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
-import { createVerifiedQuestion, reviseAnswer, QuestionGenerationError } from '../lib/generate.js'
+import { reviseAnswer, QuestionGenerationError } from '../lib/generate.js'
 import { DailyQuestionService } from '../lib/service.js'
 import { Store } from '../lib/store.js'
 
@@ -127,8 +127,8 @@ console.log('ok   答案修订同样走盲解与主裁，胜方只作为候选�
 const failureSteps = [writer, solver('B'), disagree, undecided, undecided, newWriter, solver('B'), disagree, undecided, undecided]
 const failure = scripted(failureSteps)
 const temp = await mkdtemp(join(tmpdir(), 'daily-question-blind-'))
+const service = new DailyQuestionService(failure.ctx)
 try {
-  const service = new DailyQuestionService(failure.ctx)
   service.store = new Store(temp)
   await service.saveSettings({ subjects: ['math1'], subjectSource: { math1: 'online' } })
   await assert.rejects(service.ensureDaily('math1'), /已阻止发布/)
@@ -142,6 +142,7 @@ try {
     && error.details.trail.filter((t) => t.stage === 'arbitration').length === 4)
   console.log('ok   两道题各裁决两轮仍不确定时终止，不保存题目或今日分配，并记录失败与裁决轨迹')
 } finally {
+  service.dispose()
   assert(resolve(temp).startsWith(resolve(tmpdir()) + sep))
   await rm(temp, { recursive: true, force: true })
 }

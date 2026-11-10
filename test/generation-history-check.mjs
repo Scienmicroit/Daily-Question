@@ -3,10 +3,10 @@ import { mkdtemp,rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { generationPlan,indexQuestionHistory,findQuestionRepeat } from '../lib/generation-history.js'
-import { createVerifiedQuestion } from '../lib/generate.js'
 import { DailyQuestionService } from '../lib/service.js'
 import { Store } from '../lib/store.js'
-import { referenceWeb,referencePages,fitResponse } from './reference-fixture.mjs'
+import { referenceWeb,referencePages,fitResponse,generateWithResearch as createVerifiedQuestion } from './reference-fixture.mjs'
+import { loadExamReferences } from '../lib/references.js'
 
 const subject={id:'math1',name:'数学一',types:['single','fill','solution'],outline:['函数极限','矩阵秩'],guidance:''}
 const old={id:'old',subjectId:'math1',type:'single',stem:'设一元函数满足指定条件，利用函数极限的定义计算其极限并说明参数的取值范围。',
@@ -75,16 +75,26 @@ assert.equal(run.counts().solvers,0)
 
 const root=await mkdtemp(join(tmpdir(),'dq-generation-history-'))
 let service
+async function cacheReferences() {
+  const {settings}=await service.data()
+  const snapshot=await loadExamReferences({ctx:service.ctx,subject,examInfo:{year:settings.targetYear},plannedType:'fill'})
+  await service.importSyllabus({subjectId:'math1',fileName:'数学一.md',kind:'md',text:snapshot.sources.find(s=>s.kind==='outline').text})
+  for (const paper of snapshot.sources.filter((source)=>source.kind==='paper')) {
+    await service.importPastPaper({subjectId:'math1',year:paper.year,fileName:`${paper.year}.txt`,kind:'md',text:paper.text})
+  }
+}
 try {
   run=context({onFit:async()=>{await service.store.update(d=>{d.questions.race={...fresh,id:'race',subjectId:'math1'}})}})
   service=new DailyQuestionService(run.ctx);service.store=new Store(root)
   await service.store.update(d=>{d.settings.subjects=['math1'];d.settings.subjectSource.math1='online'})
+  await cacheReferences()
   await assert.rejects(service.createDaily({...subject,types:['single'],outline:[]},'2026-11-05','2026-11-05|math1'),/重复/)
   assert.deepEqual(Object.keys((await service.data()).questions),['race'])
   assert.equal(Object.keys((await service.data()).daily).length,0,'发布事务再次检查最新历史，拦截并发重复')
   service.dispose()
   run=context({coverage:true});service=new DailyQuestionService(run.ctx);service.store=new Store(join(root,'published'))
   await service.store.update(d=>{d.settings.subjects=['math1'];d.settings.subjectSource.math1='online';d.questions.old=old})
+  await cacheReferences()
   const published=await service.createDaily(subject,'2026-11-06','2026-11-06|math1')
   const question=(await service.data()).questions[published.questionId]
   assert.equal(question.type,'fill');assert.equal(question.coverageTopic,'矩阵秩')
@@ -93,7 +103,19 @@ try {
   run = context({ onFit: () => service.saveSettings({ subjects: [] }) })
   service = new DailyQuestionService(run.ctx); service.store = new Store(join(root, 'disabled'))
   await service.saveSettings({ subjects: ['math1'], subjectSource: { math1: 'online' } })
+  await cacheReferences()
   await assert.rejects(service.createDaily(subject, '2026-11-06', '2026-11-06|math1'), /已停用/)
   assert.deepEqual(Object.keys((await service.data()).questions), [], '停用后阻止进行中的出题发布')
+  service.dispose()
+  run=context({onFit:()=>service.saveSettings({deleteSubjectIds:['math1']})})
+  service=new DailyQuestionService(run.ctx);service.store=new Store(join(root,'deleted'))
+  await service.saveSettings({subjects:['math1'],subjectSource:{math1:'online'}})
+  await cacheReferences()
+  await assert.rejects(service.createDaily(subject,'2026-11-06','2026-11-06|math1'),/已停用/)
+  const afterDelete=await service.data()
+  assert(afterDelete.settings.deletedSubjects.includes('math1'))
+  assert.deepEqual(afterDelete.pastPapers,[],'删除科目清理其导入真题')
+  assert.deepEqual(Object.keys(afterDelete.questions),[],'删除后进行中的出题不能恢复题目')
+  assert.deepEqual(Object.keys(afterDelete.failures),[],'迟到的出题也不能恢复失败状态')
 } finally {service?.dispose();await rm(root,{recursive:true,force:true})}
 console.log('ok   历史去重与覆盖：全历史精确/近期相似去重、题型和主题频次、独立覆盖评审、盲解隔离及发布前复检')

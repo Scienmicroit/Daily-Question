@@ -1,3 +1,14 @@
+import { createVerifiedQuestion } from '../lib/generate.js'
+import { rankQuestionTypes } from '../lib/generation-history.js'
+import { loadExamReferences } from '../lib/references.js'
+
+export async function generateWithResearch(options) {
+  const { subject, history = [], preferredType } = options
+  const plannedType = rankQuestionTypes(subject,history,preferredType)[0]
+  const localReferences = await loadExamReferences({...options,plannedType})
+  return createVerifiedQuestion({...options,localReferences})
+}
+
 export const referenceYear = new Date().getFullYear() + 1
 export const outlineQuote = '函数极限与连续性：掌握极限的定义、性质以及基本计算方法，理解连续与可导之间的关系。'
 export const paperQuote1 = '设函数在零点连续，求极限并根据条件判断参数的取值，选出正确答案。'

@@ -93,11 +93,21 @@ f.state.get(0).subjects = [{ id: 'math2', name: '数学二', enabled: false }]
 f.state.get(0).counts.math2 = { all: 2 }
 f.props('SubjectNav').onPick('math2')
 await tick()
-assert.equal(f.state.get(3), 'math2')
-assert.equal(f.state.get(4), 'all')
-assert.equal(f.props('TabBar').todayDisabled, true)
-f.props('TabBar').onPick('today')
-assert.deepEqual(archiveCalls.map(([op]) => op), ['saveSettings', 'listQuestions'])
+assert.equal(f.state.get(3), 'math1')
+assert.equal(f.state.get(4), 'today')
+assert.deepEqual(archiveCalls,[],'停用科目不能通过旧导航回调进入')
+
+const switchCalls=[]
+f=fixture((op,args)=>{
+  switchCalls.push([op,args])
+  if(op==='saveSettings')return {settings:{subjects:['math2'],activeSubject:'math2'}}
+  if(op==='ensureDaily')return {question:{id:'math2-q'}}
+})
+f.state.set(14,{kind:'subjects'})
+await f.props('SubjectsModal').onDone({subjects:['math2'],customSubjects:[]})
+await tick()
+assert.equal(f.state.get(3),'math2')
+assert.deepEqual(switchCalls.map(([op,args])=>[op,args.activeSubject||args.subjectId]),[['saveSettings','math2'],['ensureDaily','math2']])
 
 const lateThread=deferred()
 f=fixture((op)=>op==='followup'?lateThread.promise:{thread:{messages:[]}},true)

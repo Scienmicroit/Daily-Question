@@ -21,6 +21,8 @@ window.__ModuleLoader__.load({
       addSubject: '添加科目',
       manageSubjects: '科目管理',
       manageBanks: '题库管理',
+      manageSyllabuses: '大纲管理',
+      managePastPapers: '真题管理',
       year: '考研年份',
       generating: '正在出题并做独立答案校验…',
       generateFailed: '出题失败',
@@ -1011,6 +1013,12 @@ window.__ModuleLoader__.load({
       })
     }
 
+    async function readStudyFile(file) {
+      if (!/\.(pdf|txt|md|markdown)$/i.test(file.name)) throw new Error('请选择文本型 PDF、TXT 或 Markdown 文件')
+      if (file.size > (/\.pdf$/i.test(file.name) ? 16*1024*1024 : 512*1024)) throw new Error('文件过大，请精简后重试')
+      return {fileName:file.name,...await readFileAsPayload(file)}
+    }
+
     /* ============================== 基础组件 ============================== */
     const ICON_PATHS = {
       close: 'M6 6l12 12M18 6L6 18',
@@ -1022,6 +1030,9 @@ window.__ModuleLoader__.load({
       'chevron-left': 'M15 6l-6 6 6 6',
       send: 'M4 12l16-8-6 8 6 8z',
       book: 'M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z',
+      subjects: 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 17h6 M17 14v6',
+      syllabus: 'M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6 M9 16h6',
+      papers: 'M5 5h11v13H5z M8 8h5 M8 11h5 M8 14h3 M19 8v13H8',
       plus: 'M12 5v14M5 12h14',
       trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
       upload: 'M12 16V4M7 9l5-5 5 5M4 20h16',
@@ -1204,9 +1215,8 @@ window.__ModuleLoader__.load({
             : state.result?'已是最新版本':null))
     }
 
-    function SubjectNav({ boot, subjectId, onPick, onManage, onBanks }) {
+    function SubjectNav({ boot, subjectId, onPick, onManage, onBanks, onSyllabuses, onPastPapers }) {
       const enabled = (boot.subjects || []).filter((subject) => subject.enabled)
-      const archived = archivedSubjects(boot, subjectId)
       const subjectButton = (subject) => {
         const done = Boolean(boot.todayMap?.[subject.id])
         return h('button', {
@@ -1217,28 +1227,22 @@ window.__ModuleLoader__.load({
           title: subject.name,
         },
         h('span', null, subject.name),
-        subject.enabled ? h('span', { className: 'kd-nav-status' },
+        h('span', { className: 'kd-nav-status' },
           h('span', { className: `kd-dot${done ? '' : ' kd-dot-idle'}` }),
-          done ? '今日已出' : '待出题') : null)
+          done ? '今日已出' : '待出题'))
       }
       return h('div', { className: 'kd-nav' },
         h('div', { className: 'kd-nav-group' },
-          h('div', { className: 'kd-nav-group-label' }, '已启用科目', h('span', null, String(enabled.length))),
           enabled.length ? enabled.map(subjectButton)
             : h('div', { className: 'kd-msg-meta', style: { padding: '4px 8px' } }, '还没有启用科目')),
-        archived.length ? h('div', { className: 'kd-nav-group' },
-          h('div', { className: 'kd-nav-group-label' }, '已停用科目', h('span', null, String(archived.length))),
-          archived.map(subjectButton)) : null,
         h('div', { className: 'kd-nav-spacer' }),
         h('div', { className: 'kd-nav-group' },
-          h('div', { className: 'kd-nav-group-label' }, '设置'),
-          h(Btn, { variant: 'ghost', onClick: onManage }, h(Icon, { name: 'plus' }), T.manageSubjects),
+          h('div', { className: 'kd-nav-group-label', style:{fontSize:'14px',fontWeight:700} }, '设置'),
+          h(Btn, { variant: 'ghost', onClick: onManage }, h(Icon, { name: 'subjects' }), T.manageSubjects),
           h(Btn, { variant: 'ghost', onClick: onBanks }, h(Icon, { name: 'book' }), T.manageBanks),
+          h(Btn, { variant: 'ghost', onClick: onSyllabuses }, h(Icon, { name: 'syllabus' }), T.manageSyllabuses),
+          h(Btn, { variant: 'ghost', onClick: onPastPapers }, h(Icon, { name: 'papers' }), T.managePastPapers),
           h(UpdateCheck,{currentVersion:boot.pluginVersion})))
-    }
-
-    function archivedSubjects(boot, subjectId) {
-      return (boot.subjects || []).filter((subject) => !subject.enabled && (boot.counts?.[subject.id]?.all || subject.id === subjectId))
     }
 
     function TabBar({ kind, counts, onPick, todayDisabled }) {
@@ -1258,22 +1262,22 @@ window.__ModuleLoader__.load({
         }, label, count ? h('span', { className: 'kd-tab-count' }, String(count)) : null)))
     }
 
-    function MobileBar({ boot, subjectId, onPick, onManage, onBanks }) {
+    function MobileBar({ boot, subjectId, onPick, onManage, onBanks, onSyllabuses, onPastPapers }) {
       const enabled = (boot.subjects || []).filter((subject) => subject.enabled)
-      const archived = archivedSubjects(boot, subjectId)
-      const option = (subject) => h('option', { key: subject.id, value: subject.id }, subject.name)
+      const active = enabled.some((subject) => subject.id === subjectId) ? subjectId : ''
       return h('div', { className: 'kd-mobilebar' },
         h('select', {
           className: 'kd-select',
-          value: subjectId || '',
+          value: active,
           'aria-label': '切换科目',
           onChange: (event) => onPick(event.target.value),
-        }, !subjectId ? h('option', { value: '', disabled: true }, '选择科目') : null,
-        enabled.length ? h('optgroup', { label: `已启用科目（${enabled.length}）` }, enabled.map(option)) : null,
-        archived.length ? h('optgroup', { label: `已停用科目（${archived.length}）` }, archived.map(option)) : null),
+        }, !active ? h('option', { value: '', disabled: true }, '选择科目') : null,
+        enabled.map((subject) => h('option', { key: subject.id, value: subject.id }, subject.name))),
         // 窄屏隐藏了左侧栏，科目的增删与题库入口必须在这里保留。
-        h(Btn, { small: true, variant: 'ghost', onClick: onManage }, h(Icon, { name: 'plus', size: 13 }), T.manageSubjects),
-        h(Btn, { small: true, variant: 'ghost', onClick: onBanks }, h(Icon, { name: 'book', size: 13 }), T.manageBanks))
+        h(Btn, { small: true, variant: 'ghost', onClick: onManage }, h(Icon, { name: 'subjects', size: 13 }), T.manageSubjects),
+        h(Btn, { small: true, variant: 'ghost', onClick: onBanks }, h(Icon, { name: 'book', size: 13 }), T.manageBanks),
+        h(Btn, { small: true, variant: 'ghost', onClick: onSyllabuses }, h(Icon, { name: 'syllabus', size: 13 }), T.manageSyllabuses),
+        h(Btn, { small: true, variant: 'ghost', onClick: onPastPapers }, h(Icon, { name: 'papers', size: 13 }), T.managePastPapers))
     }
 
     /* ============================== 题目详情 ============================== */
@@ -1379,28 +1383,35 @@ window.__ModuleLoader__.load({
           h('div', { className: 'kd-chips' },
             h('span', { className: 'kd-tag kd-tag-brand' }, q.typeLabel),
             h('span', { className: 'kd-tag' }, q.subjectName),
-            difficultyUnverified ? h(Badge, { tone: 'warn' }, '未通过真题难度校验')
-              : h('span', { className: 'kd-tag', title: q.examAlignment ? '独立评审参考历年真题给出的难度' : '原始难度标签，尚无真题对照评审' }, `难度 ${q.difficulty}/5`),
-            h('span', { className: 'kd-tag' }, formatDate(q.assignedDate)),
-            h('span', { className: 'kd-tag' }, `累计作答 ${q.attemptCount} 次`),
-            h('span', { className: 'kd-tag' }, q.source?.kind === 'bank' ? q.source.label : '在线出题'),
+            difficultyUnverified ? h(Badge, { tone: 'warn' }, '未进行真题难度校验') : null,
+            ['built-in','custom','subject-only'].includes(q.examAlignment?.scopeBasis)
+              ? h(Badge, { tone: 'warn' }, '未进行考试大纲校验') : null,
             q.answerStatus === 'verified'
               ? h(Badge, { tone: 'ok' }, T.verified)
               : h(Badge, { tone: 'warn' }, q.answerStatus === 'missing' ? T.missing : T.unverified),
             q.repeated ? h(Badge, { tone: 'warn' }, '本题此前出过') : null,
             q.favorite ? h(Badge, { tone: 'brand' }, '已收藏') : null,
-            q.wrongEver ? h(Badge, { tone: 'bad' }, '在错题本') : null),
+            q.wrongEver ? h(Badge, { tone: 'bad' }, '在错题本') : null,
+            !difficultyUnverified
+              ? h('span', { className: 'kd-tag', title: q.examAlignment ? '独立评审参考历年真题给出的难度' : '原始难度标签，尚无真题对照评审' }, `难度 ${q.difficulty}/5`) : null,
+            h('span', { className: 'kd-tag' }, formatDate(q.assignedDate)),
+            h('span', { className: 'kd-tag' }, `累计作答 ${q.attemptCount} 次`),
+            h('span', { className: 'kd-tag' }, q.source?.kind === 'bank' ? q.source.label : '在线出题')),
           q.knowledge?.length
             ? h('div', { className: 'kd-meta', style: { marginTop: '10px' } },
               h('span', null, `${T.knowledge}：${q.knowledge.join('、')}`))
             : null,
           q.examAlignment ? h('details', { className: 'kd-verify' },
-            h('summary', null, difficultyUnverified ? `范围校验依据 · 大纲 ${q.examAlignment.outlineYear}` : `范围与难度依据 · 大纲 ${q.examAlignment.outlineYear} · 独立真题对照`),
-            h('div', null, q.examAlignment.note),
-            h('div', null, `参考考试：${q.examAlignment.basisSubject?.name || q.subjectName} · 检索时间：${formatDateTime(q.examAlignment.checkedAt)}`),
+            h('summary', null, `${q.examAlignment.scopeBasis === 'subject-only' ? '出题依据' : '范围校验依据'} · ${q.examAlignment.scopeLabel || '大纲 '+q.examAlignment.outlineYear}${difficultyUnverified ? '' : ' · 独立真题对照'}`),
+            h('div', null, q.examAlignment.note
+              ?.replace('未通过真题难度校验。', '未进行真题难度校验。')
+              .replace('未导入考试大纲，', '未进行考试大纲校验，')),
+            h('div', null, q.examAlignment.basisSubject?.name || q.subjectName,
+              q.examAlignment.checkedAt ? ` · 核验时间：${formatDateTime(q.examAlignment.checkedAt)}` : null),
             ...(q.examAlignment.sources || []).map((source) => h('div', { key: source.id },
-              h('a', { className: 'kd-link', href: source.url, target: '_blank', rel: 'noreferrer noopener' },
-                `${source.year} ${source.title}（${source.official ? '官方来源' : source.kind === 'outline' ? source.verificationLabel || '非官方大纲转载' : '非官方真题转载'}）`),
+              source.url ? h('a', { className: 'kd-link', href: source.url, target: '_blank', rel: 'noreferrer noopener' },
+                `${source.year} ${source.title}（${source.official ? '官方来源' : source.kind === 'outline' ? source.verificationLabel || '非官方大纲转载' : '非官方真题转载'}）`)
+                : source.manual && source.kind === 'paper' ? `${source.year} 年 · ${source.title}（手动导入）` : null,
               source.coverage ? h('div', null, source.coverage) : null,
               source.publisherUrl ? h('a', { className:'kd-link', href:source.publisherUrl, target:'_blank', rel:'noreferrer noopener' }, `出版社版本记录 · ISBN ${source.isbn}`) : null)),
             revealed ? h('div', null, q.examAlignment.rationale,
@@ -1582,7 +1593,7 @@ window.__ModuleLoader__.load({
             item.favorite ? h(Badge, { tone: 'brand' }, '收藏') : null,
             item.wrongEver ? h(Badge, { tone: 'bad' }, item.mastered ? '错题 · 已掌握' : '错题') : null,
             item.answerStatus !== 'verified' ? h(Badge, { tone: 'warn' }, T.unverified) : null,
-            item.difficultyUnverified ? h(Badge, { tone: 'warn' }, '未通过真题难度校验') : h('span', null, `难度 ${item.difficulty}/5`))),
+            item.difficultyUnverified ? h(Badge, { tone: 'warn' }, '未进行真题难度校验') : h('span', null, `难度 ${item.difficulty}/5`))),
         !managing ? h('span', { className: 'kd-list-open', 'aria-hidden': true }, '查看题目', h(Icon, { name: 'chevron' })) : null)))
     }
 
@@ -1719,7 +1730,7 @@ window.__ModuleLoader__.load({
     /* ============================== 弹窗 ============================== */
     function SubjectsModal({ boot, onClose, onDone }) {
       const [draft, setDraft] = useState(() => ({ subjects: [...boot.settings.subjects],
-        subjectSource: { ...boot.settings.subjectSource }, customSubjects: structuredClone(boot.customSubjects || []) }))
+        subjectSource: { ...boot.settings.subjectSource }, customSubjects: structuredClone(boot.customSubjects || []), deleteSubjectIds: [] }))
       const [saving, setSaving] = useState(false)
       const [saveError, setSaveError] = useState('')
       const [name, setName] = useState('')
@@ -1730,11 +1741,16 @@ window.__ModuleLoader__.load({
       const [referenceExamName, setReferenceExamName] = useState('')
       const [referenceExamCode, setReferenceExamCode] = useState('')
       const [subjectCode, setSubjectCode] = useState('')
+      const [outlineDraft, setOutlineDraft] = useState('')
+      const [deletion, setDeletion] = useState(null)
+      const outlineEditor = (value, onChange, label) => h('label', { className:'kd-field', style:{marginBottom:0} },
+        h('span',{className:'kd-meta'},label),
+        h('textarea',{className:'kd-textarea',rows:3,value,maxLength:2400,placeholder:'每行填写一个知识点，例如：链表、栈与队列',onChange:(event)=>onChange(event.target.value)}))
       const referenceExams = boot.referenceExams || (boot.subjects || []).filter((s) => !s.custom)
       const referenceEditor = (value, change, label) => h('div', { className:'kd-field', style:{ marginBottom:0 } },
         h('select', { className:'kd-select', 'aria-label':label, value:value.referenceSubjectId || 'auto',
           onChange:(event)=>change({referenceSubjectId:event.target.value}) },
-          h('option', {value:'auto'}, '自动检索与核验（按科目名称和代码）'),
+          h('option', {value:'auto'}, '使用本科学习范围'),
           ...referenceExams.map((exam)=>h('option',{key:exam.id,value:exam.id},`${exam.name}${exam.code ? `（${exam.code}）` : ''}`)),
           h('option',{value:'independent'},'另行指定参考考试名称…')),
         !value.referenceSubjectId || value.referenceSubjectId === 'auto' ? h('input',{className:'kd-input','aria-label':`${label}代码（考试科目或专业）`,
@@ -1747,7 +1763,7 @@ window.__ModuleLoader__.load({
       const enabled = new Set(draft.subjects)
       const subjects = [...(boot.subjects || []), ...draft.customSubjects.filter((item) => !(boot.subjects || []).some((s) => s.id === item.id)).map((item) => ({
         ...item, custom: true, typeLabels: item.types.map((type) => ({ single: '单项选择题', multiple: '多项选择题', fill: '填空题', solution: '解答题' })[type] || type), bankItemCount: 0,
-      }))]
+      }))].filter((subject) => !draft.deleteSubjectIds.includes(subject.id))
       const close = () => { if (!saving) onClose() }
       const toggleSubject = (id) => setDraft((current) => ({ ...current,
         subjects: current.subjects.includes(id) ? current.subjects.filter((value) => value !== id) : [...current.subjects, id] }))
@@ -1768,12 +1784,13 @@ window.__ModuleLoader__.load({
       const selectedTypes = [...new Set([...types, ...(typeDraft.trim() ? [typeDraft.trim().slice(0, 24)] : [])])]
       const canAdd = Boolean(name.trim()) && selectedTypes.length > 0 && (referenceSubjectId !== 'independent' || Boolean(referenceExamName.trim()))
       const withCustomSubject = (current) => {
-        const subject = { id: 'custom_' + newAttemptId(), name: name.trim(), code:subjectCode.trim(), types: selectedTypes, referenceSubjectId, referenceExamName:referenceExamName.trim(), referenceExamCode:referenceExamCode.trim() }
+        const subject = { id: 'custom_' + newAttemptId(), name: name.trim(), code:subjectCode.trim(), types: selectedTypes, referenceSubjectId, referenceExamName:referenceExamName.trim(), referenceExamCode:referenceExamCode.trim(),
+          outline:outlineDraft.split('\n') }
         return { ...current, subjects: [...current.subjects, subject.id], customSubjects: [...current.customSubjects, subject] }
       }
       const finish = async () => {
         if (saving) return
-        if ((name.trim() || types.length || typeDraft.trim() || (referenceSubjectId && referenceSubjectId !== 'auto') || referenceExamName.trim() || referenceExamCode.trim() || subjectCode.trim()) && !canAdd) {
+        if ((name.trim() || types.length || typeDraft.trim() || (referenceSubjectId && referenceSubjectId !== 'auto') || referenceExamName.trim() || referenceExamCode.trim() || subjectCode.trim() || outlineDraft.trim()) && !canAdd) {
           setSaveError('请填写自定义科目名称并至少选择一个题型；选择独立参考考试时，还需填写考试名称。或清空未完成的输入。')
           return
         }
@@ -1799,6 +1816,31 @@ window.__ModuleLoader__.load({
         setReferenceExamName('')
         setReferenceExamCode('')
         setSubjectCode('')
+        setOutlineDraft('')
+      }
+      if (deletion) {
+        const { subject, final } = deletion
+        return h(ConfirmModal, {
+          key: final ? 'final' : 'first',
+          title: final ? '再次确认删除科目' : '删除科目',
+          message: final
+            ? `点击科目管理的「完成」后，将永久删除「${subject.name}」及已出题目、作答、收藏、错题和追问记录。此操作无法恢复。`
+            : `确定删除「${subject.name}」吗？如果只是暂时不练习，可以取消勾选来停用。`,
+          confirmLabel: final ? '确认永久删除' : '继续删除',
+          danger: true,
+          onClose: () => setDeletion(null),
+          onConfirm: () => {
+            if (!final) { setDeletion({subject,final:true}); return }
+            setDraft((current) => ({
+              ...current,
+              subjects: current.subjects.filter((id) => id !== subject.id),
+              customSubjects: current.customSubjects.filter((item) => item.id !== subject.id),
+              deleteSubjectIds: (boot.subjects || []).some((item) => item.id === subject.id)
+                ? [...new Set([...current.deleteSubjectIds,subject.id])] : current.deleteSubjectIds,
+            }))
+            setDeletion(null)
+          },
+        })
       }
       return h(Modal, {
         title: T.manageSubjects,
@@ -1810,6 +1852,8 @@ window.__ModuleLoader__.load({
         ],
       },
       saveError ? h('div', { className: 'kd-error-text', role: 'alert' }, saveError) : null,
+      draft.deleteSubjectIds.length ? h('div', { className:'kd-error-text', role:'status' },
+        `有 ${draft.deleteSubjectIds.length} 个科目待删除，点击「完成」后生效。`) : null,
       h('fieldset', { disabled: saving, style: { border: 0, padding: 0, margin: 0, minWidth: 0 } },
       h('div', { className: 'kd-meta', style: { marginBottom: '12px' } },
         '修改后点击右下角「完成」统一保存；取消或关闭会放弃修改。停用科目不会删除历史题目、作答、收藏和追问。'),
@@ -1831,6 +1875,8 @@ window.__ModuleLoader__.load({
         ? h('div', { className: 'kd-row' },
           subject.custom ? referenceEditor(draft.customSubjects.find((s)=>s.id === subject.id) || subject,
             (patch)=>setDraft((current)=>({...current,customSubjects:current.customSubjects.map((s)=>s.id === subject.id ? {...s,...patch} : s)})),`${subject.name} 参考考试科目`) : null,
+          subject.custom ? outlineEditor((draft.customSubjects.find((s)=>s.id === subject.id)?.outline || []).join('\n'),
+            (text)=>setDraft((current)=>({...current,customSubjects:current.customSubjects.map((s)=>s.id===subject.id ? {...s,outline:text.split('\n')} : s)})),`${subject.name} 练习范围`) : null,
           h('select', {
             className: 'kd-select',
             value: draft.subjectSource[subject.id] || 'auto',
@@ -1843,7 +1889,8 @@ window.__ModuleLoader__.load({
           subject.bankItemCount
             ? h('span', { className: 'kd-msg-meta' }, `题库 ${subject.bankItemCount} 题`)
             : h('span', { className: 'kd-msg-meta' }, '题库为空'))
-        : null)),
+        : null,
+      h(Btn, { small:true, variant:'danger', ariaLabel:`删除${subject.name}`, onClick:() => setDeletion({subject,final:false}) }, '删除'))),
       h('div', { className: 'kd-divider' }),
       h('div', { className: 'kd-field kd-custom-subject' },
         h('div', { className: 'kd-field-label' }, '添加自定义科目'),
@@ -1853,7 +1900,8 @@ window.__ModuleLoader__.load({
           if (patch.referenceExamCode !== undefined) setReferenceExamCode(patch.referenceExamCode)
           if (patch.code !== undefined) setSubjectCode(patch.code)
         },'自定义科目的参考考试'),
-        h('div',{className:'kd-meta'},'默认由模型按名称和代码自主检索、独立核验大纲及两年真题。专业代码不等于考试科目代码；信息不足时可在「另行指定参考考试名称」补充院校和准确考试名称，资料不足不会发布。'),
+        h('div',{className:'kd-meta'},'可在这里填写练习范围。大纲和难度对照用的真题分别在大纲管理与真题管理导入。'),
+        outlineEditor(outlineDraft,setOutlineDraft,'自定义科目的练习范围'),
         h('div', { className: 'kd-row' },
           h('input', {
             className: 'kd-input',
@@ -1993,6 +2041,117 @@ window.__ModuleLoader__.load({
           title: '还没有导入题库',
           body: '题库用于「题库出题」来源：每道题会被分配唯一题目 ID，同一题反复出现也不会在列表里产生重复记录。',
         }))
+    }
+
+    function SyllabusesModal({ boot, subjectId, onClose, onSaved }) {
+      const subjects = boot.subjects || []
+      const [selected, setSelected] = useState(() => subjects.some((subject) => subject.id === subjectId) ? subjectId : (subjects[0]?.id || ''))
+      const [busy, setBusy] = useState(false)
+      const [message, setMessage] = useState('')
+      const [error, setError] = useState('')
+      const fileInput = useRef(null)
+      const current = (boot.syllabuses || []).find((syllabus) => syllabus.subjectId === selected)
+      const save = async (op, args) => {
+        setBusy(true)
+        setError('')
+        setMessage('')
+        try {
+          const payload = await args()
+          const result = await rpc(op, {subjectId:selected,...payload})
+          onSaved(result.syllabuses)
+          setMessage(op === 'importSyllabus' ? '大纲已保存，下次在线出题时使用。' : '大纲已移除。')
+        } catch (issue) {
+          setError(issue.message)
+        } finally {
+          setBusy(false)
+        }
+      }
+      const onFile = async (event) => {
+        const file = event.target.files?.[0]
+        event.target.value = ''
+        if (!file || !selected) return
+        await save('importSyllabus', () => readStudyFile(file))
+      }
+      return h(Modal, {title:T.manageSyllabuses,wide:true,onClose:() => { if (!busy) onClose() },
+        footer:h(Btn,{disabled:busy,onClick:onClose},T.close)},
+      h('p',{className:'kd-meta'},'每科可导入一份文本型 PDF、TXT 或 Markdown 大纲。没有导入时仍可在线出题，题目可能与正式大纲范围有差异。'),
+      subjects.length ? h('label',{className:'kd-field'},h('span',{className:'kd-field-label'},'科目'),
+        h('select',{className:'kd-select',value:selected,disabled:busy,onChange:(event)=>{setSelected(event.target.value);setError('');setMessage('')}},
+          subjects.map((subject)=>h('option',{key:subject.id,value:subject.id},subject.name)))) : h('p',{className:'kd-meta'},'请先在科目管理添加科目。'),
+      current ? h('div',{className:'kd-manage-card'},
+        h('div',null,current.fileName),
+        h('div',{className:'kd-msg-meta'},`导入于 ${formatDateTime(current.importedAt)} · ${current.characters} 字符`))
+        : selected ? h('p',{className:'kd-meta'},'这个科目尚未导入大纲。') : null,
+      h('input',{type:'file',accept:'.pdf,.txt,.md,.markdown',ref:fileInput,hidden:true,onChange:onFile}),
+      h('div',{className:'kd-actions'},
+        h(Btn,{variant:'primary',disabled:busy||!selected,onClick:()=>fileInput.current?.click()},h(Icon,{name:'upload'}),current?'替换大纲':'导入大纲'),
+        current ? h(Btn,{variant:'danger',disabled:busy,onClick:()=>save('removeSyllabus',async()=>({}))},'移除大纲') : null),
+      busy ? h('p',{className:'kd-meta',role:'status'},'正在处理…') : null,
+      error ? h('p',{className:'kd-error-text',role:'alert'},error) : null,
+      message ? h('p',{className:'kd-meta',role:'status'},message) : null)
+    }
+
+    function PastPapersModal({ boot, subjectId, onClose, onSaved }) {
+      const subjects = boot.subjects || []
+      const [selected, setSelected] = useState(() => subjects.some((subject) => subject.id === subjectId) ? subjectId : (subjects[0]?.id || ''))
+      const [year, setYear] = useState('')
+      const [type, setType] = useState('')
+      const [busy, setBusy] = useState(false)
+      const [error, setError] = useState('')
+      const [message, setMessage] = useState('')
+      const fileInput = useRef(null)
+      const subject = subjects.find((item) => item.id === selected)
+      const papers = (boot.pastPapers || []).filter((paper) => paper.subjectId === selected)
+      const maxYear = new Date().getFullYear() + 1
+      const validYear = /^\d{4}$/.test(year) && Number(year) >= 1900 && Number(year) <= maxYear
+      const existing = papers.some((paper) => paper.year === Number(year))
+      const typeName = (value) => subject?.typeLabels?.[(subject.types || []).indexOf(value)] || value
+      const save = async (op, args, success) => {
+        setBusy(true)
+        setError('')
+        setMessage('')
+        try {
+          const result = await rpc(op,{subjectId:selected,...await args()})
+          onSaved(result.pastPapers)
+          setMessage(success)
+        } catch (issue) {
+          setError(issue.message)
+        } finally {
+          setBusy(false)
+        }
+      }
+      const onFile = async (event) => {
+        const file = event.target.files?.[0]
+        event.target.value = ''
+        if (!file || !subject || !validYear || busy) return
+        await save('importPastPaper',async () => ({year:Number(year),type,...await readStudyFile(file)}),'真题已保存，可供后续出题校验难度。')
+      }
+      return h(Modal,{title:T.managePastPapers,wide:true,onClose:()=>{if(!busy)onClose()},
+        footer:h(Btn,{disabled:busy,onClick:onClose},T.close)},
+      h('p',{className:'kd-meta'},'支持文本型 PDF、TXT 和 Markdown。同一科目每年保存一份真题。某题型至少有两个年份的真题才能用于难度校验。'),
+      h('div',{className:'kd-row'},
+        h('label',{className:'kd-field'},h('span',{className:'kd-field-label'},'科目'),
+          h('select',{className:'kd-select',value:selected,disabled:busy,onChange:(event)=>{setSelected(event.target.value);setType('');setError('');setMessage('')}},
+            subjects.length ? subjects.map((item)=>h('option',{key:item.id,value:item.id},item.name)) : h('option',{value:''},'请先添加科目'))),
+        h('label',{className:'kd-field'},h('span',{className:'kd-field-label'},'年份'),
+          h('input',{className:'kd-input',type:'number',min:1900,max:maxYear,step:1,placeholder:'例如 2025',value:year,disabled:busy,onChange:(event)=>setYear(event.target.value)})),
+        h('label',{className:'kd-field'},h('span',{className:'kd-field-label'},'题型'),
+          h('select',{className:'kd-select',value:type,disabled:busy,onChange:(event)=>setType(event.target.value)},
+            h('option',{value:''},'按正文标题识别'),
+            ...(subject?.types || []).map((value)=>h('option',{key:value,value},typeName(value)))))),
+      h('p',{className:'kd-msg-meta'},'整卷请保留各题型标题。文件只有一种题型且缺少标题时，可以手动选择题型。'),
+      h('input',{type:'file',accept:'.pdf,.txt,.md,.markdown',ref:fileInput,hidden:true,onChange:onFile}),
+      h('div',{className:'kd-actions'},
+        h(Btn,{variant:'primary',disabled:busy||!subject||!validYear,onClick:()=>fileInput.current?.click()},
+          h(Icon,{name:'upload'}),existing?'替换该年份真题':'导入真题')),
+      papers.map((paper)=>h('div',{key:paper.year,className:'kd-row-between kd-manage-card'},
+        h('div',null,h('div',null,`${paper.year} 年 · ${paper.fileName}`),
+          h('div',{className:'kd-msg-meta'},paper.types?.length ? paper.types.map(typeName).join('、') : '未识别题型')),
+        h(Btn,{small:true,variant:'danger',disabled:busy,
+          onClick:()=>save('removePastPaper',async()=>({year:paper.year}),'真题已移除。')},'移除'))),
+      busy ? h('p',{className:'kd-meta',role:'status'},'正在处理…') : null,
+      error ? h('p',{className:'kd-error-text',role:'alert'},error) : null,
+      message ? h('p',{className:'kd-meta',role:'status'},message) : null)
     }
 
     function RevisionModal({ question, onClose, onConfirm, onDiscard, busy }) {
@@ -2154,6 +2313,23 @@ window.__ModuleLoader__.load({
         }
       }, [refreshBoot])
 
+      const showSubject = useCallback((sid) => {
+        setSubjectId(sid)
+        setList(null)
+        if (sid) {
+          loadToday(sid)
+          return
+        }
+        dailyRequest.current++
+        setBusy(''); setFail(''); setQuestion(null); setThread(null); setThreadOpen(false); setView('empty')
+      }, [loadToday])
+
+      useEffect(() => {
+        if (subjectId && boot && !boot.settings.subjects.includes(subjectId)) {
+          showSubject(boot.settings.subjects[0] || null)
+        }
+      }, [boot?.settings.subjects, subjectId, showSubject])
+
       useEffect(() => {
         if (!boot?.today) return undefined
         return watchDayChange(boot, setBoot)
@@ -2208,13 +2384,10 @@ window.__ModuleLoader__.load({
       useEffect(() => { setSelected([]); setManaging(false) }, [subjectId, kind, view])
 
       const pickSubject = useCallback((sid) => {
-        if (!sid || sid === subjectId) return
-        setSubjectId(sid)
-        setList(null)
+        if (!sid || sid === subjectId || !boot.settings.subjects.includes(sid)) return
         rpc('saveSettings', { activeSubject: sid }).catch(() => {})
-        if (boot.settings.subjects.includes(sid)) loadToday(sid)
-        else loadList(sid, 'all')
-      }, [boot, subjectId, loadToday, loadList])
+        showSubject(sid)
+      }, [boot, subjectId, showSubject])
 
       const openQuestion = useCallback(async (qid) => {
         const request = ++dailyRequest.current
@@ -2256,14 +2429,10 @@ window.__ModuleLoader__.load({
           if (cancelled) return
           setBoot(result)
           const preferred = result.settings?.activeSubject
-          const archived = archivedSubjects(result)
-          const first = preferred && (result.settings.subjects.includes(preferred) || archived.some((subject) => subject.id === preferred))
-            ? preferred
-            : (result.settings.subjects[0] || archived[0]?.id || null)
+          const first = result.settings.subjects.includes(preferred) ? preferred : (result.settings.subjects[0] || null)
           setSubjectId(first)
           setLoading(false)
-          if (first && result.settings.subjects.includes(first)) loadToday(first)
-          else if (first) loadList(first, 'all')
+          if (first) loadToday(first)
           else setView('empty')
         }).catch((issue) => {
           if (cancelled) return
@@ -2271,7 +2440,7 @@ window.__ModuleLoader__.load({
           setLoading(false)
         })
         return () => { cancelled = true }
-      }, [loadToday, loadList])
+      }, [loadToday])
 
       const currentSubject = useMemo(() => (boot?.subjects || []).find((subject) => subject.id === subjectId) || null,
         [boot, subjectId])
@@ -2467,22 +2636,14 @@ window.__ModuleLoader__.load({
       }, [boot, notify, refreshBoot])
 
       const saveSubjects = async (draft) => {
-        const keepHistory = boot.counts?.[subjectId]?.all > 0
-        const next = draft.subjects.includes(subjectId) || keepHistory ? subjectId : (draft.subjects[0] || null)
-        const result = await rpc('saveSettings', { ...draft, activeSubject: next })
+        const preferred = draft.subjects.includes(subjectId) ? subjectId : (draft.subjects[0] || null)
+        const result = await rpc('saveSettings', { ...draft, activeSubject: preferred })
+        const next = result.settings.activeSubject
         bootRequest.current++
-        setBoot((current) => ({ ...current, ...result, customSubjects: draft.customSubjects }))
+        setBoot((current) => ({ ...current, ...result }))
         setModal(null)
-        notify('科目设置已保存')
-        if (next !== subjectId || (kind === 'today' && !result.settings.subjects.includes(next))) {
-          setSubjectId(next)
-          if (next && result.settings.subjects.includes(next)) loadToday(next)
-          else if (next) loadList(next, 'all')
-          else {
-            dailyRequest.current++
-            setBusy(''); setFail(''); setQuestion(null); setThread(null); setThreadOpen(false); setView('empty')
-          }
-        }
+        notify(draft.deleteSubjectIds?.length ? '已删除所选科目及其历史题目' : '科目设置已保存')
+        if (next !== subjectId) showSubject(next)
       }
 
       const pickFile = useCallback(() => {
@@ -2583,7 +2744,8 @@ window.__ModuleLoader__.load({
         } else await execute()
       }
 
-      const counts = subjectId ? boot?.counts?.[subjectId] : null
+      const subjectVisible = boot?.settings.subjects.includes(subjectId)
+      const counts = subjectVisible ? boot.counts?.[subjectId] : null
       const selectAllQuestions = async (value) => {
         if(bulkLock.current)return
         const request=dailyRequest.current,selection=++selectionRequest.current
@@ -2608,7 +2770,7 @@ window.__ModuleLoader__.load({
           })
         }
         if (loading) return h('div', { className: 'kd-loading' }, h('span', { className: 'kd-spinner' }), '正在读取学习数据…')
-        if (!subjectId && !boot?.settings?.subjects?.length && !archivedSubjects(boot || {}).length) {
+        if (!boot?.settings?.subjects?.length) {
           return h(EmptyState, {
             icon: 'plus',
             title: T.noSubjects,
@@ -2623,6 +2785,7 @@ window.__ModuleLoader__.load({
             ],
           })
         }
+        if (!subjectVisible) return null
         if (busy === 'daily' && !question) {
           return h('div', { className: 'kd-loading' },
             h('span', { className: 'kd-spinner' }),
@@ -2725,13 +2888,14 @@ window.__ModuleLoader__.load({
       })()
 
       const pickTab = (value) => {
+        if (!subjectVisible) return
         if (value === kind && (value === 'today' || view === 'list')) return
         if (value === 'today') {
           if (boot?.settings.subjects.includes(subjectId)) loadToday(subjectId)
         }
         else loadList(subjectId, value)
       }
-      const showThread = view === 'detail' && question && threadOpen && !localRedo
+      const showThread = subjectVisible && view === 'detail' && question && threadOpen && !localRedo
         && question.answerState === 'revealed' && question.attemptCount > 0
 
       return h('div', { className: 'kd-page' },
@@ -2758,6 +2922,8 @@ window.__ModuleLoader__.load({
           onPick: pickSubject,
           onManage: () => setModal({ kind: 'subjects' }),
           onBanks: () => setModal({ kind: 'banks' }),
+          onSyllabuses: () => setModal({ kind:'syllabuses' }),
+          onPastPapers: () => setModal({ kind:'past-papers' }),
         }) : null,
         h('div', { className: 'kd-shell' },
           boot ? h(SubjectNav, {
@@ -2766,6 +2932,8 @@ window.__ModuleLoader__.load({
             onPick: pickSubject,
             onManage: () => setModal({ kind: 'subjects' }),
             onBanks: () => setModal({ kind: 'banks' }),
+            onSyllabuses: () => setModal({ kind:'syllabuses' }),
+            onPastPapers: () => setModal({ kind:'past-papers' }),
           }) : null,
           h('main', { className: 'kd-main' },
             h('div', { className: 'kd-main-toolbar' },
@@ -2775,7 +2943,7 @@ window.__ModuleLoader__.load({
                 onPick: pickTab,
                 todayDisabled: !boot.settings.subjects.includes(subjectId),
               }) : null,
-              kind !== 'today' && view === 'detail'
+              subjectVisible && kind !== 'today' && view === 'detail'
                 ? h(Btn, { small: true, onClick: backToList, title: '返回列表', ariaLabel: '返回列表' }, h(Icon, { name: 'chevron-left', size: 16 })) : null),
             h('div', { className: 'kd-main-scroll', ref: mainScroll },
               h('div', { className: 'kd-main-inner' },
@@ -2828,6 +2996,14 @@ window.__ModuleLoader__.load({
           onClose: () => setModal(null),
           onConfirm: confirmRevision,
           onDiscard: discardRevision,
+        }) : null,
+        modal?.kind === 'syllabuses' && boot ? h(SyllabusesModal,{
+          boot,subjectId,onClose:()=>setModal(null),
+          onSaved:(syllabuses)=>{bootRequest.current++;setBoot((current)=>({...current,syllabuses}))},
+        }) : null,
+        modal?.kind === 'past-papers' && boot ? h(PastPapersModal,{
+          boot,subjectId,onClose:()=>setModal(null),
+          onSaved:(pastPapers)=>{bootRequest.current++;setBoot((current)=>({...current,pastPapers}))},
         }) : null,
         modal?.kind === 'confirm' ? h(ConfirmModal, {
           key: modal.title,

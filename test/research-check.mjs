@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { discoverExamReferences, validateResearchAudit } from '../lib/research.js'
 import { referenceExamFor } from '../lib/subjects.js'
-import { createVerifiedQuestion } from '../lib/generate.js'
+import { generateWithResearch as createVerifiedQuestion } from './reference-fixture.mjs'
 import { publicResearchUrl, referenceLinks } from '../lib/reference-reader.js'
 
 const now=new Date('2026-11-05T00:00:00Z'),examInfo={year:2027}
@@ -66,6 +66,21 @@ function fixture({planner,auditor,results=docs,readPage}={}) {
   return {ctx,reader,counts:()=>({turns,searches,reads,calls})}
 }
 const f=fixture()
+const onlyPapers=fixture({
+  planner:(turn)=>turn===1
+    ? {searches:['示例大学801考试大纲','示例大学801历年真题'],reads:[]}
+    : {searches:[],reads:docs.map((d,i)=>({url:d.url,kind:i?'paper':'outline'})),done:true},
+  auditor:()=>{
+    const review=audit()
+    review.identity.evidence={sourceId:'doc-1',quote:docs[1].identity}
+    review.sources=review.sources.slice(1).map((source,i)=>({...source,sourceId:'doc-'+(i+1)}))
+    return review
+  },
+})
+const paperRefresh=await discoverExamReferences({ctx:onlyPapers.ctx,basis,examInfo,now,readPage:onlyPapers.reader,plannedType:'single',papersOnly:true})
+assert.deepEqual(paperRefresh.research.queries,['示例大学801历年真题'])
+assert.equal(onlyPapers.counts().reads,2)
+assert.deepEqual(paperRefresh.sources.map((source)=>source.kind),['paper','paper'])
 const first=await discoverExamReferences({ctx:f.ctx,basis,examInfo,now,readPage:f.reader})
 assert.equal(first.research.rounds,2);assert.equal(first.research.reads,3)
 assert.equal(first.sources[0].official,true)

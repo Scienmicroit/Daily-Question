@@ -169,21 +169,21 @@ const examRefresh = await service.refreshExamDate({ year: targetYear })
 check('无 web 服务时如实报告未核验', examRefresh.ok === false && typeof examRefresh.reason === 'string', JSON.stringify(examRefresh))
 
 let modelError = ''
-await service.saveSettings({ subjects: ['math1', 'math2', 'english1'] })
+await service.saveSettings({ subjects: ['math1', 'math2', 'politics'] })
 try {
-  await service.ensureDaily('english1')
+  await service.ensureDaily('politics')
 } catch (error) {
   modelError = error.message
 }
 check('无法在线出题时给出明确原因', modelError.includes('llm') || modelError.includes('模型'), modelError)
 const data = await service.data()
-check('出题失败不会写入正式题目', Object.values(data.questions).every((question) => question.subjectId !== 'english1'))
-check('失败原因被记录', Boolean(data.failures.english1?.message))
+check('出题失败不会写入正式题目', Object.values(data.questions).every((question) => question.subjectId !== 'politics'))
+check('失败原因被记录', Boolean(data.failures.politics?.message))
 
 const removed = await service.removeSubject({ subjectId: 'math1' })
-check('删除科目保留历史数据', removed.settings.subjects.length === 2 && !removed.settings.subjects.includes('math1') && Object.values(data.questions).some((q) => q.subjectId === 'math1'), JSON.stringify(removed.settings.subjects))
+check('停用科目保留历史数据', removed.settings.subjects.length === 2 && !removed.settings.subjects.includes('math1') && Object.values((await service.data()).questions).some((q) => q.subjectId === 'math1'), JSON.stringify(removed.settings.subjects))
 const kept = await service.listQuestions({ subjectId: 'math1', kind: 'all' })
-check('删除科目后仍可查看历史题目', kept.items.length >= 1)
+check('停用科目仍保留可恢复的历史题目', kept.items.length >= 1)
 check('停用科目仍有历史列表计数且不继续出题', removed.counts.math1.all === kept.total
   && await service.ensureDaily('math1').then(() => false, (error) => /未启用/.test(error.message)))
 
@@ -323,6 +323,38 @@ const latestList = await service.listQuestions({ subjectId: 'english2' })
 check('历史题按最近出题日期排序并显示该日期',
   latestList.items[0].id === 'old-reading' && latestList.items[0].assignedDate === '2026-01-03'
   && (await service.getQuestion({ qid: 'old-reading' })).question.assignedDate === '2026-01-03')
+
+const reenabled = await service.addSubject({subjectId:'math1'})
+check('重新启用恢复原有历史题',reenabled.counts.math1.all === (await service.listQuestions({subjectId:'math1'})).total
+  && (await service.getQuestion({qid:qid1})).question.subjectId==='math1')
+await service.store.update((draft)=>{
+  draft.questions['custom-issued']={id:'custom-issued',subjectId:'custom_demo'}
+  draft.threads[qid1]={questionId:qid1,messages:[]}
+  draft.threads['custom-issued']={questionId:'custom-issued',messages:[]}
+  draft.daily['2026-01-01|custom_demo']={subjectId:'custom_demo',questionId:'custom-issued'}
+  draft.daily['2026-01-02|custom_demo']={subjectId:'custom_demo',questionId:'missing-issued'}
+  draft.attempts.push({questionId:'custom-issued',result:'wrong'})
+  draft.failures.custom_demo={message:'旧错误'}
+})
+const beforeDelete=await service.data()
+const deletedIds=new Set(Object.values(beforeDelete.questions).filter((q)=>['math1','custom_demo'].includes(q.subjectId)).map((q)=>q.id))
+const badDelete=await service.saveSettings({deleteSubjectIds:['math1','unknown']}).then(()=>false,()=>true)
+check('待删除科目校验失败时整批保留',badDelete && Boolean((await service.data()).questions[qid1]))
+const deletedSubjects=await service.saveSettings({deleteSubjectIds:['math1','custom_demo'],activeSubject:'math1'})
+const afterSubjectDelete=await service.data()
+check('删除内置及自定义科目，原子清理题目、作答、追问和每日分配',
+  [...deletedIds].every((id)=>!afterSubjectDelete.questions[id]&&!afterSubjectDelete.threads[id])
+  && afterSubjectDelete.attempts.every((a)=>!deletedIds.has(a.questionId))
+  && Object.values(afterSubjectDelete.daily).every((record)=>!['math1','custom_demo'].includes(record.subjectId)&&!deletedIds.has(record.questionId))
+  && !afterSubjectDelete.failures.custom_demo && Boolean(afterSubjectDelete.questions['old-reading'])
+  && JSON.stringify(afterSubjectDelete.banks)===JSON.stringify(beforeDelete.banks))
+check('删除后科目消失，当前科目切换到仍启用的科目',
+  !deletedSubjects.subjects.some((s)=>['math1','custom_demo'].includes(s.id)) && deletedSubjects.settings.activeSubject==='math2')
+await service.saveSettings({subjects:['math1','custom_demo','math2'],customSubjects:previousCustom,deleteSubjectIds:['math1']})
+const reopenedAfterDelete=new DailyQuestionService({get:()=>undefined})
+const restored=await reopenedAfterDelete.bootstrap()
+check('删除重试和过期草稿不能恢复已删除科目',
+  !restored.subjects.some((s)=>['math1','custom_demo'].includes(s.id)) && restored.settings.subjects.join()==='math2')
 
 await rm(tmpRoot, { recursive: true, force: true })
 console.log(failures ? `\n${failures} 个检查未通过` : '\n全部通过')
