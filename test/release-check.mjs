@@ -26,6 +26,10 @@ try {
   await fs.cp('ui',path.join(packageRoot,'ui'),{recursive:true})
   const packed=JSON.parse(await fs.readFile(path.join(packageRoot,'package.json'),'utf8'))
   assert.equal(packed.version,pkg.version)
+  await fs.copyFile('package-lock.json',path.join(packageRoot,'package-lock.json'))
+  const install=spawnSync(process.platform==='win32'?'npm.cmd':'npm',['ci','--omit=dev','--ignore-scripts','--no-audit','--no-fund'],{cwd:packageRoot,encoding:'utf8',shell:process.platform==='win32',timeout:120000})
+  if(install.error)throw install.error
+  assert.equal(install.status,0,install.stderr)
   const result=spawnSync(process.execPath,['--test','--test-reporter=tap','test/run.mjs'],{cwd:packageRoot,encoding:'utf8',timeout:120000,maxBuffer:4*1024*1024})
   if(result.error)throw result.error
   if(result.status!==0)throw new Error(result.stdout.slice(-4000)+'\n'+result.stderr.slice(-2000))

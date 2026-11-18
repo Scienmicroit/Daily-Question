@@ -199,7 +199,7 @@ let rpcResponder = null
 let rpcError = null
 const mockWindow = {}
 const react = { createElement: h, useState: (v) => stateHook(v), useEffect: (fn, deps) => effectHook(fn, deps),
-  useRef: (v) => refHook(v), useMemo: (fn) => fn(), useCallback: (fn) => fn }
+  useRef: (v) => refHook(v), useMemo: (fn) => fn(), useCallback: (fn) => fn, useId: () => 'test-id' }
 components = createClient(react, { window: mockWindow, fetch: async (_, options) => {
   const payload = JSON.parse(options.body)
   requests.push(payload)
@@ -319,6 +319,7 @@ for (const kind of ['today', 'all', 'favorite', 'wrong']) {
   const nodes = []
   walk(page, (n) => nodes.push(n))
   const tabs = nodes.find((n) => n.type === components.TabBar)
+  check(`${kind} 主栏目不显示返回按钮`, !tabs.props.onBack)
   const before = requests.length
   tabs.props.onPick(kind)
   check(`${kind} 重复点击当前栏目不发请求`, requests.length === before)
@@ -341,12 +342,12 @@ for (const [isToday, hasViewed] of [[false, false], [false, true], [true, false]
   initial[5] = 'detail'; initial[6] = rpcResult.question; index = 0
   const detailNodes = []
   walk(components.Page(), (n) => detailNodes.push(n))
-  const back = detailNodes.find((n) => n.props.ariaLabel === '返回列表' && n.props.onClick)
+  const back = detailNodes.find((n) => n.type === components.TabBar).props.onBack
   detailNodes.find((n) => n.type === components.QuestionPane).props.onRedo()
   check('主动重新作答隐藏答案并收起追问', changed.get(16) === true && changed.get(17) === false)
   rpcResult = { items: [] }
-  await back.props.onClick()
-  check('详情的独立返回按钮回到原列表', changed.get(5) === 'list'
+  await back()
+  check('详情菜单栏的返回按钮回到原列表', changed.get(5) === 'list'
     && requests.at(-1).op === 'listQuestions' && requests.at(-1).args.kind === 'all')
 }
 stateHook = useState
@@ -396,39 +397,88 @@ walk(components.MobileBar({ boot: archivedBoot, subjectId:'math2' }), (node) => 
   if (node.type === 'option' && node.props.value) mobileOptions.push(node.props.value)
 })
 check('桌面和窄屏只显示启用科目，省去分组标题',
-  navLabels.join() === '设置' && navNames.join() === '数学一' && mobileOptions.join() === 'math1')
-const settingsNav = components.SubjectNav({boot:archivedBoot})
-check('大纲管理入口位于题库管理下方',textOf(settingsNav).includes('题库管理大纲管理'))
-check('真题管理入口位于大纲管理下方',textOf(settingsNav).includes('大纲管理真题管理'))
+  navLabels.length === 0 && navNames.join() === '数学一' && mobileOptions.join() === 'math1')
+for (const component of [components.SubjectNav, components.MobileBar]) {
+  const nav = textOf(component({ boot: archivedBoot }))
+  check('桌面和窄屏各只有一个设置入口', nav.includes('设置') && !/科目管理|题库管理|检查更新|当前版本/.test(nav))
+}
+let selectedSection, closeRequested = false, settingsKeys
+effectHook = (fn) => { settingsKeys = fn }
+const settingsNav = resolve(components.SettingsModal({ active: 'subjects', ready: true,
+  onPick: (id) => { selectedSection = id }, onClose: () => { closeRequested = true } }))
+effectHook = () => {}
+check('设置弹窗不响应遮罩点击和 Escape', !settingsNav.props.onMouseDown && settingsKeys?.() === undefined)
+walk(settingsNav, (node) => { if (node.type === 'button' && node.props['aria-label'] === '关闭') node.props.onClick() })
+check('设置弹窗保留右上角关闭按钮', closeRequested)
+const sectionButtons = []
+walk(settingsNav, (node) => { if (node.props.className === 'kd-settings-option') sectionButtons.push(node) })
+check('设置左侧按顺序列出管理功能和关于', sectionButtons.map(textOf).join() === '科目管理,题库管理,大纲管理,真题管理,备份与恢复,关于')
+sectionButtons.at(-1)?.props.onClick()
+check('设置项切换到关于', selectedSection === 'about' && sectionButtons[0]?.props['aria-current'] === 'page')
+const about = resolve(components.AboutPanel({ currentVersion: '2.2.0' }))
+let repoLink
+walk(about, (node) => { if (node.type === 'a') repoLink = node })
+check('关于显示简介、GitHub 仓库和当前版本', textOf(about).includes('考研练习插件')
+  && textOf(about).includes('当前版本 v2.2.0') && repoLink?.props.href === 'https://github.com/Scienmicroit/Daily-Question')
+for (const [panel, labels] of [
+  [components.SubjectsModal({ boot: { settings: { subjects: [] } }, embedded: true }), '撤销保存'],
+  [components.BanksModal({ boot: archivedBoot, embedded: true }), '导入题库'],
+]) {
+  const tree = resolve(panel)
+  const header = tree.children.find((node) => node?.props?.className === 'kd-modal-head')
+  check('功能按钮位于各自功能标题旁', textOf(header).endsWith(labels))
+  check('功能按钮不占用底栏', !tree.children.some((node) => node?.props?.className === 'kd-modal-foot'))
+}
 const previousReader=globalThis.FileReader
 globalThis.FileReader=class { readAsText() { this.result='考试范围包括函数极限、连续性及导数应用。';this.onload() } }
 try {
-  let syllabuses
-  rpcResult={syllabuses:[{subjectId:'math2',fileName:'范围.txt'}]}
-  const syllabusModal=resolve(components.SyllabusesModal({boot:archivedBoot,subjectId:'math2',onSaved:(value)=>{syllabuses=value}}))
-  let input
-  walk(syllabusModal,(node)=>{if(node.type==='input'&&node.props.type==='file')input=node})
-  await input.props.onChange({target:{files:[{name:'范围.txt',size:64}],value:'范围.txt'}})
-  check('大纲管理按选定科目导入正文',requests.at(-1).op==='importSyllabus'
-    && requests.at(-1).args.subjectId==='math2' && requests.at(-1).args.text.includes('函数极限') && syllabuses[0].fileName==='范围.txt')
   const form=new Map()
-  let field=0, pastPapers
+  let field=0, syllabuses, pastPapers
   stateHook=(initial)=>{
     const key=field++
     if(!form.has(key))form.set(key,typeof initial==='function'?initial():initial)
     return [form.get(key),(value)=>form.set(key,value)]
   }
-  const renderPaperForm=()=>{
+  const renderImportForm=(Panel,onSaved)=>{
     field=0
     const nodes=[]
-    walk(resolve(components.PastPapersModal({boot:archivedBoot,subjectId:'math2',onSaved:(value)=>{pastPapers=value}})),(node)=>nodes.push(node))
+    walk(resolve(Panel({boot:archivedBoot,onSaved})),(node)=>nodes.push(node))
     return nodes
   }
+  const renderSyllabusForm=()=>renderImportForm(components.SyllabusesModal,(value)=>{syllabuses=value})
+  const renderPaperForm=()=>renderImportForm(components.PastPapersModal,(value)=>{pastPapers=value})
+  const subjectSelect=(nodes)=>nodes.find((node)=>node.type==='select')
+  const importButton=(nodes,label)=>nodes.find((node)=>node.type==='button'&&textOf(node)===label)
+  let syllabusNodes=renderSyllabusForm()
+  check('大纲管理未预选科目时禁用导入', subjectSelect(syllabusNodes).props.value===''
+    && syllabusNodes.some((node)=>node.type==='option'&&textOf(node)==='选择一门科目')
+    && importButton(syllabusNodes,'导入大纲').props.disabled)
+  subjectSelect(syllabusNodes).props.onChange({target:{value:'math2'}})
+  syllabusNodes=renderSyllabusForm()
+  check('大纲管理选定科目后允许导入',!importButton(syllabusNodes,'导入大纲').props.disabled)
+  const beforeSyllabus = requests.length
+  rpcResult={importId:'syllabus-preview',canSave:true,fileName:'范围.txt',text:'函数极限'}
+  await syllabusNodes.find((node)=>node.props.type==='file').props.onChange({target:{files:[{name:'范围.txt',size:64}],value:'范围.txt'}})
+  check('大纲管理上传后先预览',requests.length===beforeSyllabus+1&&requests.at(-1).op==='importSyllabus'
+    && requests.at(-1).args.subjectId==='math2' && requests.at(-1).args.text.includes('函数极限') && !syllabuses)
+  rpcResult={syllabuses:[{subjectId:'math2',fileName:'范围.txt'}]}
+  await importButton(renderSyllabusForm(),'确认导入').props.onClick()
+  check('大纲预览确认后保存', requests.at(-1).op==='commitStudyImport' && syllabuses[0].fileName==='范围.txt')
+  form.clear()
   renderPaperForm().find((node)=>node.props.type==='number').props.onChange({target:{value:'2025'}})
-  rpcResult={pastPapers:[{subjectId:'math2',year:2025,fileName:'试卷.txt'}]}
+  const paperNodes=renderPaperForm()
+  check('真题管理有年份但未选科目时禁用导入', subjectSelect(paperNodes).props.value===''
+    && paperNodes.some((node)=>node.type==='option'&&textOf(node)==='选择一门科目')
+    && importButton(paperNodes,'导入真题').props.disabled)
+  subjectSelect(paperNodes).props.onChange({target:{value:'math2'}})
+  check('真题管理选定科目和年份后允许导入',!importButton(renderPaperForm(),'导入真题').props.disabled)
+  rpcResult={importId:'paper-preview',canSave:true,fileName:'试卷.txt',text:'真题预览'}
   await renderPaperForm().find((node)=>node.props.type==='file').props.onChange({target:{files:[{name:'试卷.txt',size:64}],value:'试卷.txt'}})
-  check('真题管理携带所选科目和年份导入',requests.at(-1).op==='importPastPaper'
-    && requests.at(-1).args.subjectId==='math2' && requests.at(-1).args.year===2025 && pastPapers[0].fileName==='试卷.txt')
+  check('真题管理携带所选科目和年份预览',requests.at(-1).op==='importPastPaper'
+    && requests.at(-1).args.subjectId==='math2' && requests.at(-1).args.year===2025 && !pastPapers)
+  rpcResult={pastPapers:[{subjectId:'math2',year:2025,fileName:'试卷.txt'}]}
+  await importButton(renderPaperForm(),'确认导入').props.onClick()
+  check('真题预览确认后保存', requests.at(-1).op==='commitStudyImport' && pastPapers[0].fileName==='试卷.txt')
   stateHook=useState
   rpcResult={items:[]}
 } finally {
@@ -443,7 +493,7 @@ stateHook = (value) => {
   previewStates[index] ??= value
   return [previewStates[index], (next) => { previewStates[index] = typeof next === 'function' ? next(previewStates[index]) : next }]
 }
-const previewImport = { name: '预览', usable: 2, stats: { total: 3 }, warnings: [],
+const previewImport = { name: '预览', usable: 2, stats: { total: 3 }, warnings: [], sourceText: '文件末尾参考答案',
   items: [true, false, true].map((usable, index) => ({ index: index + 1, usable, stem: '导入预览测试题', issues: [], options: [] })) }
 const bankPreviewNodes = () => {
   previewStateIndex = 0
@@ -452,10 +502,18 @@ const bankPreviewNodes = () => {
   return nodes
 }
 const previewChecks = bankPreviewNodes().filter((node) => node.props.type === 'checkbox')
+check('文本题库预览可对照完整原文', bankPreviewNodes().some((node) => node.type === 'pre' && textOf(node) === '文件末尾参考答案'))
 previewChecks[0].props.onChange({ target: { checked: false } })
 bankPreviewNodes().find((node) => node.type === 'button' && textOf(node) === '确认入库').props.onClick()
 check('题库预览可取消单题，问题条目默认禁选',
   previewChecks[1].props.disabled && !previewChecks[1].props.checked && String(submittedExclusions) === '1')
+previewImport.incomplete = true
+previewImport.pages = [{ page: 1, source: 'text', text: '第 1 页正文' },
+  { page: 2, source: 'failed', reason: '模型未能完整识别这一页' }]
+const incompleteBank = bankPreviewNodes()
+check('题库预览明确列出失败页并禁用确认入库', incompleteBank.some((node) => node.props.role === 'alert'
+  && textOf(node).includes('识别失败页：2')) && incompleteBank.find((node) => node.type === 'button'
+  && textOf(node) === '确认入库').props.disabled)
 stateHook = useState
 const sessionBoot = { settings: { subjects: ['math1'] }, subjects: [] }
 const sessionQuestion = { id: 'session-q', answerState: 'revealed', attemptCount: 1 }
@@ -477,7 +535,7 @@ const sessionNodes = () => {
 rpcResult = { ...sessionBoot, question: sessionQuestion, isToday: true, items: [] }
 await sessionNodes().find((n) => n.type === components.ListPane).props.onOpen(sessionQuestion.id)
 sessionNodes().find((n) => n.type === components.QuestionPane).props.onRedo()
-await sessionNodes().find((n) => n.props.ariaLabel === '返回列表').props.onClick()
+await sessionNodes().find((n) => n.type === components.TabBar).props.onBack()
 await sessionNodes().find((n) => n.type === components.ListPane).props.onOpen(sessionQuestion.id)
 check('今日题重新作答后离开再进入仍隐藏答案', sessionState.get(16) === true)
 await sessionNodes().find((n) => n.type === components.QuestionPane).props.onReveal('done')
@@ -496,7 +554,7 @@ for (const [answerState, localRedo] of [['locked', false], ['revealed', false], 
 
 // 科目管理只编辑草稿，完成后才提交。
 const subjectsBoot = { settings: { subjects: ['math1'], subjectSource: { math1: 'auto' } }, customSubjects: [],
-  referenceExams:[{id:'math1',name:'数学一',code:'301'},{id:'politics',name:'思想政治理论',code:'101'},{id:'cs408',name:'计算机学科专业基础',code:'408'}],
+  referenceExams:[{id:'math1',name:'数学一',code:'301'},{id:'politics',name:'思想政治理论',code:'101'},{id:'cs408',name:'计算机学科专业基础综合',code:'408'}],
   subjects: [{ id: 'math1', name: '数学一', typeLabels: ['解答题'] }, { id: 'politics', name: '思想政治理论', typeLabels: ['单项选择题'] }] }
 const originalSubjects = JSON.stringify(subjectsBoot)
 let subjectState = new Map(), subjectIndex = 0, subjectSaves = [], closes = 0, failSave = false
@@ -516,35 +574,72 @@ const subjectNodes = () => {
   return nodes
 }
 const subjectButton = (label) => subjectNodes().find((n) => n.type === 'button' && textOf(n) === label)
+const subjectActionsDisabled = () => subjectButton('撤销').props.disabled && subjectButton('保存').props.disabled
+const togglePolitics = () => subjectNodes().filter((n) => n.type === 'input' && n.props.type === 'checkbox')[1].props.onChange()
+check('无修改时，撤销和保存按钮不可用', subjectActionsDisabled())
+togglePolitics()
+check('改变科目勾选状态后可以撤销和保存', !subjectButton('撤销').props.disabled && !subjectButton('保存').props.disabled)
+togglePolitics()
+check('勾选后再取消，撤销和保存重新置灰', subjectActionsDisabled())
+const mathSource = (value) => subjectNodes().find((n) => n.props['aria-label'] === '数学一 出题来源').props.onChange({ target: { value } })
+mathSource('bank')
+check('改变出题来源后可以保存', !subjectButton('保存').props.disabled)
+mathSource('auto')
+check('恢复原出题来源后按钮重新置灰', subjectActionsDisabled())
 subjectNodes().filter((n) => n.type === 'input' && n.props.type === 'checkbox')[1].props.onChange()
 subjectNodes().find((n) => n.type === 'select' && n.props['aria-label'] === '思想政治理论 出题来源').props.onChange({ target: { value: 'bank' } })
 check('勾选和出题来源只修改草稿', subjectSaves.length === 0 && JSON.stringify(subjectsBoot) === originalSubjects)
+subjectButton('撤销').props.onClick()
+check('撤销前弹出确认并保留草稿', closes === 0 && subjectButton('确认撤销')
+  && subjectNodes().filter((n) => n.type === 'input' && n.props.type === 'checkbox')[1].props.checked)
+const undoEffects = []
+effectHook = (fn) => undoEffects.push(fn)
+const undoNodes = subjectNodes()
+effectHook = () => {}
+const undoOverlay = undoNodes.filter((node) => node.props.className === 'kd-overlay').at(-1)
+check('撤销确认不响应遮罩点击和 Escape', !undoOverlay.props.onMouseDown && undoEffects.every((fn) => fn() === undefined))
+let undoClose
+walk(undoOverlay, (node) => { if (node.type === 'button' && node.props['aria-label'] === '关闭') undoClose = node })
+undoClose.props.onClick()
+check('点击确认框的关闭图标保留草稿', closes === 0 && !subjectButton('确认撤销') && !subjectActionsDisabled())
+subjectButton('撤销').props.onClick()
 subjectButton('取消').props.onClick()
-check('取消不提交修改', closes === 1 && subjectSaves.length === 0)
+check('取消撤销保留草稿', closes === 0 && !subjectButton('确认撤销')
+  && subjectNodes().filter((n) => n.type === 'input' && n.props.type === 'checkbox')[1].props.checked)
+subjectButton('撤销').props.onClick()
+subjectButton('确认撤销').props.onClick()
+check('确认撤销不提交修改', closes === 1 && subjectSaves.length === 0)
 subjectState = new Map()
 check('重新打开不保留取消的草稿', subjectNodes().filter((n) => n.type === 'input' && n.props.type === 'checkbox')[1].props.checked === false)
+check('确认撤销后按钮重新置灰', subjectActionsDisabled())
 subjectNodes().find((n) => n.props['aria-label'] === '自定义科目的参考考试').props.onChange({ target: { value: 'math1' } })
 subjectNodes().find((n) => n.props.placeholder === '例如：数据结构（自命题）').props.onChange({ target: { value: '专业课' } })
 subjectNodes().find((n) => n.type === 'textarea').props.onChange({target:{value:'顺序表\n单链表'}})
 subjectNodes().find((n) => n.props.placeholder === '自定义题型，例如：名词解释').props.onChange({ target: { value: '名词解释' } })
 subjectButton('添加题型').props.onClick()
-subjectButton('添加').props.onClick()
+subjectButton('加入科目列表').props.onClick()
 subjectNodes().find((n) => n.type === 'textarea' && n.props.value === '顺序表\n单链表').props.onChange({target:{value:'顺序表\n循环链表'}})
 check('添加自定义科目和题型仍不提交且显示在草稿中', subjectSaves.length === 0 && subjectNodes().some((n) => textOf(n).includes('专业课'))
   && JSON.stringify(subjectsBoot) === originalSubjects)
 failSave = true
-await subjectButton('完成').props.onClick()
+await subjectButton('保存').props.onClick()
 check('保存失败保留草稿并显示错误', subjectSaves.length === 0 && subjectNodes().some((n) => n.props.role === 'alert' && textOf(n).includes('模拟保存失败'))
   && subjectState.get(0).customSubjects[0].name === '专业课')
 failSave = false
-await subjectButton('完成').props.onClick()
+await subjectButton('保存').props.onClick()
 check('完成一次提交科目和自定义题型', subjectSaves.length === 1 && subjectSaves[0].customSubjects[0].types[0] === '名词解释'
   && subjectSaves[0].subjects.includes(subjectSaves[0].customSubjects[0].id) && subjectSaves[0].customSubjects[0].referenceSubjectId === 'math1')
 check('自定义练习范围跟随科目草稿保存', subjectSaves[0].customSubjects[0].outline.join(',')==='顺序表,循环链表')
 subjectState = new Map()
-subjectNodes().find((n) => n.props.placeholder === '例如：数据结构（自命题）').props.onChange({ target: { value: '待添加科目' } })
+subjectNodes().find((n) => n.props['aria-label'] === '自定义科目的参考考试').props.onChange({ target: { value: 'cs408' } })
 subjectNodes().find((n) => n.props.placeholder === '自定义题型，例如：名词解释').props.onChange({ target: { value: '简答' } })
-await subjectButton('完成').props.onClick()
+const beforeMissingName = subjectSaves.length
+await subjectButton('保存').props.onClick()
+check('选择 408 且缺少科目名称时，只提示补填科目名称', subjectSaves.length === beforeMissingName
+  && subjectNodes().some((n) => n.props.role === 'alert' && textOf(n) === '添加自定义科目前，请填写科目名称。'))
+subjectNodes().find((n) => n.props.placeholder === '例如：数据结构（自命题）').props.onChange({ target: { value: '待添加科目' } })
+check('补填名称后立即清除提示', !subjectNodes().some((n) => n.props.role === 'alert'))
+await subjectButton('保存').props.onClick()
 check('完成同时保存未点击添加的有效自定义输入', subjectSaves.at(-1).customSubjects[0].name === '待添加科目'
   && subjectSaves.at(-1).customSubjects[0].types[0] === '简答')
 subjectState=new Map()
@@ -554,14 +649,14 @@ subjectNodes().find((n)=>n.props['aria-label']==='自定义科目的参考考试
 subjectNodes().find((n)=>n.props.placeholder==='例如：数据结构（自命题）').props.onChange({target:{value:'专业课练习'}})
 subjectNodes().find((n)=>n.props.placeholder==='自定义题型，例如：名词解释').props.onChange({target:{value:'简答'}})
 const savesBeforeIndependent=subjectSaves.length
-await subjectButton('完成').props.onClick()
+await subjectButton('保存').props.onClick()
 check('独立参考考试缺少名称时不提交',subjectSaves.length===savesBeforeIndependent)
 subjectNodes().find((n)=>n.props['aria-label']==='自定义科目的参考考试名称').props.onChange({target:{value:'示例大学数据结构'}})
 subjectNodes().find((n)=>n.props['aria-label']==='自定义科目的参考考试代码').props.onChange({target:{value:'801'}})
-subjectButton('添加').props.onClick()
+subjectButton('加入科目列表').props.onClick()
 subjectNodes().find((n)=>n.props['aria-label']==='专业课练习 参考考试科目代码').props.onChange({target:{value:'802'}})
 check('编辑独立考试名称代码仍只修改草稿',subjectSaves.length===savesBeforeIndependent&&JSON.stringify(subjectsBoot)===originalSubjects)
-await subjectButton('完成').props.onClick()
+await subjectButton('保存').props.onClick()
 check('点击完成后统一保存独立考试名称代码',subjectSaves.at(-1).customSubjects[0].referenceSubjectId==='independent'
   &&subjectSaves.at(-1).customSubjects[0].referenceExamName==='示例大学数据结构'&&subjectSaves.at(-1).customSubjects[0].referenceExamCode==='802')
 subjectState=new Map()
@@ -570,10 +665,10 @@ subjectNodes().find((n)=>n.props.placeholder==='例如：数据结构（自命�
 subjectNodes().find((n)=>n.props['aria-label']==='自定义科目的参考考试代码（考试科目或专业）').props.onChange({target:{value:'081200'}})
 subjectNodes().find((n)=>n.props.placeholder==='自定义题型，例如：名词解释').props.onChange({target:{value:'简答'}})
 const beforeAuto=subjectSaves.length
-subjectButton('添加').props.onClick()
+subjectButton('加入科目列表').props.onClick()
 subjectNodes().find((n)=>n.props['aria-label']==='示例大学计算机科学与技术 参考考试科目代码（考试科目或专业）').props.onChange({target:{value:'081201'}})
 check('自主检索代码编辑仍只修改草稿',subjectSaves.length===beforeAuto&&JSON.stringify(subjectsBoot)===originalSubjects)
-await subjectButton('完成').props.onClick()
+await subjectButton('保存').props.onClick()
 check('完成后保存自动检索和专业代码',subjectSaves.at(-1).customSubjects[0].referenceSubjectId==='auto'&&subjectSaves.at(-1).customSubjects[0].code==='081201')
 subjectState = new Map()
 const beforeDelete = subjectSaves.length
@@ -588,7 +683,7 @@ deleteMath().props.onClick()
 subjectButton('继续删除').props.onClick()
 subjectButton('确认永久删除').props.onClick()
 check('两次确认仅加入待删除草稿',!deleteMath()&&subjectSaves.length===beforeDelete)
-await subjectButton('完成').props.onClick()
+await subjectButton('保存').props.onClick()
 check('完成才提交科目删除',subjectSaves.at(-1).deleteSubjectIds.join()==='math1'&&!subjectSaves.at(-1).subjects.includes('math1'))
 let pageStateIndex = 0
 const pageInitial = { 0: subjectsBoot, 1: false, 3: 'math1', 4: 'all', 5: 'list', 8: { items: [] }, 14: { kind: 'subjects' } }
@@ -748,6 +843,69 @@ await updateNodes().find(n=>n.type==='button'&&textOf(n)==='检查更新').props
 check('断网提示重试且保留当前版本',updateNodes().some(n=>n.props.role==='status'&&textOf(n).includes('请重试'))&&updateNodes().some(n=>textOf(n)==='当前版本 v2.0.0'))
 rpcError=null;stopUpdates()
 check('关闭页面清理更新检查定时器与事件',cleared&&focusListener===null)
+
+{
+  const backupState = new Map()
+  let backupIndex, backupEffects, restored = false
+  stateHook = (initial) => {
+    const index = backupIndex++
+    if (!backupState.has(index)) backupState.set(index, initial)
+    return [backupState.get(index), (value) => backupState.set(index, value)]
+  }
+  refHook = (value) => ({ current: value })
+  effectHook = (fn) => backupEffects.push(fn)
+  const nodes = () => {
+    backupIndex = 0
+    backupEffects = []
+    const result = []
+    walk(resolve(components.BackupModal({ embedded: true, onRestored: () => { restored = true } })), (node) => result.push(node))
+    return result
+  }
+  const button = (label) => nodes().find((node) => node.type === 'button' && textOf(node) === label)
+  rpcResult = [{ kind: 'before-delete', at: '2026-11-17T08:00:00Z' }]
+  check('备份页分别展示下载、文件恢复和本机恢复点', button('下载备份') && button('选择备份文件')
+    && nodes().some((node) => node.type === 'h3' && textOf(node) === '本机恢复点'))
+  const unload = backupEffects[0]()
+  await new Promise((resolve) => setImmediate(resolve))
+  const beforeRestore = requests.length
+  button('使用此恢复点').props.onClick()
+  check('选择恢复点后先确认且显示来源', requests.length === beforeRestore
+    && nodes().some((node) => node.type === 'strong' && textOf(node) === '删除科目前'))
+  button('取消').props.onClick()
+  check('取消确认不会发起恢复', requests.length === beforeRestore && !button('确认恢复'))
+  nodes().find((node) => node.type === 'input' && node.props.type === 'file').props.onChange({
+    target: { value: 'backup.json', files: [{ name: 'backup.json', text: async () => '{"schemaVersion":1}' }] },
+  })
+  check('从文件恢复显示文件名并等待确认', requests.length === beforeRestore
+    && nodes().some((node) => node.type === 'strong' && textOf(node) === 'backup.json'))
+  rpcResult = {}
+  await button('确认恢复').props.onClick()
+  check('确认后提交所选文件并完成恢复', restored && requests.at(-1).op === 'restoreBackup'
+    && requests.at(-1).args.confirmed && requests.at(-1).args.data.schemaVersion === 1)
+  unload()
+}
+
+for (const manual of [false, true]) {
+  let phase, bannerEffect
+  stateHook = (initial) => [phase ?? initial, (value) => { phase = value }]
+  effectHook = (fn) => { bannerEffect = fn }
+  const banner = () => resolve(components.NotificationBanner({ message: '测试通知', tone: manual ? 'bad' : 'ok' }))
+  const nodes = []
+  walk(banner(), (node) => nodes.push(node))
+  const closeButton = nodes.find((node) => node.props['aria-label'] === '关闭通知')
+  const stopDisplay = bannerEffect()
+  const [[showTimer, show]] = timers
+  check('通知支持关闭按钮并停留三秒', closeButton && show.delay === 3000)
+  if (manual) closeButton.props.onClick()
+  else show.fn()
+  stopDisplay()
+  check('手动或自动关闭都会进入收回动画', banner().children[0].props.className.includes('is-leaving') && !timers.has(showTimer))
+  const stopExit = bannerEffect()
+  const [exit] = timers.values()
+  exit.fn()
+  stopExit()
+  check('收回动画结束后移除横幅', exit.delay === 180 && banner() === null && timers.size === 0)
+}
 
 console.log(failures === 0 ? '全部通过' : `${failures} 项失败`)
 process.exit(failures === 0 ? 0 : 1)

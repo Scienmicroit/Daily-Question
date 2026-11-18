@@ -1,6 +1,6 @@
 {
   "name": "daily-question",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": false,
   "type": "module",
   "description": "考研每日一题 — DSH 插件：每科每天一道独立校验过的考研题，含倒计时、错题本、收藏与按题隔离的追问。",
@@ -65,5 +65,9 @@
   },
   "devDependencies": {
     "esbuild": "0.28.2"
+  },
+  "dependencies": {
+    "@hyzyla/pdfium": "2.1.13",
+    "pngjs": "7.0.0"
   }
 }

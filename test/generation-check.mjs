@@ -130,7 +130,7 @@ const service = new DailyQuestionService(failure.ctx)
 try {
   service.store = new Store(temp)
   await service.saveSettings({ subjects: ['math1'], subjectSource: { math1: 'online' } })
-  await assert.rejects(service.ensureDaily('math1'), /已阻止发布/)
+  await assert.rejects(service.ensureDaily('math1', { manual: true }), /已阻止发布/)
   assert.equal(failure.calls.length, 10)
   const data = await service.data()
   assert.equal(Object.keys(data.questions).length, 0)

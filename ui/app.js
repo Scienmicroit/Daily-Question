@@ -8,10 +8,11 @@ export function createClient(React, { window = globalThis.window, fetch = global
   const styleState = { injected: false }
   async function rpc(op, args) {
     let response
+    const slowPdf = op === 'importBank' || op === 'importSyllabus' || op === 'importPastPaper'
     try {
       response = await fetch('/api/daily-question/rpc', {
         method: 'POST',
-        signal: AbortSignal.timeout(op === 'ensureDaily' || op === 'revise' ? 16*60*1000 : op === 'followup' ? 6*60*1000 : 60_000),
+        signal: AbortSignal.timeout(op === 'ensureDaily' || op === 'revise' || slowPdf ? 16*60*1000 : op === 'followup' ? 6*60*1000 : 60_000),
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ op, args: args || {} }),
       })

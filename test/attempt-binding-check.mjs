@@ -34,5 +34,27 @@ try {
   assert.equal(readback.lastAttempt.choice, 'A')
   assert.equal(readback.attemptCount, 2)
   assert.equal((await service.getQuestion({ ...original, attemptId: 'unknown' })).question.lastAttempt, null)
+  const oldVersion = readback.answer.versionId
+  await service.store.update((draft) => {
+    const q = draft.questions.choice
+    q.subjectId = 'math1'
+    q.pendingRevision = { candidateId: 'replacement', answer: 'B', answerKey: 'B',
+      explanation: '修订后的解析', verification: { status: 'passed' } }
+    draft.attempts.push({ id: 'legacy-unknown', questionId: 'choice', at: '', result: 'correct', choice: 'A' })
+  })
+  await service.confirmRevision({ qid: 'choice', candidateId: 'replacement' })
+  const old = (await service.getQuestion(original)).question
+  assert.equal(old.lastAttempt.result, 'correct')
+  assert.equal(old.answer.answerKey, 'A')
+  assert.equal(old.answer.versionId, oldVersion)
+  assert.equal(old.historicalAnswer, true)
+  const unresolved = (await service.getQuestion({ qid: 'choice', attemptId: 'legacy-unknown' })).question
+  assert.equal(unresolved.answer, null)
+  assert.equal(unresolved.answerVersionUnknown, true)
+  const current = (await service.reveal({ qid: 'choice', choice: 'B', attemptId: 'new-version' })).question
+  assert.equal(current.lastAttempt.result, 'correct')
+  assert.equal(current.answer.answerKey, 'B')
+  assert.notEqual(current.answer.versionId, oldVersion)
+  assert.equal((await service.reveal(original)).question.answer.versionId, oldVersion)
   console.log('ok   判分绑定作答ID：双标签隔离、自己的结果、幂等重试及拒绝缺ID/串题/改判')
 } finally {await rm(root,{recursive:true,force:true})}

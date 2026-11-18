@@ -1,8 +1,9 @@
 export const T = {
   title: '考研每日一题',
   subtitle: '每天每科一道题，答案独立校验后才会发布',
-  tabs: { today: '今日题目', all: '全部', favorite: '收藏', wrong: '错题本' },
+  tabs: { today: '今日题目', review: '今日复习', all: '全部', favorite: '收藏', wrong: '错题本' },
   tabEmpty: {
+    review: '这个科目今天没有到期的错题。答错的题会安排在之后复习。',
     all: '这个科目还没有历史题目。先在「今日题目」完成今天的题，或导入题库。',
     favorite: '还没有收藏任何题目。查看答案后点「收藏」即可加入收藏列表。',
     wrong: '错题本是空的。答错或选择「未能作答」的题目会自动进入错题本。',
@@ -46,7 +47,7 @@ export const T = {
   cancel: '取消',
   confirm: '确认',
   import: '导入题库',
-  importHint: '支持 Markdown（.md/.txt）与文本型 PDF。导入后先预览，确认识别正确再入库。',
+  importHint: '支持 PDF、TXT 和 Markdown。DSH 默认模型会通读文件并识别题目，核对预览后再入库。',
   preview: '识别预览',
   commit: '确认入库',
   deleteBank: '删除题库',

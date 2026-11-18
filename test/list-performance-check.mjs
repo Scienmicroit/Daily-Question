@@ -24,7 +24,7 @@ try {
   const summary=service.summaryView.bind(service)
   service.summaryView=(...args)=>{summaries++;return summary(...args)}
   const start=performance.now(),counts=service.counts(snapshot)
-  assert.deepEqual(counts.math1,{all:5000,favorite:2500,wrong:1000})
+  assert.deepEqual(counts.math1,{all:5000,favorite:2500,wrong:1000,review:1000})
   const first=await service.listQuestions({subjectId:'math1'}),second=await service.listQuestions({subjectId:'math1',page:2})
   assert.equal(first.items.length,50);assert.equal(first.totalPages,100);assert.equal(first.total,5000)
   assert.equal(summaries,100);assert.equal(scans,1,'同一数据快照只扫描一次全部作答')

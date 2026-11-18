@@ -20,7 +20,7 @@ function fixture(responder,detail=false) {
     const result=op==='bootstrap'?boot:await responder(op,args)
     return {ok:true,json:async()=>({ok:true,result})}
   } })
-  function find(node,name){if(node?.type===name||node?.type?.name===name)return node;for(const child of node?.children||[]){const found=find(child,name);if(found)return found}}
+  function find(node,name){if(typeof name==='function'?name(node):node?.type===name||node?.type?.name===name)return node;for(const child of node?.children||[]){const found=find(child,name);if(found)return found}}
   return {state,props(name){index=refIndex=0;const node=find(components.Page(),name);assert(node,`缺少${name}`);return node.props}}
 }
 
@@ -51,12 +51,76 @@ function fixture(responder,detail=false) {
   }
 }
 
+{
+  const requests = []
+  const search = fixture((op, args) => {
+    requests.push({ op, args })
+    if (op === 'getQuestion') return { isToday: true, question: { id: args.qid, type: 'single',
+      answerState: 'revealed', attemptCount: 1, lastAttempt: { id: args.attemptId || 'prior', result: 'correct' } } }
+    if (op === 'reveal') return { question: { id: args.qid, type: 'single',
+      answerState: 'revealed', attemptCount: 2, lastAttempt: { id: args.attemptId, result: 'correct' } } }
+    return args.idsOnly ? { ids: ['A'] } : { items: [{ id: 'A' }], total: 1, page: args.page || 1 }
+  })
+  search.props('TabBar').onPick('all')
+  await tick()
+  search.props('input').onChange({ target: { value: '矩阵' } })
+  search.props('form').onSubmit({ preventDefault() {} })
+  await tick()
+  assert.equal(requests.at(-1).args.query, '矩阵')
+  await search.props('ListPane').onSelectAll(true)
+  assert.deepEqual(requests.at(-1).args, { subjectId: 'math1', kind: 'all', idsOnly: true, query: '矩阵' })
+  assert.deepEqual(search.props('ListPane').selected, ['A'])
+  search.props('select').onChange({ target: { value: 'single' } })
+  await tick()
+  assert.deepEqual(search.props('ListPane').selected, [])
+  assert.equal(requests.at(-1).args.type, 'single')
+
+  search.props('TabBar').onPick('review')
+  await tick()
+  assert.equal(requests.at(-1).args.kind, 'review')
+  assert.equal(requests.at(-1).args.query, undefined)
+  await search.props('ListPane').onOpen('A')
+  assert.equal(search.props('QuestionPane').localRedo, true, '从复习入口打开今日题也先隐藏答案')
+  search.props('QuestionPane').onSelect('A')
+  await search.props('QuestionPane').onReveal('submit')
+  assert.equal(search.props('QuestionPane').localRedo, false)
+  await search.props('QuestionPane').onInspectAttempt('prior')
+  assert.equal(search.props('AttemptModal').record.lastAttempt.id, 'prior')
+}
+
 const all=deferred(),favorite=deferred()
 let f=fixture((_op,args)=>args.kind==='all'?all.promise:favorite.promise)
 f.props('TabBar').onPick('all');f.props('TabBar').onPick('favorite')
 favorite.resolve({kind:'favorite',items:[]});await tick()
 all.resolve({kind:'all',items:[]});await tick()
 assert.equal(f.state.get(4),'favorite');assert.equal(f.state.get(8).kind,'favorite')
+
+{
+  const requests = []
+  const pending = deferred()
+  const settings = fixture((op, args) => { requests.push({ op, args }); return pending.promise })
+  settings.props('SubjectNav').onSettings()
+  assert.equal(settings.props('SettingsModal').active, 'subjects')
+  assert(settings.props('SubjectsModal').embedded)
+  settings.props('SettingsModal').onPick('about')
+  assert.equal(settings.props('SettingsModal').active, 'about')
+  assert(settings.props('AboutPanel'))
+  settings.props('SettingsModal').onPick('banks')
+  settings.props('BanksModal').onDelete({ id: 'test-bank', name: '示例题库' })
+  assert.equal(settings.props('SettingsModal').active, 'banks')
+  assert(settings.props('ConfirmModal').embedded)
+  settings.props('ConfirmModal').onClose()
+  assert(settings.props('BanksModal'))
+  assert.equal(requests.length, 0)
+  settings.props('BanksModal').onDelete({ id: 'test-bank', name: '示例题库' })
+  const deletion = settings.props('ConfirmModal').onConfirm()
+  assert.equal(settings.props('SettingsModal').locked, true)
+  assert.deepEqual(requests[0], { op: 'deleteBank', args: { bankId: 'test-bank' } })
+  pending.resolve({ message: '已删除示例题库' })
+  await deletion
+  assert(settings.props('BanksModal'))
+  assert.equal(settings.props('SettingsModal').locked, false)
+}
 
 const first=deferred(),second=deferred()
 f=fixture((_op,args)=>args.qid==='A'?first.promise:second.promise)
@@ -132,12 +196,88 @@ f=fixture((op,args)=>{
   if(op==='ensureDaily')return {question:{id:'math2-q'}}
 })
 f.state.set(14,{kind:'subjects'})
+f.props('SubjectsModal').onClose()
+assert.deepEqual(f.state.get(14),{kind:'subjects',edit:1},'取消科目修改只重置功能页')
+assert.equal(switchCalls.length,0)
 await f.props('SubjectsModal').onDone({subjects:['math2'],customSubjects:[]})
 await tick()
+assert.deepEqual(f.state.get(14),{kind:'subjects',edit:2,notice:'科目设置已保存'},'保存科目修改后仍停留在设置并显示提示')
 assert.equal(f.state.get(3),'math2')
 assert.deepEqual(switchCalls.map(([op,args])=>[op,args.activeSubject||args.subjectId]),[['saveSettings','math2'],['ensureDaily','math2']])
 
+const settingsNav = fixture(() => { throw new Error('放弃草稿不应提交设置') })
+settingsNav.state.set(14,{kind:'subjects'})
+settingsNav.props('SettingsModal').onPick('banks')
+assert.deepEqual(settingsNav.state.get(14),{kind:'banks'},'无修改时直接切换')
+settingsNav.props('SettingsModal').onPick('subjects')
+settingsNav.props('SubjectsModal').onDirtyChange(true)
+settingsNav.props('SettingsModal').onClose()
+let discard = settingsNav.props('SettingsModal').dialog.props
+assert.match(discard.message,/关闭设置/)
+discard.onClose()
+assert.equal(settingsNav.state.get(14).kind,'subjects','取消关闭后保留草稿页')
+settingsNav.props('SettingsModal').onPick('about')
+discard = settingsNav.props('SettingsModal').dialog.props
+assert.match(discard.message,/切换设置项/)
+assert.equal(discard.explicitClose,true)
+discard.onConfirm()
+assert.deepEqual(settingsNav.state.get(14),{kind:'about'},'确认放弃后切到目标设置项')
+settingsNav.props('SettingsModal').onPick('subjects')
+settingsNav.props('SubjectsModal').onDirtyChange(true)
+settingsNav.props('SettingsModal').onClose()
+settingsNav.props('SettingsModal').dialog.props.onConfirm()
+assert.equal(settingsNav.state.get(14),null,'确认放弃后关闭设置')
+settingsNav.state.set(14,{kind:'subjects'})
+settingsNav.props('SubjectsModal').onDirtyChange(true)
+settingsNav.props('SubjectsModal').onDirtyChange(false)
+settingsNav.props('SettingsModal').onClose()
+assert.equal(settingsNav.state.get(14),null,'改回原设置后直接关闭')
+
+const scheduleCalls = []
+const plan = { today: '2026-11-18', tomorrow: '2026-11-19', pendingStart: true,
+  todaySkipped: false, tomorrowSkipped: false, nextDate: '2026-11-18' }
+const schedule = fixture((op, args) => {
+  scheduleCalls.push([op, args])
+  if (op === 'ensureDaily') return { status: 'manual' }
+  if (op === 'setDailySkip') return { dailyPlans: { math1: { ...plan, tomorrowSkipped: args.skip } } }
+})
+const setSchedule = (patch) => schedule.state.set(0, { ...schedule.state.get(0),
+  today: plan.today, dailyPlans: { math1: { ...plan, ...patch } } })
+const scheduleButton = (label) => schedule.props((node) => node?.type?.name === 'Btn' && node.children.includes(label))
+setSchedule({})
+assert.equal(scheduleCalls.length, 0)
+assert.deepEqual(schedule.props('EmptyState').actions.children,['开始出题'])
+await schedule.props('EmptyState').actions.props.onClick()
+assert.deepEqual(scheduleCalls.at(-1), ['ensureDaily', { subjectId: 'math1', manual: true }])
+setSchedule({})
+await scheduleButton('跳过明天').onClick()
+assert.deepEqual(scheduleCalls.at(-1), ['setDailySkip', { date: '2026-11-19', skip: true }])
+assert.match(schedule.props('NotificationBanner').message,/跳过明天.*所有已启用科目/)
+await scheduleButton('取消跳过明天').onClick()
+assert.deepEqual(scheduleCalls.at(-1), ['setDailySkip', { date: '2026-11-19', skip: false }])
+assert.match(schedule.props('NotificationBanner').message,/取消跳过明天.*所有科目/)
+setSchedule({ pendingStart: false, todaySkipped: true, tomorrowSkipped: true, nextDate: '2026-11-20' })
+assert.equal(schedule.props('EmptyState').body, '下次出题：后天（2026年11月20日）')
+assert(scheduleButton('取消跳过明天'))
+await scheduleButton('取消跳过今天').onClick()
+assert.deepEqual(scheduleCalls.at(-2), ['setDailySkip', { date: '2026-11-18', skip: false }])
+assert.deepEqual(scheduleCalls.at(-1), ['ensureDaily', { subjectId: 'math1' }])
+assert.match(schedule.props('NotificationBanner').message,/取消跳过今天.*所有科目/)
+
 const lateThread=deferred()
+{
+  const changes = []
+  const reader = fixture((op, args) => {
+    changes.push([op, args])
+    return { question: { id: 'A', favorite: args.value, answerState: 'revealed', answer: { answer: '旧答案' } } }
+  }, true)
+  reader.state.set(6, { id: 'A', answerState: 'locked', answer: null })
+  await reader.props('QuestionPane').onFavorite()
+  assert.deepEqual(reader.state.get(6), { id: 'A', answerState: 'locked', answer: null, favorite: true })
+  await reader.props('QuestionPane').onFavorite()
+  assert.deepEqual(changes,[['favorite',{qid:'A',value:true}],['favorite',{qid:'A',value:false}]])
+  assert.equal(reader.state.get(6).answerState, 'locked', '未看答案也可收藏和取消，收藏响应不覆盖作答状态')
+}
 f=fixture((op)=>op==='followup'?lateThread.promise:{thread:{messages:[]}},true)
 f.state.set(17,true)
 const sending=f.props('ThreadPane').onSend('解释','old-message')

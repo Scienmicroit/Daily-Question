@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { recognizeFixtureBank } from './bank-parser-fixture.mjs'
 
 const tmpRoot = await mkdtemp(join(tmpdir(), 'daily-question-service-'))
 process.env.DSH_PROFILE_DIR = join(tmpRoot, 'profile')
@@ -14,7 +15,8 @@ function check(name, condition, detail = '') {
   else { failures += 1; console.log(`FAIL ${name} :: ${detail}`) }
 }
 
-const service = new DailyQuestionService({ get: () => undefined, logger: { info() {}, warn() {}, error() {} } })
+const service = new DailyQuestionService({ get: () => undefined, logger: { info() {}, warn() {}, error() {} } },
+  { recognizeBank: recognizeFixtureBank })
 
 const bankMarkdown = `# 题库
 
@@ -60,7 +62,7 @@ check('导入识别题目', imported.items.length === 1, JSON.stringify(imported
 const committed = await service.commitBank({ importId: imported.importId, name: '数学一题库', subjectId: 'math1' })
 check('题库入库', committed.bank.itemCount === 1, JSON.stringify(committed.bank))
 
-const daily1 = await service.ensureDaily('math1')
+const daily1 = await service.ensureDaily('math1', { manual: true })
 check('题库出题成功', Boolean(daily1.question?.id), JSON.stringify(daily1).slice(0, 200))
 check('答案在提交前不下发', daily1.question.answer === null && daily1.question.answerState === 'locked')
 const qid1 = daily1.question.id
@@ -113,7 +115,7 @@ const csBank = await service.importBank({
 })
 const csCommitted = await service.commitBank({ importId: csBank.importId, name: '数学二题库', subjectId: 'math2' })
 await service.saveSettings({ subjectSource: { math2: 'bank' } })
-const csDaily = await service.ensureDaily('math2')
+const csDaily = await service.ensureDaily('math2', { manual: true })
 check('数学二从题库出题', csDaily.question.type === 'solution', csDaily.question.type)
 const solutionQid = csDaily.question.id
 const done = await service.reveal({ qid: solutionQid, mode: 'done', attemptId: 'sub1' })
@@ -171,7 +173,7 @@ check('无 web 服务时如实报告未核验', examRefresh.ok === false && type
 let modelError = ''
 await service.saveSettings({ subjects: ['math1', 'math2', 'politics'] })
 try {
-  await service.ensureDaily('politics')
+  await service.ensureDaily('politics', { manual: true })
 } catch (error) {
   modelError = error.message
 }
@@ -250,10 +252,10 @@ check('确认删除后去重计数并清理题目作答追问和今日引用', r
   && !service.store.data.questions.bulk1 && !service.store.data.questions.bulk2 && !service.store.data.threads.bulk1
   && !service.store.data.daily['bulk-test'] && !service.store.data.attempts.some((a) => bulkIds.includes(a.questionId)))
 check('删除不影响其他题目', Boolean(service.store.data.questions.bulk3) && Boolean(service.store.data.questions[qid1]))
-const savedWrite = service.store.write
-service.store.write = async () => { throw new Error('模拟磁盘失败') }
+const savedWrite = service.store.persist
+service.store.persist = async () => { throw new Error('模拟磁盘失败') }
 const failedDelete = await service.bulkQuestions({ qids: ['bulk3'], action: 'delete' }).then(() => false, () => true)
-service.store.write = savedWrite
+service.store.persist = savedWrite
 check('批量删除保存失败不改变内存中的题目', failedDelete && Boolean(service.store.data.questions.bulk3))
 
 let started, finishReply

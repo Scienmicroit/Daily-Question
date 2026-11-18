@@ -288,13 +288,13 @@ check('持久化后重新读回', store2.data.settings.targetYear === 2030, Stri
 let threw = false
 try { await store.update(() => { throw new Error('boom') }) } catch { threw = true }
 check('失败的事务抛错且不写入', threw && store.data.settings.targetYear === 2030)
-const originalWrite = store.write
-store.write = async () => { throw new Error('模拟磁盘写入失败') }
+const originalWrite = store.persist
+store.persist = async () => { throw new Error('模拟磁盘写入失败') }
 threw = false
 try { await store.update((draft) => { draft.settings.targetYear = 2099 }) } catch { threw = true }
 check('磁盘写入失败不改变内存或文件', threw && store.data.settings.targetYear === 2030
   && (await new Store(dir).read()).settings.targetYear === 2030)
-store.write = originalWrite
+store.persist = originalWrite
 await store.update((draft) => { draft.settings.activeSubject = 'math1' })
 const recovered = await new Store(dir).read()
 check('写入失败后队列能恢复且不带入失败修改', recovered.settings.activeSubject === 'math1' && recovered.settings.targetYear === 2030)

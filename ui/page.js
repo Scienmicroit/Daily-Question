@@ -1,13 +1,18 @@
 import { T, formatDate, newAttemptId } from './common.js'
 import { CSS } from './styles.js'
 import { STUDY_FILE_ACCEPT, readBankFile } from './import-file.js'
+import { createStudyStatsPage } from './study-stats.js'
+
+const SETTINGS_SECTIONS = new Set(['subjects', 'banks', 'syllabuses', 'past-papers', 'backup', 'about'])
 
 export function createPage(React, { window, rpc, components, styleState }) {
   const { createElement: h, useState, useEffect, useRef, useMemo, useCallback } = React
   const {
-    Icon, Btn, EmptyState, Presence, CountdownLines, ExamStrip, SubjectNav, TabBar, MobileBar, QuestionPane,
-    ListPane, ThreadPane, SubjectsModal, BanksModal, SyllabusesModal, PastPapersModal, RevisionModal, ConfirmModal, PluginLogo,
+    Icon, Btn, EmptyState, Presence, NotificationBanner, CountdownLines, ExamStrip, SubjectNav, TabBar, MobileBar, QuestionPane,
+    ListPane, ThreadPane, SettingsModal, AboutPanel, SubjectsModal, BanksModal, SyllabusesModal, PastPapersModal, BackupModal,
+    AttemptModal, RevisionModal, ConfirmModal, PluginLogo,
   } = components
+  const StudyStatsPage = createStudyStatsPage(React, { window, rpc, Btn, Icon })
 
   function watchDayChange(snapshot, onSnapshot) {
     let timer, stopped = false, checking = false
@@ -61,7 +66,6 @@ export function createPage(React, { window, rpc, components, styleState }) {
     const [threadRatio, setThreadRatio] = useState(33)
     const fileRef = useRef(null)
     const attemptRef = useRef(newAttemptId())
-    const toastTimer = useRef(null)
     const mainScroll = useRef(null)
     const listScroll = useRef(0)
     const redoQuestions = useRef(new Set())
@@ -71,7 +75,18 @@ export function createPage(React, { window, rpc, components, styleState }) {
     const bootRequest = useRef(0)
     const threadRequest = useRef(0)
     const selectionRequest = useRef(0)
-    currentView.current = { subjectId, kind, view, page:list?.page||1, loading:busy==='list' }
+    const historyRequest = useRef(0)
+    const [filters, setFilters] = useState({})
+    const [queryDraft, setQueryDraft] = useState('')
+    const [listError, setListError] = useState('')
+    const [settingsBusy, setSettingsBusy] = useState(false)
+    const [scheduleBusy, setScheduleBusy] = useState(false)
+    const [showStats, setShowStats] = useState(false)
+    const [favoritePending, setFavoritePending] = useState(null)
+    const statsTrigger = useRef(null)
+    const subjectsDirty = useRef(false)
+    currentView.current = { subjectId, kind, view, page:list?.page||1, loading:busy==='list', filters }
+    const skipToday = Boolean(boot?.dailyPlans?.[boot.settings.subjects[0]]?.todaySkipped)
 
     useEffect(() => {
       if (view === 'list' && list && mainScroll.current) mainScroll.current.scrollTop = listScroll.current
@@ -79,12 +94,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
     }, [view, list])
 
     const notify = useCallback((message, tone = 'ok') => {
-      setToast({ message, tone })
-      if (toastTimer.current) clearTimeout(toastTimer.current)
-      toastTimer.current = setTimeout(() => setToast(null), 4200)
+      setToast((previous) => ({ id: (previous?.id || 0) + 1, message, tone }))
     }, [])
-
-    useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
 
     const refreshBoot = useCallback(async () => {
       const request = ++bootRequest.current
@@ -97,7 +108,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
       }
     }, [])
 
-    const loadToday = useCallback(async (sid) => {
+    const loadToday = useCallback(async (sid, manual = false) => {
       if (!sid) return
       const request = ++dailyRequest.current
       // 高亮必须跟着视图走：从「全部 / 收藏 / 错题本」切回今日题目时要一起复位
@@ -112,10 +123,10 @@ export function createPage(React, { window, rpc, components, styleState }) {
       setChoice('')
       attemptRef.current = newAttemptId()
       try {
-        const result = await rpc('ensureDaily', { subjectId: sid })
+        const result = await rpc('ensureDaily', { subjectId: sid, ...(manual ? { manual: true } : {}) })
         if (request === dailyRequest.current) {
-          setQuestion(result.question)
-          setLocalRedo(redoQuestions.current.has(result.question.id))
+          setQuestion(result.question || null)
+          setLocalRedo(Boolean(result.question && redoQuestions.current.has(result.question.id)))
           setThread(result.thread || null)
         }
         await refreshBoot()
@@ -149,6 +160,26 @@ export function createPage(React, { window, rpc, components, styleState }) {
     }, [boot?.today])
 
     useEffect(() => {
+      if (!boot?.today || !boot.dailyPlans) return undefined
+      let cancelled = false
+      const active = currentView.current.subjectId
+      const subjects = boot.settings.subjects.filter((id) => {
+        const plan = boot.dailyPlans[id]
+        return id !== active && plan && !plan.pendingStart && !plan.todaySkipped && !boot.todayMap?.[id]
+      })
+      const generate = async () => {
+        for (const id of subjects) {
+          if (cancelled) return
+          try { await rpc('ensureDaily', { subjectId: id, date: boot.today }) }
+          catch { /* The failure is shown when the user opens this subject. */ }
+          if (!cancelled) await refreshBoot()
+        }
+      }
+      generate()
+      return () => { cancelled = true }
+    }, [boot?.today, skipToday, refreshBoot])
+
+    useEffect(() => {
       if (!boot?.today || lastDay.current === boot.today) return undefined
       const previous = lastDay.current
       lastDay.current = boot.today
@@ -164,7 +195,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
         await refreshBoot()
         const current = currentView.current
         if (cancelled || request!==dailyRequest.current || current.loading || current.subjectId !== sid || current.kind === 'today' || current.view !== 'list') return
-        const result = await rpc('listQuestions', { subjectId: sid, kind: current.kind, page:current.page })
+        const result = await rpc('listQuestions', { subjectId: sid, kind: current.kind, page:current.page, ...current.filters })
         const latest = currentView.current
         if (!cancelled && request===dailyRequest.current && !latest.loading && latest.page===current.page && latest.subjectId === sid && latest.kind === current.kind && latest.view === 'list') {
           listScroll.current = mainScroll.current?.scrollTop || 0
@@ -174,25 +205,34 @@ export function createPage(React, { window, rpc, components, styleState }) {
       return () => { cancelled = true }
     }, [boot?.today, loadToday, refreshBoot, notify])
 
-    const loadList = useCallback(async (sid, nextKind, page = 1) => {
+    const loadList = useCallback(async (sid, nextKind, page = 1, nextFilters = {}) => {
       if (!sid) return
       const request = ++dailyRequest.current
       listScroll.current = 0
       setKind(nextKind)
+      setFilters(nextFilters)
+      setQueryDraft(nextFilters.query || '')
+      setListError('')
       setThreadOpen(false)
       setView('list')
       setFail('')
       setBusy('list')
       setList(null)
       try {
-        const result = await rpc('listQuestions', { subjectId: sid, kind: nextKind, page })
+        const result = await rpc('listQuestions', { subjectId: sid, kind: nextKind, page, ...nextFilters })
         if (request === dailyRequest.current) setList(result)
       } catch (issue) {
-        if (request === dailyRequest.current) notify(issue.message, 'bad')
+        if (request === dailyRequest.current) setListError(issue.message)
       } finally {
         if (request === dailyRequest.current) setBusy('')
       }
-    }, [notify])
+    }, [])
+
+    const applyFilters = (patch) => {
+      if (bulkLock.current) return
+      setSelected([])
+      loadList(subjectId, kind, 1, { ...filters, ...patch })
+    }
 
     useEffect(() => { setSelected([]); setManaging(false) }, [subjectId, kind, view])
 
@@ -209,7 +249,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
       try {
         const result = await rpc('getQuestion', { qid })
         if (request !== dailyRequest.current) return
-        const canResume = result.isToday && result.question.answerState === 'revealed'
+        const canResume = kind !== 'review' && result.isToday && result.question.answerState === 'revealed'
           && result.question.attemptCount > 0 && !redoQuestions.current.has(qid)
         if (!canResume) redoQuestions.current.add(qid)
         setQuestion(result.question)
@@ -224,16 +264,44 @@ export function createPage(React, { window, rpc, components, styleState }) {
       } finally {
         if (request === dailyRequest.current) setBusy('')
       }
-    }, [notify])
+    }, [kind, notify])
 
     const backToList = async () => {
       const request = ++dailyRequest.current
       setThreadOpen(false)
       setView('list')
+      setListError('')
       try {
-        const result = await rpc('listQuestions', { subjectId, kind, page:list?.page||1 })
+        const result = await rpc('listQuestions', { subjectId, kind, page:list?.page||1, ...filters })
         if (request === dailyRequest.current) setList(result)
-      } catch (issue) { if (request === dailyRequest.current) notify(issue.message, 'bad') }
+      } catch (issue) { if (request === dailyRequest.current) setListError(issue.message) }
+    }
+
+    const nextReview = async () => {
+      const request = ++dailyRequest.current
+      setBusy('question')
+      try {
+        const result = await rpc('listQuestions', { subjectId, kind: 'review', page: 1 })
+        if (request !== dailyRequest.current) return
+        setList(result)
+        if (result.items.length) await openQuestion(result.items[0].id)
+        else { setThreadOpen(false); setView('list') }
+      } catch (issue) {
+        if (request === dailyRequest.current) notify(issue.message, 'bad')
+      } finally { if (request === dailyRequest.current) setBusy('') }
+    }
+
+    const inspectAttempt = async (attemptId) => {
+      const request = dailyRequest.current
+      const history = ++historyRequest.current
+      try {
+        const result = await rpc('getQuestion', { qid: question.id, attemptId })
+        if (request !== dailyRequest.current || history !== historyRequest.current) return
+        if (result.question.lastAttempt?.id !== attemptId) throw new Error('本次作答记录已不可用')
+        setModal({ kind: 'attempt', record: result.question })
+      } catch (issue) {
+        if (request === dailyRequest.current && history === historyRequest.current) notify(issue.message, 'bad')
+      }
     }
 
     useEffect(() => {
@@ -312,22 +380,23 @@ export function createPage(React, { window, rpc, components, styleState }) {
     }, [question, notify, refreshBoot])
 
     const favorite = useCallback(async () => {
-      if (!question) return
+      if (!question || favoritePending === question.id) return
       const request = dailyRequest.current
-      setBusy('favorite')
+      setFavoritePending(question.id)
       try {
         const result = await rpc('favorite', { qid: question.id, value: !question.favorite })
         if (request === dailyRequest.current) {
-          setQuestion(result.question)
+          setQuestion((current) => current?.id === question.id
+            ? { ...current, favorite: result.question.favorite } : current)
           notify(question.favorite ? '已取消收藏' : '已加入收藏')
         }
         refreshBoot()
       } catch (issue) {
         if (request === dailyRequest.current) notify(issue.message, 'bad')
       } finally {
-        if (request === dailyRequest.current) setBusy('')
+        setFavoritePending((value) => value === question.id ? null : value)
       }
-    }, [question, notify, refreshBoot])
+    }, [question, favoritePending, notify, refreshBoot])
 
     const sendFollowup = useCallback(async (text, messageId) => {        if (!question) throw new Error('没有打开任何题目')
       const request = dailyRequest.current
@@ -448,14 +517,19 @@ export function createPage(React, { window, rpc, components, styleState }) {
       }
     }, [boot, notify, refreshBoot])
 
+    const resetSubjectsEditor = (notice) => {
+      subjectsDirty.current = false
+      setModal((current) => current?.kind === 'subjects'
+        ? { kind: 'subjects', edit: (current.edit || 0) + 1, ...(notice ? { notice } : {}) } : current)
+    }
+
     const saveSubjects = async (draft) => {
       const preferred = draft.subjects.includes(subjectId) ? subjectId : (draft.subjects[0] || null)
       const result = await rpc('saveSettings', { ...draft, activeSubject: preferred })
       const next = result.settings.activeSubject
       bootRequest.current++
       setBoot((current) => ({ ...current, ...result }))
-      setModal(null)
-      notify(draft.deleteSubjectIds?.length ? '已删除所选科目及其历史题目' : '科目设置已保存')
+      resetSubjectsEditor(draft.deleteSubjectIds?.length ? '科目设置已保存，所选科目及其历史题目已删除' : '科目设置已保存')
       if (next !== subjectId) showSubject(next)
     }
 
@@ -502,24 +576,18 @@ export function createPage(React, { window, rpc, components, styleState }) {
       }
     }, [subjectId, notify, refreshBoot])
 
-    const deleteBank = useCallback((bank) => {
-      setModal({
-        kind: 'confirm',
-        title: `${T.deleteBank}：${bank.name}`,
-        message: `确认删除题库《${bank.name}》吗？\n\n- 已由该题库出过的题目、作答记录、收藏与追问都会保留，仍可在“全部”里打开。\n- 删除后无法再从这个题库抽题（需要重新导入）。`,
-        confirmLabel: T.deleteBank,
-        danger: true,
-        onConfirm: async () => {
-          setModal(null)
-          try {
-            const result = await rpc('deleteBank', { bankId: bank.id })
-            await refreshBoot()
-            notify(result.message)
-          } catch (issue) {
-            notify(issue.message, 'bad')
-          }
-        },
-      })
+    const deleteBank = useCallback(async (bank) => {
+      setBusy('delete-bank')
+      try {
+        const result = await rpc('deleteBank', { bankId: bank.id })
+        await refreshBoot()
+        setModal({ kind: 'banks' })
+        notify(result.message)
+      } catch (issue) {
+        notify(issue.message, 'bad')
+      } finally {
+        setBusy('')
+      }
     }, [notify, refreshBoot])
 
     const bulkQuestions = async (action) => {
@@ -541,7 +609,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
           }
           setModal(null)
           setSelected([])
-          const loading = loadList(subjectId, kind, list?.page||1)
+          const loading = loadList(subjectId, kind, list?.page||1, filters)
           const listRequest = dailyRequest.current
           await loading
           await refreshBoot()
@@ -558,6 +626,36 @@ export function createPage(React, { window, rpc, components, styleState }) {
     }
 
     const subjectVisible = boot?.settings.subjects.includes(subjectId)
+    const dailyPlan = subjectVisible ? boot.dailyPlans?.[subjectId] : null
+    const changeDailySkip = async (date, skip) => {
+      if (scheduleBusy) return
+      setScheduleBusy(true)
+      try {
+        const result = await rpc('setDailySkip', { date, skip })
+        bootRequest.current++
+        setBoot((current) => current.today === dailyPlan.today ? { ...current, dailyPlans: result.dailyPlans } : current)
+        const isToday = date === dailyPlan.today
+        const dayLabel = isToday ? '今天' : '明天'
+        notify(skip ? `已跳过${dayLabel}，所有已启用科目当天暂停出题` : `已取消跳过${dayLabel}，恢复所有科目的出题安排`)
+        if (isToday) {
+          const current = currentView.current
+          if (result.dailyPlans[current.subjectId]?.today === date) {
+            if (current.kind === 'today') loadToday(current.subjectId)
+            else {
+              await rpc('ensureDaily', { subjectId: current.subjectId, date }).catch(() => {})
+              await refreshBoot()
+            }
+          } else {
+            await refreshBoot()
+          }
+        }
+      } catch (issue) {
+        notify(issue.message, 'bad')
+        await refreshBoot()
+      } finally {
+        setScheduleBusy(false)
+      }
+    }
     const counts = subjectVisible ? boot.counts?.[subjectId] : null
     const selectAllQuestions = async (value) => {
       if(bulkLock.current)return
@@ -566,7 +664,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
       if(!value){setSelected([]);setBusy(current=>current==='selection'?'':current);return}
       setBusy('selection')
       try {
-        const result=await rpc('listQuestions',{subjectId,kind,idsOnly:true})
+        const result=await rpc('listQuestions',{subjectId,kind,idsOnly:true,...filters})
         if(isCurrent())setSelected(result.ids)
       } catch(issue){if(isCurrent())notify(issue.message,'bad')}
       finally{if(isCurrent())setBusy(current=>current==='selection'?'':current)}
@@ -579,7 +677,9 @@ export function createPage(React, { window, rpc, components, styleState }) {
           icon: 'x',
           title: '插件加载失败',
           body: error,
-          actions: h(Btn, { onClick: () => window.location.reload() }, '重新加载页面'),
+          actions: h('div', { className: 'kd-row' },
+            h(Btn, { onClick: () => window.location.reload() }, '重新加载页面'),
+            h(Btn, { onClick: () => setModal({ kind: 'backup' }) }, h(Icon, { name: 'backup' }), '备份与恢复')),
         })
       }
       if (loading) return h('div', { className: 'kd-loading' }, h('span', { className: 'kd-spinner' }), '正在读取学习数据…')
@@ -607,6 +707,14 @@ export function createPage(React, { window, rpc, components, styleState }) {
             '先出题，再仅凭题干和选项盲解并比对答案；分歧交由主裁，仍无法确定就重新出题或阻止发布。首次出题可能需要较长时间。'),
           h(Btn,{variant:'ghost',onClick:()=>cancelWork('daily')},'取消生成'))
       }
+      if (kind === 'today' && !question && dailyPlan?.todaySkipped) {
+        const relative = dailyPlan.nextDate === dailyPlan.tomorrow ? '明天' : '后天'
+        return h(EmptyState, {
+          icon: 'book',
+          title: '今天已跳过出题',
+          body: `${dailyPlan.pendingStart ? '可手动出题的最早时间' : '下次出题'}：${relative}（${formatDate(dailyPlan.nextDate)}）`,
+        })
+      }
       if (fail) {
         return h(EmptyState, {
           icon: 'refresh',
@@ -616,11 +724,19 @@ export function createPage(React, { window, rpc, components, styleState }) {
             h(Btn, {
               key: 'retry',
               variant: 'primary',
-              onClick: () => loadToday(subjectId),
+              onClick: () => loadToday(subjectId, Boolean(dailyPlan?.pendingStart)),
             }, h(Icon, { name: 'refresh', size: 13 }), T.retry),
             h(Btn, { key: 'src', onClick: () => setModal({ kind: 'subjects' }) }, '切换出题来源'),
             h(Btn, { key: 'bank', onClick: () => setModal({ kind: 'banks' }) }, T.manageBanks),
           ],
+        })
+      }
+      if (kind === 'today' && !question && dailyPlan?.pendingStart) {
+        return h(EmptyState, {
+          icon: 'spark',
+          title: '准备开始练习',
+          body: '点击开始出题。首次出题成功后，科目保持启用时会自动安排每日题目。',
+          actions: h(Btn, { variant: 'primary', onClick: () => loadToday(subjectId, true) }, '开始出题'),
         })
       }
       if (!subjectId) {
@@ -631,18 +747,38 @@ export function createPage(React, { window, rpc, components, styleState }) {
         })
       }
       if (kind !== 'today' && view === 'list') {
-        return h(ListPane, {
+        const hasFilters = Boolean(filters.query || filters.type || filters.mastery)
+        const types = new Map((currentSubject?.types || []).map((value, index) => [value, currentSubject.typeLabels?.[index] || value]))
+        for (const option of list?.types || []) types.set(option.value, option.label)
+        if (filters.type && !types.has(filters.type)) types.set(filters.type, filters.type)
+        const search = kind !== 'review' ? h('form', { className: 'kd-row', style: { marginBottom: '12px' },
+          onSubmit: (event) => { event.preventDefault(); applyFilters({ query: queryDraft.trim() }) } },
+          h('input', { className: 'kd-input', type: 'search', 'aria-label': '搜索题目', placeholder: '搜索题干或知识点',
+            value: queryDraft, maxLength: 120, onChange: (event) => setQueryDraft(event.target.value) }),
+          h(Btn, { type: 'submit', disabled: bulkLock.current }, '搜索'),
+          h('select', { className: 'kd-select', 'aria-label': '筛选题型', value: filters.type || '',
+            disabled: bulkLock.current, onChange: (event) => applyFilters({ type: event.target.value }) },
+          h('option', { value: '' }, '全部题型'), ...[...types].map(([value, label]) => h('option', { key: value, value }, label))),
+          kind === 'wrong' ? h('select', { className: 'kd-select', 'aria-label': '筛选掌握状态', value: filters.mastery || '',
+            disabled: bulkLock.current, onChange: (event) => applyFilters({ mastery: event.target.value }) },
+          h('option', { value: '' }, '全部状态'), h('option', { value: 'due' }, '今日待复习'), h('option', { value: 'unmastered' }, '未掌握'),
+          h('option', { value: 'mastered' }, '已掌握')) : null,
+          hasFilters || queryDraft ? h(Btn, { variant: 'ghost', disabled: bulkLock.current,
+            onClick: () => applyFilters({ query: '', type: '', mastery: '' }) }, '清除筛选') : null) : null
+        return h('div', null, search, listError ? h(EmptyState, { icon: 'refresh', title: '题目列表加载失败', body: listError,
+          actions: h(Btn, { onClick: () => loadList(subjectId, kind, list?.page || 1, filters) }, '重试') }) : h(ListPane, {
           list,
           kind,
           subjectName: currentSubject?.name || '',
           onOpen: openQuestion,
+          filtered: hasFilters,
           managing, selected, busy: busy === 'bulk' || busy === 'selection',
           onManage: () => { setManaging(!managing); setSelected([]) },
           onToggle: (id) => setSelected((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]),
           onSelectAll: selectAllQuestions,
-          onPage: (page) => loadList(subjectId,kind,page),
+          onPage: (page) => loadList(subjectId,kind,page,filters),
           onBulk: bulkQuestions,
-        })
+        }))
       }
       if (view === 'detail' && question) {
         return h(QuestionPane, {
@@ -663,7 +799,10 @@ export function createPage(React, { window, rpc, components, styleState }) {
           onReveal: reveal,
           onSkip: () => kind === 'today' ? loadList(subjectId, 'all') : backToList(),
           onJudge: judge,
+          onInspectAttempt: inspectAttempt,
+          onNextReview: kind === 'review' ? nextReview : undefined,
           onFavorite: favorite,
+          favoritePending: favoritePending === question.id,
           onRedo: () => {
             dailyRequest.current++
             setBusy('')
@@ -710,9 +849,70 @@ export function createPage(React, { window, rpc, components, styleState }) {
     }
     const showThread = subjectVisible && view === 'detail' && question && threadOpen && !localRedo
       && question.answerState === 'revealed' && question.attemptCount > 0
+    const finishSettingsNavigation = (destination) => {
+      subjectsDirty.current = false
+      setModal(destination === 'close' ? null : { kind: destination })
+    }
+    const requestSettingsNavigation = (destination) => {
+      if (modal.kind === 'subjects' && subjectsDirty.current) {
+        setModal({ ...modal, leaveTo: destination })
+      } else {
+        finishSettingsNavigation(destination)
+      }
+    }
+    const reportSubjectsDirty = useCallback((value) => { subjectsDirty.current = value }, [])
+    const closeSettings = () => requestSettingsNavigation('close')
+    const settingsPanel = () => {
+      const embedded = { embedded: true, onClose: closeSettings, onBusyChange: setSettingsBusy }
+      switch (modal.kind) {
+        case 'subjects':
+          return boot && h(SubjectsModal, { ...embedded, boot, key: modal.edit || 0, savedNotice: modal.notice,
+            onClose: resetSubjectsEditor, onDone: saveSubjects, onDirtyChange: reportSubjectsDirty })
+        case 'banks':
+          if (modal.deleting) {
+            const bank = modal.deleting
+            return h(ConfirmModal, {
+              embedded: true, danger: true, busy: busy === 'delete-bank',
+              title: `${T.deleteBank}：${bank.name}`,
+              message: `确认删除题库《${bank.name}》吗？已出题目、作答、收藏和追问会保留。删除后该题库将无法再用于抽题。`,
+              confirmLabel: T.deleteBank,
+              onConfirm: () => deleteBank(bank),
+              onClose: () => setModal({ kind: 'banks' }),
+            })
+          }
+          return boot && h(BanksModal, {
+            ...embedded, boot, key: modal.importResult?.importId || 'banks', importResult: modal.importResult,
+            committing: busy === 'commit', onPickFile: pickFile, onCommit: commitBank,
+            onDelete: (bank) => setModal({ kind: 'banks', deleting: bank }),
+            onCancelImport: () => setModal({ kind: 'banks' }),
+          })
+        case 'syllabuses':
+          return boot && h(SyllabusesModal, { ...embedded, boot,
+            onSaved: (syllabuses) => { bootRequest.current++; setBoot((current) => ({ ...current, syllabuses })) } })
+        case 'past-papers':
+          return boot && h(PastPapersModal, { ...embedded, boot,
+            onSaved: (pastPapers) => { bootRequest.current++; setBoot((current) => ({ ...current, pastPapers })) } })
+        case 'backup':
+          return h(BackupModal, { ...embedded, onRestored: (warning) => {
+            if (warning) window.alert(warning)
+            window.location.reload()
+          } })
+        case 'about':
+          return h(AboutPanel, { currentVersion: boot?.pluginVersion })
+      }
+    }
 
+    const openStats = (event) => {
+      statsTrigger.current = event.currentTarget
+      setShowStats(true)
+    }
+    const closeStats = () => {
+      setShowStats(false)
+      window.requestAnimationFrame?.(() => statsTrigger.current?.focus({ preventScroll: true }))
+    }
     return h('div', { className: 'kd-page' },
       styleState.injected ? null : h('style', null, CSS),
+      h('div', { className: 'kd-practice-screen', inert: showStats || undefined },
       h('div', { className: 'kd-header' },
         h('div', { className: 'kd-header-top' },
           h('div', { className: 'kd-header-left' },
@@ -733,20 +933,16 @@ export function createPage(React, { window, rpc, components, styleState }) {
         boot,
         subjectId,
         onPick: pickSubject,
-        onManage: () => setModal({ kind: 'subjects' }),
-        onBanks: () => setModal({ kind: 'banks' }),
-        onSyllabuses: () => setModal({ kind:'syllabuses' }),
-        onPastPapers: () => setModal({ kind:'past-papers' }),
+        onSettings: () => setModal({ kind: 'subjects' }),
+        onStats: openStats,
       }) : null,
       h('div', { className: 'kd-shell' },
         boot ? h(SubjectNav, {
           boot,
           subjectId,
           onPick: pickSubject,
-          onManage: () => setModal({ kind: 'subjects' }),
-          onBanks: () => setModal({ kind: 'banks' }),
-          onSyllabuses: () => setModal({ kind:'syllabuses' }),
-          onPastPapers: () => setModal({ kind:'past-papers' }),
+          onSettings: () => setModal({ kind: 'subjects' }),
+          onStats: openStats,
         }) : null,
         h('main', { className: 'kd-main' },
           h('div', { className: 'kd-main-toolbar' },
@@ -755,9 +951,14 @@ export function createPage(React, { window, rpc, components, styleState }) {
               counts,
               onPick: pickTab,
               todayDisabled: !boot.settings.subjects.includes(subjectId),
+              onBack: subjectVisible && kind !== 'today' && view === 'detail' ? backToList : undefined,
             }) : null,
-            subjectVisible && kind !== 'today' && view === 'detail'
-              ? h(Btn, { small: true, onClick: backToList, title: '返回列表', ariaLabel: '返回列表' }, h(Icon, { name: 'chevron-left', size: 16 })) : null),
+            dailyPlan ? h('div', { className: 'kd-daily-schedule', 'aria-label': '全局出题计划' },
+              dailyPlan.todaySkipped ? h(Btn, { disabled: scheduleBusy,
+                onClick: () => changeDailySkip(dailyPlan.today, false) }, '取消跳过今天') : null,
+              h(Btn, { disabled: scheduleBusy,
+                onClick: () => changeDailySkip(dailyPlan.tomorrow, !dailyPlan.tomorrowSkipped) },
+              dailyPlan.tomorrowSkipped ? '取消跳过明天' : '跳过明天')) : null),
           h('div', { className: 'kd-main-scroll', ref: mainScroll },
             h('div', { className: 'kd-main-inner' },
               h('div', { className: 'kd-view', key: `${subjectId}|${kind}|${view}|${question?.id || ''}` }, mainContent)))),
@@ -783,40 +984,28 @@ export function createPage(React, { window, rpc, components, styleState }) {
         onChange: onFile,
       }),
       h(Presence, null,
-      modal?.kind === 'subjects' && boot
-        ? h(SubjectsModal, {
-          boot,
-          onClose: () => setModal(null),
-          onDone: saveSubjects,
-        })
-        : null,
-      modal?.kind === 'banks' && boot
-        ? h(BanksModal, {
-          key: modal.importResult?.importId || 'banks',
-          boot,
-          importResult: modal.importResult,
-          committing: busy === 'commit',
-          onClose: () => setModal(null),
-          onPickFile: pickFile,
-          onDelete: deleteBank,
-          onCommit: commitBank,
-          onCancelImport: () => setModal({ kind: 'banks' }),
-        })
-        : null,
+      SETTINGS_SECTIONS.has(modal?.kind) ? h(SettingsModal, {
+        active: modal.kind, ready: Boolean(boot),
+        locked: settingsBusy || ['import', 'commit', 'delete-bank'].includes(busy),
+        onPick: requestSettingsNavigation, onClose: closeSettings,
+        dialog: modal.leaveTo ? h(ConfirmModal, {
+          title: '放弃本次更改',
+          message: modal.leaveTo === 'close'
+            ? '科目管理还有未保存的更改。确定放弃更改并关闭设置吗？'
+            : '科目管理还有未保存的更改。确定放弃更改并切换设置项吗？',
+          explicitClose: true,
+          confirmLabel: '放弃更改',
+          onClose: () => setModal({ ...modal, leaveTo: undefined }),
+          onConfirm: () => finishSettingsNavigation(modal.leaveTo),
+        }) : null,
+      }, settingsPanel()) : null,
+      modal?.kind === 'attempt' ? h(AttemptModal, { record: modal.record, onClose: () => setModal(null) }) : null,
       modal?.kind === 'revision' ? h(RevisionModal, {
         question,
         busy: busy === 'revise',
         onClose: () => setModal(null),
         onConfirm: confirmRevision,
         onDiscard: discardRevision,
-      }) : null,
-      modal?.kind === 'syllabuses' && boot ? h(SyllabusesModal,{
-        boot,subjectId,onClose:()=>setModal(null),
-        onSaved:(syllabuses)=>{bootRequest.current++;setBoot((current)=>({...current,syllabuses}))},
-      }) : null,
-      modal?.kind === 'past-papers' && boot ? h(PastPapersModal,{
-        boot,subjectId,onClose:()=>setModal(null),
-        onSaved:(pastPapers)=>{bootRequest.current++;setBoot((current)=>({...current,pastPapers}))},
       }) : null,
       modal?.kind === 'confirm' ? h(ConfirmModal, {
         key: modal.title,
@@ -829,11 +1018,12 @@ export function createPage(React, { window, rpc, components, styleState }) {
         onClose: () => { if (!bulkLock.current) setModal(null) },
       }) : null,
       ),
-      toast ? h('div', { className: `kd-toast kd-toast-${toast.tone}` }, toast.message) : null,
+      toast ? h(NotificationBanner, { key: toast.id, message: toast.message, tone: toast.tone, floating: true }) : null,
       busy === 'import' || busy === 'commit'
         ? h('div', { className: 'kd-loading', style: { position: 'absolute', inset: 'auto 0 60px 0' } },
-          h('span', { className: 'kd-spinner' }), busy === 'import' ? '正在解析文件…' : '正在入库…')
-        : null)
+          h('span', { className: 'kd-spinner' }), busy === 'import' ? '正在读取文件并让模型识别题目…' : '正在入库…')
+        : null),
+      showStats ? h(StudyStatsPage, { today: boot?.today, onClose: closeStats }) : null)
   }
 
   function useMediaQuery(query) {

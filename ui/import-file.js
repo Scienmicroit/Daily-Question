@@ -5,7 +5,7 @@ export const STUDY_FILE_ACCEPT = '.pdf,.txt,.md,.markdown'
 async function readImport(file, pdfLimit, textLimit) {
   const isPdf = /\.pdf$/i.test(file.name)
   if (!isPdf && !/\.(txt|md|markdown)$/i.test(file.name)) {
-    throw new Error('请选择文本型 PDF、TXT 或 Markdown 文件')
+    throw new Error('请选择 PDF、TXT 或 Markdown 文件')
   }
   if (file.size === 0) throw new Error('文件为空，请选择有内容的文件')
   if (file.size > (isPdf ? pdfLimit : textLimit)) {

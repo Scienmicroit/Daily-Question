@@ -169,7 +169,7 @@ try {
       {...referencePages[0],kind:'outline'},...referencePages.slice(1).map((paper,i)=>({...paper,kind:'paper',year:referenceYear-1-i})),
     ]}}
   })
-  const first=await dailyService.ensureDaily('math1')
+  const first=await dailyService.ensureDaily('math1', { manual: true })
   assert(first.created)
   assert.equal(first.question.examAlignment.scopeBasis,'built-in')
   assert.equal(first.question.examAlignment.status,'difficulty-unverified')

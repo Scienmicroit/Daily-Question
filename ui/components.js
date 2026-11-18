@@ -1,5 +1,6 @@
 import { T, formatDate, formatDateTime, formatClock, methodLabel, statusLabel, isChoiceType, newAttemptId } from './common.js'
 import { STUDY_FILE_ACCEPT, readStudyFile } from './import-file.js'
+import { typeLabel } from '../lib/paper-types.js'
 
 export function createComponents(React, { window, rpc, Markdown, useMathJaxStatus }) {
   const { createElement: h, useState, useEffect, useRef, useMemo, useCallback, useId } = React
@@ -17,6 +18,10 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     subjects: 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 17h6 M17 14v6',
     syllabus: 'M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6 M9 16h6',
     papers: 'M5 5h11v13H5z M8 8h5 M8 11h5 M8 14h3 M19 8v13H8',
+    backup: 'M18 8a5.5 5.5 0 0 0-9.5-2L7 8 M7 4v4h4 M4 12h16v3H4z M6 15v6h12v-6 M10 18h4',
+    settings: 'M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M9 16v4',
+    info: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z M12 11v5 M12 8h.01',
+    stats: 'M4 4v16h16 M8 16v-4m5 4V8m5 8V5',
     plus: 'M12 5v14M5 12h14',
     trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
     upload: 'M12 16V4M7 9l5-5 5 5M4 20h16',
@@ -68,28 +73,52 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     return h('div', { className: 'kd-presence' + (active ? '' : ' is-leaving') }, active ? children : retained)
   }
 
-  function Modal({ title, children, footer, onClose, wide }) {
+  function NotificationBanner({ message, tone = 'ok', floating = false }) {
+    const [phase, setPhase] = useState('visible')
     useEffect(() => {
+      if (phase === 'hidden') return undefined
+      const timeout = window.setTimeout(() => {
+        setPhase(phase === 'visible' ? 'leaving' : 'hidden')
+      }, phase === 'visible' ? 3000 : 180)
+      return () => window.clearTimeout(timeout)
+    }, [phase])
+    if (phase === 'hidden') return null
+    return h('div', { className: 'kd-notification-slot' + (floating ? ' is-floating' : '') },
+      h('div', { className: `kd-notification kd-notification-${tone}${phase === 'leaving' ? ' is-leaving' : ''}` },
+        h('span', { role: tone === 'bad' ? 'alert' : 'status' }, message),
+        h('button', { type: 'button', className: 'kd-iconbtn', 'aria-label': '关闭通知',
+          disabled: phase === 'leaving', onClick: () => setPhase('leaving') }, h(Icon, { name: 'close' }))))
+  }
+
+  function Modal({ title, children, footer, headerActions, dialog, notification, onClose, wide, embedded = false, settings = false, locked = false, explicitClose = settings }) {
+    useEffect(() => {
+      if (embedded || explicitClose || locked || dialog) return undefined
       const onKey = (event) => {
         if (event.key === 'Escape') onClose()
       }
       window.addEventListener('keydown', onKey)
       return () => window.removeEventListener('keydown', onKey)
-    }, [onClose])
+    }, [onClose, embedded, explicitClose, locked, dialog])
+    const body = h('div', { className: 'kd-modal-body', inert: dialog ? true : undefined }, children)
+    const actions = footer ? h('div', { className: 'kd-modal-foot' }, footer) : null
+    if (embedded) return h('section', { className: 'kd-settings-section', 'aria-label': title },
+      h('div', { className: 'kd-modal-head', inert: dialog ? true : undefined },
+        h('h2', { className: 'kd-modal-title' }, title),
+        headerActions ? h('div', { className: 'kd-settings-header-actions' }, headerActions) : null),
+      body, actions, notification, dialog)
     return h('div', {
       className: 'kd-overlay',
-      onMouseDown: (event) => { if (event.target === event.currentTarget) onClose() },
+      onMouseDown: explicitClose || dialog ? undefined : (event) => { if (!locked && event.target === event.currentTarget) onClose() },
     }, h('div', {
-      className: `kd-modal${wide ? ' kd-modal-wide' : ''}`,
+      className: `kd-modal${wide ? ' kd-modal-wide' : ''}${settings ? ' kd-settings' : ''}`,
       role: 'dialog',
       'aria-modal': 'true',
       'aria-label': title,
     },
     h('div', { className: 'kd-modal-head' },
       h('div', { className: 'kd-modal-title' }, title),
-      h('button', { className: 'kd-iconbtn', onClick: onClose, 'aria-label': T.close }, h(Icon, { name: 'close' }))),
-    h('div', { className: 'kd-modal-body' }, children),
-    footer ? h('div', { className: 'kd-modal-foot' }, footer) : null))
+      h('button', { className: 'kd-iconbtn', onClick: onClose, disabled: locked || Boolean(dialog), 'aria-label': T.close }, h(Icon, { name: 'close' }))),
+    body, actions, notification, dialog))
   }
 
   function hostOf(url) {
@@ -199,7 +228,41 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           : state.result?'已是最新版本':null))
   }
 
-  function SubjectNav({ boot, subjectId, onPick, onManage, onBanks, onSyllabuses, onPastPapers }) {
+  function SettingsModal({ active, ready, locked, dialog, onPick, onClose, children }) {
+    const sections = [
+      ['subjects', T.manageSubjects, 'subjects'],
+      ['banks', T.manageBanks, 'book'],
+      ['syllabuses', T.manageSyllabuses, 'syllabus'],
+      ['past-papers', T.managePastPapers, 'papers'],
+      ['backup', '备份与恢复', 'backup'],
+      ['about', '关于', 'info'],
+    ]
+    return h(Modal, { title: '设置', settings: true, locked, dialog, onClose },
+      h('div', { className: 'kd-settings-layout' },
+        h('nav', { className: 'kd-settings-nav', 'aria-label': '设置选项' },
+          ...sections.map(([id, label, icon]) => h('button', {
+            key: id,
+            type: 'button',
+            className: 'kd-settings-option',
+            'aria-current': active === id ? 'page' : undefined,
+            disabled: locked || (!ready && !['backup', 'about'].includes(id)),
+            onClick: () => { if (active !== id) onPick(id) },
+          }, h(Icon, { name: icon }), label))),
+        h('div', { className: 'kd-settings-content' }, children)))
+  }
+
+  function AboutPanel({ currentVersion }) {
+    return h(Modal, { title: '关于', embedded: true },
+      h('div', { className: 'kd-about' },
+        h('div', { className: 'kd-about-brand' },
+          h(PluginLogo, { size: 44 }),
+          h('div', null, h('h3', null, T.title), h('p', null, '面向 DeepSeek Harness 的考研练习插件。支持每日出题、错题复习、收藏和逐题追问。'))),
+        h('a', { className: 'kd-link', href: 'https://github.com/Scienmicroit/Daily-Question', target: '_blank', rel: 'noopener noreferrer' },
+          'GitHub 仓库 ↗'),
+        h(UpdateCheck, { currentVersion })))
+  }
+
+  function SubjectNav({ boot, subjectId, onPick, onSettings, onStats }) {
     const enabled = (boot.subjects || []).filter((subject) => subject.enabled)
     const subjectButton = (subject) => {
       const done = Boolean(boot.todayMap?.[subject.id])
@@ -221,32 +284,37 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           : h('div', { className: 'kd-msg-meta', style: { padding: '4px 8px' } }, '还没有启用科目')),
       h('div', { className: 'kd-nav-spacer' }),
       h('div', { className: 'kd-nav-group' },
-        h('div', { className: 'kd-nav-group-label', style:{fontSize:'14px',fontWeight:700} }, '设置'),
-        h(Btn, { variant: 'ghost', onClick: onManage }, h(Icon, { name: 'subjects' }), T.manageSubjects),
-        h(Btn, { variant: 'ghost', onClick: onBanks }, h(Icon, { name: 'book' }), T.manageBanks),
-        h(Btn, { variant: 'ghost', onClick: onSyllabuses }, h(Icon, { name: 'syllabus' }), T.manageSyllabuses),
-        h(Btn, { variant: 'ghost', onClick: onPastPapers }, h(Icon, { name: 'papers' }), T.managePastPapers),
-        h(UpdateCheck,{currentVersion:boot.pluginVersion})))
+        h(Btn, { variant: 'ghost', onClick: onStats }, h(Icon, { name: 'stats' }), '统计'),
+        h(Btn, { variant: 'ghost', onClick: onSettings }, h(Icon, { name: 'settings' }), '设置')))
   }
 
-  function TabBar({ kind, counts, onPick, todayDisabled }) {
+  function TabBar({ kind, counts, onPick, todayDisabled, onBack }) {
     const items = [
       ['today', T.tabs.today, null],
+      ['review', T.tabs.review, counts?.review],
       ['all', T.tabs.all, counts?.all],
       ['favorite', T.tabs.favorite, counts?.favorite],
       ['wrong', T.tabs.wrong, counts?.wrong],
     ]
     return h('div', { className: 'kd-tabs' },
-      items.map(([value, label, count]) => h('button', {
-        key: value,
-        type: 'button',
-        className: `kd-tab${kind === value ? ' is-active' : ''}`,
-        disabled: value === 'today' && todayDisabled,
-        onClick: () => onPick(value),
-      }, label, count ? h('span', { className: 'kd-tab-count' }, String(count)) : null)))
+      h('div', { className: 'kd-tab-strip' },
+        items.map(([value, label, count]) => h('button', {
+          key: value,
+          type: 'button',
+          className: `kd-tab${kind === value ? ' is-active' : ''}`,
+          disabled: value === 'today' && todayDisabled,
+          onClick: () => onPick(value),
+        }, label, count ? h('span', { className: 'kd-tab-count' }, String(count)) : null))),
+      h('div', { className: 'kd-tab-return' + (onBack ? ' is-open' : ''), 'aria-hidden': onBack ? undefined : true },
+        h('button', { type: 'button', className: 'kd-tab-return-button', title: '返回列表',
+          'aria-label': '返回列表', disabled: !onBack, onClick: (event) => {
+            event.currentTarget.closest('.kd-tabs')?.querySelector('.kd-tab.is-active')?.focus({ preventScroll: true })
+            onBack?.()
+          } },
+        h(Icon, { name: 'chevron-left', size: 16 }))))
   }
 
-  function MobileBar({ boot, subjectId, onPick, onManage, onBanks, onSyllabuses, onPastPapers }) {
+  function MobileBar({ boot, subjectId, onPick, onSettings, onStats }) {
     const enabled = (boot.subjects || []).filter((subject) => subject.enabled)
     const active = enabled.some((subject) => subject.id === subjectId) ? subjectId : ''
     return h('div', { className: 'kd-mobilebar' },
@@ -257,11 +325,8 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         onChange: (event) => onPick(event.target.value),
       }, !active ? h('option', { value: '', disabled: true }, '选择科目') : null,
       enabled.map((subject) => h('option', { key: subject.id, value: subject.id }, subject.name))),
-      // 窄屏隐藏了左侧栏，科目的增删与题库入口必须在这里保留。
-      h(Btn, { small: true, variant: 'ghost', onClick: onManage }, h(Icon, { name: 'subjects', size: 13 }), T.manageSubjects),
-      h(Btn, { small: true, variant: 'ghost', onClick: onBanks }, h(Icon, { name: 'book', size: 13 }), T.manageBanks),
-      h(Btn, { small: true, variant: 'ghost', onClick: onSyllabuses }, h(Icon, { name: 'syllabus', size: 13 }), T.manageSyllabuses),
-      h(Btn, { small: true, variant: 'ghost', onClick: onPastPapers }, h(Icon, { name: 'papers', size: 13 }), T.managePastPapers))
+      h(Btn, { small: true, variant: 'ghost', onClick: onStats }, h(Icon, { name: 'stats', size: 13 }), '统计'),
+      h(Btn, { small: true, variant: 'ghost', onClick: onSettings }, h(Icon, { name: 'settings', size: 13 }), '设置'))
   }
 
   /* ============================== 题目详情 ============================== */
@@ -276,17 +341,29 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       h('span', { className: 'kd-meta' }, text))
   }
 
-  function AnswerBlock({ question, onRevise, revising, onRemoveWrong }) {
-    if (!question.answer) {
+  function AttemptHistory({ attempts, onInspect }) {
+    return h('div', { className: 'kd-answer-block' },
+      h('div', { className: 'kd-answer-label' }, '作答历史'),
+      ...attempts.map((attempt, index) => h('div', { className: 'kd-row', key: attempt.id },
+        h('span', { className: 'kd-meta' }, `${index + 1}. ${formatDateTime(attempt.at)} · ${statusLabel(attempt.result).text}`
+          + `${attempt.mode === 'giveup' ? ' · 未能作答' : attempt.mode === 'done' ? ' · 作答完毕' : ''}`
+          + `${attempt.choice ? ` · 选择 ${attempt.choice}` : ''}`),
+        onInspect ? h(Btn, { small: true, variant: 'ghost', onClick: () => onInspect(attempt.id) }, '查看当时答案') : null)))
+  }
+
+  function AnswerBlock({ question, onRevise, revising, onRemoveWrong, onInspect }) {
+    const answer = question.answer
+    if (!answer) {
       if (question.answerState !== 'revealed') return null
       return h('div', { className: 'kd-answer' },
-        h('div', { className: 'kd-verify' }, '这道题没有可用的参考答案与解析。系统不会用猜测的内容冒充标准答案。'))
+        h('div', { className: 'kd-verify' }, question.answerVersionUnknown
+          ? '这条旧作答无法确认当时的答案版本。' : '这次作答没有可用的参考答案与解析。'),
+        h(AttemptHistory, { attempts: question.attempts || [], onInspect }))
     }
-    const answer = question.answer
     return h('div', { className: 'kd-answer' },
       h('div', { className: 'kd-answer-panel' },
         h('div', { className: 'kd-answer-panel-head' },
-          h('span', null, '答案与解析'),
+          h('span', null, question.historicalAnswer ? '本次作答的答案与解析' : '答案与解析'),
           h('span', { className: 'kd-tag' }, `版本 ${answer.versionId}`)),
         h('div', { className: 'kd-answer-panel-body' },
           answer.verified
@@ -294,22 +371,14 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
             : h('div', { className: 'kd-verify', style: { marginTop: 0 } },
               h(Badge, { tone: 'warn' }, answer.basis === 'imported' ? T.unverified : T.missing),
               ' 这份答案来自导入题库，尚未经过独立校验，请自行核对。'),
-          h('div', { className: 'kd-answer-block' },
+          h('div', { className: 'kd-answer-block kd-answer-copy' },
             h('div', { className: 'kd-answer-label' }, T.answer),
             h(Markdown, { text: answer.answer || '（题库未提供参考答案）' })),
-          h('div', { className: 'kd-answer-block' },
+          h('div', { className: 'kd-answer-block kd-answer-copy' },
             h('div', { className: 'kd-answer-label' }, T.explanation),
             h(Markdown, { text: answer.explanation || '（题库未提供解析）' })),
           h('div', { className: 'kd-answer-block' },
-            h('div', { className: 'kd-answer-label' }, '作答历史'),
-            h('div', {
-              className: 'kd-meta',
-              style: { flexDirection: 'column', alignItems: 'flex-start', gap: '3px' },
-            },
-            question.attempts.map((attempt, index) => h('div', { key: attempt.id },
-              `${index + 1}. ${formatDateTime(attempt.at)} · ${statusLabel(attempt.result).text}`
-              + `${attempt.mode === 'giveup' ? ' · 未能作答' : attempt.mode === 'done' ? ' · 作答完毕' : ''}`
-              + `${attempt.choice ? ` · 选择 ${attempt.choice}` : ''}`))),
+            h(AttemptHistory, { attempts: question.attempts || [], onInspect }),
             question.wrongEver
               ? h('div', { className: 'kd-actions', style: { marginTop: '10px' } },
                 h(Btn, {
@@ -350,8 +419,8 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
 
   function QuestionPane({
     q, busy, choice, onSelect, onReveal, onJudge, onFavorite, onRedo, localRedo,
-    onRevise, revising, onToggleThread, threadOpen, onRemoveWrong,
-    onCancel, onSkip,
+    onRevise, revising, onToggleThread, threadOpen, onRemoveWrong, favoritePending,
+    onCancel, onSkip, onInspectAttempt, onNextReview,
   }) {
     if (!q) return null
     const revealed = !localRedo && q.answerState === 'revealed' && q.attemptCount > 0
@@ -439,15 +508,15 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           revealed && last?.result === 'pending'
             ? h(Btn, { key: 'wait', variant: 'ghost', disabled: true }, '待判定：请在下方向答案区域做判定')
             : null,
-          revealed
-            ? h(Btn, { onClick: onFavorite, disabled: busy === 'favorite' },
-              h(Icon, { name: 'star' }), q.favorite ? T.unfavorite : T.favorite)
-            : null,
+          h(Btn, { onClick: onFavorite, disabled: favoritePending },
+            h(Icon, { name: 'star' }), q.favorite ? T.unfavorite : T.favorite),
           revealed
             ? h(Btn, { variant: 'ghost', onClick: onRedo, disabled: busy === 'reveal' }, h(Icon, { name: 'refresh', size: 13 }), T.redo)
             : null,
           revealed ? h(Btn, { variant: 'ghost', onClick: onToggleThread }, h(Icon, { name: 'book' }), threadOpen ? '收起追问' : T.followup) : null),
-        revealed ? h(AnswerBlock, { question: q, onRevise, revising, onRemoveWrong }) : null,
+        revealed ? h(AnswerBlock, { question: q, onRevise, revising, onRemoveWrong, onInspect: onInspectAttempt }) : null,
+        revealed && last && last.result !== 'pending' && onNextReview
+          ? h(Btn, { variant: 'primary', disabled: Boolean(busy), onClick: onNextReview }, '下一道复习') : null,
         revising && onCancel ? h(Btn,{variant:'ghost',onClick:onCancel},'取消修订') : null,
         revealed && last?.result === 'pending'
           ? h('div', { className: 'kd-actions', style: { marginTop: '12px' } },
@@ -522,21 +591,21 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     return h('div', { ref, className: 'kd-list-summary' + (truncated ? ' is-truncated' : '') }, h(Markdown, { text }))
   }
 
-  function ListPane({ list, kind, subjectName, onOpen, managing, selected, onManage, onToggle, onSelectAll, onBulk, onPage, busy }) {
+  function ListPane({ list, kind, subjectName, onOpen, managing, selected, onManage, onToggle, onSelectAll, onBulk, onPage, busy, filtered }) {
     if (!list) return h('div', { className: 'kd-loading' }, h('span', { className: 'kd-spinner' }), '加载中…')
     if (!list.items.length) {
       const icon = kind === 'favorite' ? 'star' : kind === 'wrong' ? 'check' : kind === 'all' ? 'book' : 'spark'
       return h(EmptyState, {
         icon,
         title: `${subjectName} · ${T.tabs[kind]}`,
-        body: T.tabEmpty[kind] || '暂无内容',
+        body: filtered ? '没有符合搜索或筛选条件的题目。' : T.tabEmpty[kind] || '暂无内容',
       })
     }
     const total = list.total ?? list.items.length
     return h('div', null,
       h('div', { className: 'kd-meta', style: { marginBottom: '10px' } },
         h('span', null, `${subjectName} · ${T.tabs[kind]} · 共 ${total} 道`),
-        h(Btn, { small: true, onClick: onManage, disabled: busy }, managing ? '完成管理' : '批量管理')),
+        kind === 'review' ? null : h(Btn, { small: true, onClick: onManage, disabled: busy }, managing ? '完成管理' : '批量管理')),
       list.totalPages>1?h('div',{className:'kd-row',style:{marginBottom:'12px'},'aria-label':'题目分页'},
         h(Btn,{small:true,disabled:busy||list.page<=1,onClick:()=>onPage(list.page-1)},'上一页'),
         h('span',{className:'kd-meta'},`第 ${list.page} / ${list.totalPages} 页`),
@@ -573,6 +642,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         h('div', { className: 'kd-list-meta' },
           h(Badge, null, item.typeLabel),
           h('span', null, formatDate(item.assignedDate)),
+          item.reviewDue ? h('span', null, `复习日期 ${formatDate(item.reviewDue)}`) : null,
           h('span', null, `作答 ${item.attemptCount} 次`),
           item.favorite ? h(Badge, { tone: 'brand' }, '收藏') : null,
           item.wrongEver ? h(Badge, { tone: 'bad' }, item.mastered ? '错题 · 已掌握' : '错题') : null,
@@ -712,11 +782,11 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
   }
 
   /* ============================== 弹窗 ============================== */
-  function SubjectsModal({ boot, onClose, onDone }) {
+  function SubjectsModal({ boot, savedNotice, onClose, onDone, embedded, onBusyChange, onDirtyChange }) {
     const [draft, setDraft] = useState(() => ({ subjects: [...boot.settings.subjects],
       subjectSource: { ...boot.settings.subjectSource }, customSubjects: structuredClone(boot.customSubjects || []), deleteSubjectIds: [] }))
     const [saving, setSaving] = useState(false)
-    const [saveError, setSaveError] = useState('')
+    const [saveError, setSaveError] = useState(null)
     const [name, setName] = useState('')
     const [types, setTypes] = useState([])
     const [customTypes, setCustomTypes] = useState([])
@@ -727,23 +797,27 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     const [subjectCode, setSubjectCode] = useState('')
     const [outlineDraft, setOutlineDraft] = useState('')
     const [deletion, setDeletion] = useState(null)
+    const [undoOpen, setUndoOpen] = useState(false)
     const outlineEditor = (value, onChange, label) => h('label', { className:'kd-field', style:{marginBottom:0} },
       h('span',{className:'kd-meta'},label),
-      h('textarea',{className:'kd-textarea',rows:3,value,maxLength:2400,placeholder:'每行填写一个知识点，例如：链表、栈与队列',onChange:(event)=>onChange(event.target.value)}))
+      h('textarea',{className:'kd-input kd-outline-input',rows:3,value,maxLength:2400,placeholder:'每行填写一个知识点，例如：链表、栈与队列',onChange:(event)=>onChange(event.target.value)}))
     const referenceExams = boot.referenceExams || (boot.subjects || []).filter((s) => !s.custom)
     const referenceEditor = (value, change, label) => h('div', { className:'kd-field', style:{ marginBottom:0 } },
       h('select', { className:'kd-select', 'aria-label':label, value:value.referenceSubjectId || 'auto',
         onChange:(event)=>change({referenceSubjectId:event.target.value}) },
-        h('option', {value:'auto'}, '使用本科学习范围'),
+        h('option', {value:'auto'}, '使用当前科目信息'),
         ...referenceExams.map((exam)=>h('option',{key:exam.id,value:exam.id},`${exam.name}${exam.code ? `（${exam.code}）` : ''}`)),
-        h('option',{value:'independent'},'另行指定参考考试名称…')),
+        h('option',{value:'independent'},'手动填写参考考试…')),
       !value.referenceSubjectId || value.referenceSubjectId === 'auto' ? h('input',{className:'kd-input','aria-label':`${label}代码（考试科目或专业）`,
         placeholder:'考试科目或专业代码（选填）',value:value.code || '',maxLength:20,onChange:(event)=>change({code:event.target.value})}) : null,
-      value.referenceSubjectId === 'independent' ? h('div',{className:'kd-row'},
-        h('input',{className:'kd-input','aria-label':`${label}名称`,placeholder:'考试名称，院校自命题请包含院校',value:value.referenceExamName || '',maxLength:100,
-          onChange:(event)=>change({referenceExamName:event.target.value})}),
-        h('input',{className:'kd-input','aria-label':`${label}代码`,placeholder:'科目代码（选填）',value:value.referenceExamCode || '',maxLength:20,style:{width:'150px'},
-          onChange:(event)=>change({referenceExamCode:event.target.value})})) : null)
+      value.referenceSubjectId === 'independent' ? [
+        h('div',{className:'kd-row',key:'exam-fields'},
+          h('input',{className:'kd-input kd-reference-name','aria-label':`${label}名称`,placeholder:'参考考试名称（必填）',value:value.referenceExamName || '',maxLength:100,
+            onChange:(event)=>change({referenceExamName:event.target.value})}),
+          h('input',{className:'kd-input','aria-label':`${label}代码`,placeholder:'科目代码（选填）',value:value.referenceExamCode || '',maxLength:20,style:{width:'150px',maxWidth:'100%'},
+            onChange:(event)=>change({referenceExamCode:event.target.value})})),
+        h('div',{className:'kd-meta',key:'exam-hint'},'院校自命题请在参考考试名称中写明院校，例如「某大学数据结构」。'),
+      ] : null)
     const enabled = new Set(draft.subjects)
     const subjects = [...(boot.subjects || []), ...draft.customSubjects.filter((item) => !(boot.subjects || []).some((s) => s.id === item.id)).map((item) => ({
       ...item, custom: true, typeLabels: item.types.map((type) => ({ single: '单项选择题', multiple: '多项选择题', fill: '填空题', solution: '解答题' })[type] || type), bankItemCount: 0,
@@ -766,28 +840,52 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       setTypes((current) => current.filter((item) => item !== value))
     }
     const selectedTypes = [...new Set([...types, ...(typeDraft.trim() ? [typeDraft.trim().slice(0, 24)] : [])])]
-    const canAdd = Boolean(name.trim()) && selectedTypes.length > 0 && (referenceSubjectId !== 'independent' || Boolean(referenceExamName.trim()))
+    const hasCustomInput = Boolean(name.trim() || selectedTypes.length || referenceSubjectId !== 'auto'
+      || referenceExamName.trim() || referenceExamCode.trim() || subjectCode.trim() || outlineDraft.trim())
+    const savedSubjects = boot.settings.subjects
+    const savedSources = boot.settings.subjectSource || {}
+    const savedCustomSubjects = boot.customSubjects || []
+    const customSettings = ({ id, code, outline, referenceSubjectId, referenceExamName, referenceExamCode }) => [
+      id, code || '', (outline || []).map((line) => line.trim()).filter(Boolean),
+      referenceSubjectId || 'auto', referenceExamName?.trim() || '', referenceExamCode?.trim() || '',
+    ]
+    const hasChanges = hasCustomInput || draft.deleteSubjectIds.length > 0 || enabled.size !== savedSubjects.length
+      || savedSubjects.some((id) => !enabled.has(id))
+      || Object.keys(draft.subjectSource).some((id) => (draft.subjectSource[id] || 'auto') !== (savedSources[id] || 'auto'))
+      || JSON.stringify(draft.customSubjects.map(customSettings)) !== JSON.stringify(savedCustomSubjects.map(customSettings))
+    useEffect(() => { onDirtyChange?.(hasChanges) }, [onDirtyChange, hasChanges])
+    const missingFields = [
+      !name.trim() && '填写科目名称',
+      !selectedTypes.length && '选择至少一种练习题型',
+      referenceSubjectId === 'independent' && !referenceExamName.trim() && '填写参考考试名称',
+    ].filter(Boolean)
+    const canAdd = missingFields.length === 0
+    const customInputError = hasCustomInput && !canAdd
+      ? `添加自定义科目前，请${missingFields.join('，并')}。` : ''
     const withCustomSubject = (current) => {
       const subject = { id: 'custom_' + newAttemptId(), name: name.trim(), code:subjectCode.trim(), types: selectedTypes, referenceSubjectId, referenceExamName:referenceExamName.trim(), referenceExamCode:referenceExamCode.trim(),
         outline:outlineDraft.split('\n') }
       return { ...current, subjects: [...current.subjects, subject.id], customSubjects: [...current.customSubjects, subject] }
     }
+    const showSaveError = (message, validation = false) => {
+      setSaveError((previous) => ({ id: (previous?.id || 0) + 1, message, validation }))
+    }
     const finish = async () => {
-      if (saving) return
-      if ((name.trim() || types.length || typeDraft.trim() || (referenceSubjectId && referenceSubjectId !== 'auto') || referenceExamName.trim() || referenceExamCode.trim() || subjectCode.trim() || outlineDraft.trim()) && !canAdd) {
-        setSaveError('请填写自定义科目名称并至少选择一个题型；选择独立参考考试时，还需填写考试名称。或清空未完成的输入。')
+      if (saving || !hasChanges) return
+      if (hasCustomInput && !canAdd) {
+        showSaveError('', true)
         return
       }
       const next = canAdd ? withCustomSubject(draft) : draft
       if (next.customSubjects.some((s)=>s.referenceSubjectId === 'independent' && !s.referenceExamName?.trim())) {
-        setSaveError('独立参考考试请填写准确的考试名称（院校自命题请包含院校名称）。')
+        showSaveError('独立参考考试请填写准确的考试名称（院校自命题请包含院校名称）。')
         return
       }
       setSaving(true)
-      setSaveError('')
+      onBusyChange?.(true)
       try { await onDone(next) }
-      catch (error) { setSaveError(error.message || '保存失败，请重试') }
-      finally { setSaving(false) }
+      catch (error) { showSaveError(error.message || '保存失败，请重试') }
+      finally { setSaving(false); onBusyChange?.(false) }
     }
     const submit = () => {
       if (!canAdd) return
@@ -805,10 +903,11 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     if (deletion) {
       const { subject, final } = deletion
       return h(ConfirmModal, {
+        embedded,
         key: final ? 'final' : 'first',
         title: final ? '再次确认删除科目' : '删除科目',
         message: final
-          ? `点击科目管理的「完成」后，将永久删除「${subject.name}」及已出题目、作答、收藏、错题和追问记录。此操作无法恢复。`
+          ? `点击科目管理的「保存」后，将删除「${subject.name}」及已出题目、作答、收藏、错题和追问记录。删除前会保存一个恢复点。`
           : `确定删除「${subject.name}」吗？如果只是暂时不练习，可以取消勾选来停用。`,
         confirmLabel: final ? '确认永久删除' : '继续删除',
         danger: true,
@@ -826,21 +925,38 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         },
       })
     }
+    const setUndoDialog = (open) => {
+      setUndoOpen(open)
+      onBusyChange?.(open)
+    }
+    const subjectActions = [
+      h(Btn, { key: 'undo', onClick: () => setUndoDialog(true), disabled: saving || !hasChanges }, '撤销'),
+      h(Btn, { key: 'save', variant: 'primary', onClick: finish, disabled: saving || !hasChanges }, saving ? '保存中…' : '保存'),
+    ]
+    const errorMessage = saveError?.validation ? customInputError : saveError?.message
     return h(Modal, {
+      embedded,
       title: T.manageSubjects,
       onClose: close,
       wide: true,
-      footer: [
-        h(Btn, { key: 'cancel', onClick: close, disabled: saving }, T.cancel),
-        h(Btn, { key: 'done', variant: 'primary', onClick: finish, disabled: saving }, saving ? '保存中…' : '完成'),
-      ],
+      headerActions: embedded ? subjectActions : null,
+      footer: embedded ? null : subjectActions,
+      notification: errorMessage ? h(NotificationBanner, { key: saveError.id, message: errorMessage, tone: 'bad' })
+        : !saveError && savedNotice ? h(NotificationBanner, { key: 'saved', message: savedNotice }) : null,
+      dialog: undoOpen ? h(ConfirmModal, {
+        title: '撤销本次更改',
+        explicitClose: true,
+        message: '确定撤销本次的全部更改吗？已保存的科目设置会保留。',
+        confirmLabel: '确认撤销',
+        onClose: () => setUndoDialog(false),
+        onConfirm: () => { setUndoDialog(false); close() },
+      }) : null,
     },
-    saveError ? h('div', { className: 'kd-error-text', role: 'alert' }, saveError) : null,
     draft.deleteSubjectIds.length ? h('div', { className:'kd-error-text', role:'status' },
-      `有 ${draft.deleteSubjectIds.length} 个科目待删除，点击「完成」后生效。`) : null,
+      `有 ${draft.deleteSubjectIds.length} 个科目待删除，点击「保存」后生效。`) : null,
     h('fieldset', { disabled: saving, style: { border: 0, padding: 0, margin: 0, minWidth: 0 } },
     h('div', { className: 'kd-meta', style: { marginBottom: '12px' } },
-      '修改后点击右下角「完成」统一保存；取消或关闭会放弃修改。停用科目不会删除历史题目、作答、收藏和追问。'),
+      '点击「保存」统一应用科目设置，点击「撤销」可放弃本次更改。停用科目会保留历史题目、作答、收藏和追问。'),
     subjects.map((subject) => h('div', {
       key: subject.id,
       className: 'kd-row-between kd-manage-card' + (enabled.has(subject.id) ? ' is-enabled' : ''),
@@ -877,26 +993,18 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     h(Btn, { small:true, variant:'danger', ariaLabel:`删除${subject.name}`, onClick:() => setDeletion({subject,final:false}) }, '删除'))),
     h('div', { className: 'kd-divider' }),
     h('div', { className: 'kd-field kd-custom-subject' },
-      h('div', { className: 'kd-field-label' }, '添加自定义科目'),
-      referenceEditor({referenceSubjectId,referenceExamName,referenceExamCode,code:subjectCode},(patch)=>{
-        if (patch.referenceSubjectId !== undefined) setReferenceSubjectId(patch.referenceSubjectId)
-        if (patch.referenceExamName !== undefined) setReferenceExamName(patch.referenceExamName)
-        if (patch.referenceExamCode !== undefined) setReferenceExamCode(patch.referenceExamCode)
-        if (patch.code !== undefined) setSubjectCode(patch.code)
-      },'自定义科目的参考考试'),
-      h('div',{className:'kd-meta'},'可在这里填写练习范围。大纲和难度对照用的真题分别在大纲管理与真题管理导入。'),
-      outlineEditor(outlineDraft,setOutlineDraft,'自定义科目的练习范围'),
-      h('div', { className: 'kd-row' },
+      h('h3', { className: 'kd-custom-subject-title' }, '添加自定义科目'),
+      h('label', { className: 'kd-field' },
+        h('span', { className: 'kd-field-label' }, '科目名称（必填）'),
         h('input', {
           className: 'kd-input',
-          style: { flex: '1 1 200px' },
           value: name,
+          'aria-required': true,
           placeholder: '例如：数据结构（自命题）',
           onChange: (event) => setName(event.target.value),
           onKeyDown: (event) => { if (event.key === 'Enter') submit() },
-        }),
-        h(Btn, { disabled: !canAdd, onClick: submit }, '添加')),
-      h('div', { className: 'kd-meta', style: { marginTop: '10px' } }, '题型（至少选一个）'),
+        })),
+      h('div', { className: 'kd-field-label' }, '练习题型（至少选一种）'),
       h('div', { className: 'kd-row', style: { marginTop: '6px' } },
         [['single', '单项选择题'], ['multiple', '多项选择题'], ['fill', '填空题'], ['solution', '解答题']]
           .map(([value, label]) =>
@@ -929,16 +1037,78 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           className: 'kd-input',
           style: { flex: '1 1 160px' },
           value: typeDraft,
+          'aria-label': '自定义题型名称',
           placeholder: '自定义题型，例如：名词解释',
           onChange: (event) => setTypeDraft(event.target.value),
           onKeyDown: (event) => { if (event.key === 'Enter') addCustomType() },
         }),
         h(Btn, { small: true, disabled: !typeDraft.trim(), onClick: addCustomType }, '添加题型')),
-      h('div', { className: 'kd-msg-meta', style: { marginTop: '6px' } },
-        canAdd ? `将添加：${name.trim()}（${types.join(' / ')}）` : '填写科目名称并至少选择一个题型后即可添加'))))
+      h('div', { className: 'kd-divider' }),
+      h('div', { className: 'kd-field-label' }, '参考考试（选填）'),
+      h('div', { className: 'kd-meta' }, '例如可选 408 作为参考考试，科目名称仍由上方的输入框决定。'),
+      referenceEditor({referenceSubjectId,referenceExamName,referenceExamCode,code:subjectCode},(patch)=>{
+        if (patch.referenceSubjectId !== undefined) setReferenceSubjectId(patch.referenceSubjectId)
+        if (patch.referenceExamName !== undefined) setReferenceExamName(patch.referenceExamName)
+        if (patch.referenceExamCode !== undefined) setReferenceExamCode(patch.referenceExamCode)
+        if (patch.code !== undefined) setSubjectCode(patch.code)
+      },'自定义科目的参考考试'),
+      outlineEditor(outlineDraft,setOutlineDraft,'练习范围（选填）'),
+      h('div',{className:'kd-meta'},'考试大纲和用于难度校验的真题，可分别在「大纲管理」和「真题管理」中导入。'),
+      h('div', { className: 'kd-row-between kd-custom-subject-actions' },
+        h('span', { className: 'kd-meta' }, '可以直接点「保存」。要继续添加其他科目，可先加入列表，再统一保存。'),
+        h(Btn, { disabled: !canAdd, onClick: submit }, '加入科目列表')))))
   }
 
-  function BanksModal({ boot, importResult, onClose, onPickFile, onDelete, onCommit, onCancelImport, committing }) {
+  function PdfImportPreview({ pages }) {
+    const [selected, setSelected] = useState(0)
+    if (!pages?.length) return null
+    const failed = pages.filter((entry) => entry.source === 'failed')
+    const labels = { text: '文字层提取', ocr: '模型识别', blank: '空白页', failed: '识别失败' }
+    const current = pages[selected] || pages[0]
+    return h('section', { className: 'kd-pdf-preview', 'aria-label': 'PDF 逐页预览' },
+      failed.length ? h('div', { className: 'kd-error-text', role: 'alert' },
+        h('strong', null, `识别失败页：${failed.map((entry) => entry.page).join('、')}。请修复这些页面后重新导入。`),
+        h('ul', null, failed.map((entry) => h('li', { key: entry.page }, `第 ${entry.page} 页 · ${entry.reason}`)))) : null,
+      h('label', { className: 'kd-row' }, h('span', null, '逐页预览'),
+        h('select', { className: 'kd-select', value: selected, onChange: (event) => setSelected(Number(event.target.value)) },
+          ...pages.map((entry, index) => h('option', { key: entry.page, value: index }, `第 ${entry.page} 页 · ${labels[entry.source]}`)))),
+      current.text ? h('pre', { className: 'kd-import-text', tabIndex: 0 }, current.text)
+        : h('p', { className: 'kd-meta' }, current.reason || '此页没有正文。'))
+  }
+
+  function StudyImportPreview({ preview, title, busy, error, embedded, onCancel, onConfirm }) {
+    return h(Modal, { title, embedded, wide: true, locked: busy, onClose: onCancel,
+      footer: [
+        h(Btn, { key: 'cancel', disabled: busy, onClick: onCancel }, '返回'),
+        h(Btn, { key: 'confirm', variant: 'primary', disabled: busy || !preview.canSave, onClick: onConfirm }, busy ? '正在保存…' : '确认导入'),
+      ],
+    },
+    h('p', { className: 'kd-meta kd-import-filename' }, `${preview.subjectName} · ${preview.year ? `${preview.year} 年 · ` : ''}${preview.fileName}`),
+    preview.issue || error ? h('p', { role: 'alert', className: 'kd-error-text' }, error || preview.issue) : null,
+    preview.recognition ? h('section', { className: 'kd-pdf-preview', 'aria-label': '模型识别结果' },
+      preview.recognition.warnings?.length ? h('ul', { className: 'kd-warn-text' },
+        preview.recognition.warnings.map((warning, index) => h('li', { key: index }, warning))) : null,
+      preview.recognition.scopeText ? h('details', { open: true },
+        h('summary', null, '模型识别的考试范围'), h('pre', { className: 'kd-import-text', tabIndex: 0 }, preview.recognition.scopeText)) : null,
+      Object.entries(preview.recognition.typeExcerpts || {}).map(([type, text]) => h('details', { key: type },
+        h('summary', null, `识别题型 · ${typeLabel(type)}`), h('pre', { className: 'kd-import-text', tabIndex: 0 }, text)))) : null,
+    preview.pages?.length ? h(PdfImportPreview, { pages: preview.pages })
+      : h('pre', { className: 'kd-import-text', tabIndex: 0 }, preview.text))
+  }
+
+  function BankItemPreview({ item }) {
+    const [open, setOpen] = useState(false)
+    return h('details', { className: 'kd-bank-preview-stem', onToggle: (event) => setOpen(event.currentTarget.open) },
+      h('summary', { className: 'kd-meta' }, '核对完整题目'),
+      open ? [
+        h(Markdown, { key: 'stem', text: item.stem }),
+        ...item.options.map(({ key, text }, index) => h(Markdown, { key: index, text: `${key}. ${text}` })),
+        item.answer ? h('div', { key: 'answer' }, h('strong', null, '参考答案'), h(Markdown, { text: item.answer })) : null,
+        item.explanation ? h('div', { key: 'explanation' }, h('strong', null, '解析'), h(Markdown, { text: item.explanation })) : null,
+      ] : null)
+  }
+
+  function BanksModal({ boot, importResult, onClose, onPickFile, onDelete, onCommit, onCancelImport, committing, embedded }) {
     const [excluded, setExcluded] = useState([])
     const [previewPage, setPreviewPage] = useState(0)
     if (importResult) {
@@ -946,21 +1116,26 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       const pageCount = Math.ceil(importResult.items.length / pageSize)
       const selectedCount = importResult.usable - excluded.length
       return h(Modal, {
+        embedded,
         title: `${T.preview}（${importResult.name}）`,
         onClose: onCancelImport,
         wide: true,
         footer: [
-          h(Btn, { key: 'cancel', onClick: onCancelImport }, T.cancel),
+          h(Btn, { key: 'cancel', onClick: onCancelImport, disabled: committing }, T.cancel),
           h(Btn, {
             key: 'ok',
             variant: 'primary',
-            disabled: !selectedCount || committing,
+            disabled: !selectedCount || committing || Boolean(importResult.incomplete),
             onClick: () => onCommit(importResult, excluded),
           }, T.commit),
         ],
       },
       h('div', { className: 'kd-meta', style: { marginBottom: '10px' } },
-        `共识别 ${importResult.stats.total} 道，可用 ${importResult.usable} 道，已选 ${selectedCount} 道入库。`),
+        `模型识别 ${importResult.stats.total} 道，可用 ${importResult.usable} 道，已选 ${selectedCount} 道入库。`),
+      importResult.pages?.length ? h(PdfImportPreview, { pages: importResult.pages }) : null,
+      importResult.sourceText ? h('details', { className: 'kd-pdf-preview' },
+        h('summary', null, '查看文件原文'),
+        h('pre', { className: 'kd-import-text', tabIndex: 0 }, importResult.sourceText)) : null,
       importResult.warnings.length
         ? h('div', { className: 'kd-verify' },
           h('div', null, '解析提示：'),
@@ -992,21 +1167,22 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
               ? h(Badge, { tone: 'warn' }, T.missing)
               : h(Badge, { tone: 'ok' }, '含参考答案（待核验）'),
             item.options.length ? h(Badge, null, `${item.options.length} 个选项`) : null),
-          h('div', { style: { marginTop: '6px', fontSize: '13px' } },
+          h('div', { className: 'kd-bank-preview-stem', style: { marginTop: '6px', fontSize: '13px' } },
             h(Markdown, { text: (item.stem || '(未识别到题干)').slice(0, 400) })),
+          h(BankItemPreview, { item }),
           item.issues.length
             ? h('div', { className: 'kd-warn-text', style: { marginTop: '6px' } }, `问题：${item.issues.join('；')}`)
             : null))))
     }
 
+    const importButton = h(Btn, { key: 'import', variant: 'primary', onClick: onPickFile }, h(Icon, { name: 'upload', size: 13 }), T.import)
     return h(Modal, {
+      embedded,
       title: T.manageBanks,
       onClose,
       wide: true,
-      footer: [
-        h(Btn, { key: 'import', variant: 'primary', onClick: onPickFile }, h(Icon, { name: 'upload', size: 13 }), T.import),
-        h(Btn, { key: 'close', onClick: onClose }, T.close),
-      ],
+      headerActions: embedded ? importButton : null,
+      footer: embedded ? null : [importButton, h(Btn, { key: 'close', onClick: onClose }, T.close)],
     },
     h('div', { className: 'kd-meta', style: { marginBottom: '12px' } }, T.importHint),
     (boot.banks || []).length
@@ -1027,27 +1203,34 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       }))
   }
 
-  function SyllabusesModal({ boot, subjectId, onClose, onSaved }) {
+  function SyllabusesModal({ boot, onClose, onSaved, embedded, onBusyChange }) {
     const subjects = boot.subjects || []
-    const [selected, setSelected] = useState(() => subjects.some((subject) => subject.id === subjectId) ? subjectId : (subjects[0]?.id || ''))
+    const [selected, setSelected] = useState('')
     const [busy, setBusy] = useState(false)
     const [message, setMessage] = useState('')
     const [error, setError] = useState('')
+    const [preview, setPreview] = useState(null)
     const fileInput = useRef(null)
     const current = (boot.syllabuses || []).find((syllabus) => syllabus.subjectId === selected)
     const save = async (op, args) => {
       setBusy(true)
+      onBusyChange?.(true)
       setError('')
       setMessage('')
       try {
         const payload = await args()
         const result = await rpc(op, {subjectId:selected,...payload})
-        onSaved(result.syllabuses)
-        setMessage(op === 'importSyllabus' ? '大纲已保存，下次在线出题时使用。' : '大纲已移除。')
+        if (op === 'importSyllabus') setPreview(result)
+        else {
+          onSaved(result.syllabuses)
+          setPreview(null)
+          setMessage(op === 'commitStudyImport' ? '大纲已保存，下次在线出题时使用。' : '大纲已移除。')
+        }
       } catch (issue) {
         setError(issue.message)
       } finally {
         setBusy(false)
+        onBusyChange?.(false)
       }
     }
     const onFile = async (event) => {
@@ -1056,12 +1239,18 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       if (!file || !selected) return
       await save('importSyllabus', () => readStudyFile(file))
     }
-    return h(Modal, {title:T.manageSyllabuses,wide:true,onClose:() => { if (!busy) onClose() },
-      footer:h(Btn,{disabled:busy,onClick:onClose},T.close)},
-    h('p',{className:'kd-meta'},'每科可导入一份文本型 PDF、TXT 或 Markdown 大纲。没有导入时仍可在线出题，题目可能与正式大纲范围有差异。'),
-    subjects.length ? h('label',{className:'kd-field'},h('span',{className:'kd-field-label'},'科目'),
-      h('select',{className:'kd-select',value:selected,disabled:busy,onChange:(event)=>{setSelected(event.target.value);setError('');setMessage('')}},
-        subjects.map((subject)=>h('option',{key:subject.id,value:subject.id},subject.name)))) : h('p',{className:'kd-meta'},'请先在科目管理添加科目。'),
+    if (preview) return h(StudyImportPreview, { title: '大纲导入预览', preview, busy, error, embedded,
+      onCancel: () => { setPreview(null); setError('') },
+      onConfirm: () => save('commitStudyImport', () => ({ importId: preview.importId })),
+    })
+    return h(Modal, {title:T.manageSyllabuses,wide:true,embedded,onClose:() => { if (!busy) onClose() },
+      footer:embedded ? null : h(Btn,{disabled:busy,onClick:onClose},T.close)},
+    h('p',{className:'kd-meta'},'每科可导入一份 PDF、TXT 或 Markdown 大纲。DSH 默认模型会通读正文、识别考试范围，确认预览后保存。'),
+    h('label',{className:'kd-field'},h('span',{className:'kd-field-label'},'科目'),
+      h('select',{className:selected ? 'kd-select' : 'kd-select is-placeholder',value:selected,disabled:busy||!subjects.length,onChange:(event)=>{setSelected(event.target.value);setError('');setMessage('')}},
+        h('option',{value:'',disabled:true},'选择一门科目'),
+        ...subjects.map((subject)=>h('option',{key:subject.id,value:subject.id},subject.name)))),
+    !subjects.length ? h('p',{className:'kd-meta'},'请先在科目管理添加科目。') : null,
     current ? h('div',{className:'kd-manage-card'},
       h('div',null,current.fileName),
       h('div',{className:'kd-msg-meta'},`导入于 ${formatDateTime(current.importedAt)} · ${current.characters} 字符`))
@@ -1070,19 +1259,20 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     h('div',{className:'kd-actions'},
       h(Btn,{variant:'primary',disabled:busy||!selected,onClick:()=>fileInput.current?.click()},h(Icon,{name:'upload'}),current?'替换大纲':'导入大纲'),
       current ? h(Btn,{variant:'danger',disabled:busy,onClick:()=>save('removeSyllabus',async()=>({}))},'移除大纲') : null),
-    busy ? h('p',{className:'kd-meta',role:'status'},'正在处理…') : null,
+    busy ? h('p',{className:'kd-meta',role:'status'},'正在读取文件并让模型识别考试范围…') : null,
     error ? h('p',{className:'kd-error-text',role:'alert'},error) : null,
     message ? h('p',{className:'kd-meta',role:'status'},message) : null)
   }
 
-  function PastPapersModal({ boot, subjectId, onClose, onSaved }) {
+  function PastPapersModal({ boot, onClose, onSaved, embedded, onBusyChange }) {
     const subjects = boot.subjects || []
-    const [selected, setSelected] = useState(() => subjects.some((subject) => subject.id === subjectId) ? subjectId : (subjects[0]?.id || ''))
+    const [selected, setSelected] = useState('')
     const [year, setYear] = useState('')
     const [type, setType] = useState('')
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState('')
     const [message, setMessage] = useState('')
+    const [preview, setPreview] = useState(null)
     const fileInput = useRef(null)
     const subject = subjects.find((item) => item.id === selected)
     const papers = (boot.pastPapers || []).filter((paper) => paper.subjectId === selected)
@@ -1092,38 +1282,49 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     const typeName = (value) => subject?.typeLabels?.[(subject.types || []).indexOf(value)] || value
     const save = async (op, args, success) => {
       setBusy(true)
+      onBusyChange?.(true)
       setError('')
       setMessage('')
       try {
         const result = await rpc(op,{subjectId:selected,...await args()})
-        onSaved(result.pastPapers)
-        setMessage(success)
+        if (op === 'importPastPaper') setPreview(result)
+        else {
+          onSaved(result.pastPapers)
+          setPreview(null)
+          setMessage(success)
+        }
       } catch (issue) {
         setError(issue.message)
       } finally {
         setBusy(false)
+        onBusyChange?.(false)
       }
     }
     const onFile = async (event) => {
       const file = event.target.files?.[0]
       event.target.value = ''
       if (!file || !subject || !validYear || busy) return
-      await save('importPastPaper',async () => ({year:Number(year),type,...await readStudyFile(file)}),'真题已保存，可供后续出题校验难度。')
+      await save('importPastPaper',async () => ({year:Number(year),type,...await readStudyFile(file)}))
     }
-    return h(Modal,{title:T.managePastPapers,wide:true,onClose:()=>{if(!busy)onClose()},
-      footer:h(Btn,{disabled:busy,onClick:onClose},T.close)},
-    h('p',{className:'kd-meta'},'支持文本型 PDF、TXT 和 Markdown。同一科目每年保存一份真题。某题型至少有两个年份的真题才能用于难度校验。'),
-    h('div',{className:'kd-row'},
+    if (preview) return h(StudyImportPreview, { title: '真题导入预览', preview, busy, error, embedded,
+      onCancel: () => { setPreview(null); setError('') },
+      onConfirm: () => save('commitStudyImport', () => ({ importId: preview.importId }), '真题已保存，可供后续出题校验难度。'),
+    })
+    return h(Modal,{title:T.managePastPapers,wide:true,embedded,onClose:()=>{if(!busy)onClose()},
+      footer:embedded ? null : h(Btn,{disabled:busy,onClick:onClose},T.close)},
+    h('p',{className:'kd-meta'},'支持 PDF、TXT 和 Markdown。同一科目每年保存一份真题。DSH 默认模型会通读正文并识别题型。'),
+    h('div',{className:'kd-paper-fields'},
       h('label',{className:'kd-field'},h('span',{className:'kd-field-label'},'科目'),
-        h('select',{className:'kd-select',value:selected,disabled:busy,onChange:(event)=>{setSelected(event.target.value);setType('');setError('');setMessage('')}},
-          subjects.length ? subjects.map((item)=>h('option',{key:item.id,value:item.id},item.name)) : h('option',{value:''},'请先添加科目'))),
+        h('select',{className:selected ? 'kd-select' : 'kd-select is-placeholder',value:selected,disabled:busy||!subjects.length,onChange:(event)=>{setSelected(event.target.value);setType('');setError('');setMessage('')}},
+          h('option',{value:'',disabled:true},'选择一门科目'),
+          ...subjects.map((item)=>h('option',{key:item.id,value:item.id},item.name)))),
       h('label',{className:'kd-field'},h('span',{className:'kd-field-label'},'年份'),
         h('input',{className:'kd-input',type:'number',min:1900,max:maxYear,step:1,placeholder:'例如 2025',value:year,disabled:busy,onChange:(event)=>setYear(event.target.value)})),
-      h('label',{className:'kd-field'},h('span',{className:'kd-field-label'},'题型'),
+      h('label',{className:'kd-field'},h('span',{className:'kd-field-label'},'题型提示（选填）'),
         h('select',{className:'kd-select',value:type,disabled:busy,onChange:(event)=>setType(event.target.value)},
-          h('option',{value:''},'按正文标题识别'),
+          h('option',{value:''},'由模型识别'),
           ...(subject?.types || []).map((value)=>h('option',{key:value,value},typeName(value)))))),
-    h('p',{className:'kd-msg-meta'},'整卷请保留各题型标题。文件只有一种题型且缺少标题时，可以手动选择题型。'),
+    h('p',{className:'kd-msg-meta'},'可提供题型提示。至少两个年份的可核对同题型真题才能用于难度校验。'),
     h('input',{type:'file',accept:STUDY_FILE_ACCEPT,ref:fileInput,hidden:true,onChange:onFile}),
     h('div',{className:'kd-actions'},
       h(Btn,{variant:'primary',disabled:busy||!subject||!validYear,onClick:()=>fileInput.current?.click()},
@@ -1133,9 +1334,117 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         h('div',{className:'kd-msg-meta'},paper.types?.length ? paper.types.map(typeName).join('、') : '未识别题型')),
       h(Btn,{small:true,variant:'danger',disabled:busy,
         onClick:()=>save('removePastPaper',async()=>({year:paper.year}),'真题已移除。')},'移除'))),
-    busy ? h('p',{className:'kd-meta',role:'status'},'正在处理…') : null,
+    busy ? h('p',{className:'kd-meta',role:'status'},'正在读取文件并让模型识别真题题型…') : null,
     error ? h('p',{className:'kd-error-text',role:'alert'},error) : null,
     message ? h('p',{className:'kd-meta',role:'status'},message) : null)
+  }
+
+  function BackupModal({ onClose, onRestored, embedded, onBusyChange }) {
+    const [points, setPoints] = useState(null)
+    const [pointsError, setPointsError] = useState('')
+    const [pending, setPending] = useState(null)
+    const [busy, setBusy] = useState(false)
+    const [error, setError] = useState('')
+    const fileInput = useRef(null)
+    const labels = { 'before-delete': '删除科目前', 'before-restore': '恢复数据前' }
+    useEffect(() => {
+      let alive = true
+      rpc('recoveryPoints').then((value) => { if (alive) setPoints(value) })
+        .catch((issue) => { if (alive) setPointsError(issue.message) })
+      return () => { alive = false }
+    }, [])
+
+    const chooseRestore = (source) => {
+      setError('')
+      setPending(source)
+      onBusyChange?.(Boolean(source))
+    }
+    const run = async (action) => {
+      setBusy(true)
+      onBusyChange?.(true)
+      setError('')
+      try { await action() }
+      catch (issue) { setError(issue.message) }
+      finally { setBusy(false); if (!pending) onBusyChange?.(false) }
+    }
+    const download = () => run(async () => {
+      const { data } = await rpc('exportBackup')
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = window.URL.createObjectURL(blob)
+      try {
+        const link = window.document.createElement('a')
+        link.href = url
+        link.download = `daily-question-backup-${new Date().toISOString().slice(0, 10)}.json`
+        link.click()
+      } finally { window.setTimeout(() => window.URL.revokeObjectURL(url), 0) }
+    })
+    const pick = (event) => {
+      const file = event.target.files?.[0]
+      event.target.value = ''
+      if (file) chooseRestore({ file, label: file.name })
+    }
+    const restore = () => run(async () => {
+      let data
+      if (pending.file) {
+        try { data = JSON.parse(await pending.file.text()) }
+        catch { throw new Error('无法读取 JSON 备份，请检查文件') }
+      }
+      const result = await rpc('restoreBackup', { data, kind: pending.kind, confirmed: true })
+      chooseRestore(null)
+      onRestored(result.warning)
+    })
+    const dialog = pending ? h(ConfirmModal, {
+      title: '确认恢复学习数据', confirmLabel: '确认恢复', danger: true, busy, explicitClose: true,
+      onClose: () => { if (!busy) chooseRestore(null) },
+      onConfirm: restore,
+      message: h('div', { className: 'kd-backup-confirm' },
+        h('p', null, pending.file ? '备份文件' : '本机恢复点'),
+        h('strong', null, pending.label),
+        pending.at ? h('p', { className: 'kd-meta' }, formatDateTime(pending.at)) : null,
+        h('p', null, '恢复会替换当前全部学习数据。当前数据会先保存为恢复点。'),
+        error ? h('p', { role: 'alert', className: 'kd-error-text' }, error) : null),
+    }) : null
+    return h(Modal, {
+      title: '备份与恢复', embedded, dialog, onClose: () => { if (!busy) onClose() },
+      footer: embedded ? null : h(Btn, { onClick: onClose, disabled: busy || Boolean(dialog) }, '关闭'),
+      notification: !pending && error ? h(NotificationBanner, { message: error, tone: 'bad' }) : null,
+    },
+    h('div', { className: 'kd-backup-layout' },
+      h('div', { className: 'kd-backup-actions' },
+        h('section', { className: 'kd-backup-card' },
+          h('h3', null, '导出备份'),
+          h('p', { className: 'kd-meta' }, '将科目设置、题库和学习记录保存为 JSON 文件。'),
+          h(Btn, { variant: 'primary', onClick: download, disabled: busy }, '下载备份')),
+        h('section', { className: 'kd-backup-card' },
+          h('h3', null, '从备份文件恢复'),
+          h('p', { className: 'kd-meta' }, '选择之前导出的 JSON 文件，确认后恢复学习数据。'),
+          h('input', { ref: fileInput, type: 'file', accept: '.json,application/json', disabled: busy, hidden: true, onChange: pick }),
+          h(Btn, { onClick: () => fileInput.current?.click(), disabled: busy }, h(Icon, { name: 'upload' }), '选择备份文件'))),
+      h('section', { className: 'kd-backup-card kd-backup-recovery' },
+        h('h3', null, '本机恢复点'),
+        h('p', { className: 'kd-meta' }, '删除科目和恢复数据前，插件会分别保留最近一次操作前的数据。'),
+        pointsError ? h('p', { role: 'alert', className: 'kd-error-text' }, pointsError)
+          : !points ? h('p', { role: 'status', className: 'kd-meta kd-backup-empty' }, '正在读取恢复点…')
+          : points.length ? h('ul', { className: 'kd-recovery-list' },
+            ...points.map((point) => h('li', { key: point.kind, className: 'kd-row-between' },
+              h('div', null,
+                h('strong', null, labels[point.kind]),
+                h('div', { className: 'kd-meta' }, formatDateTime(point.at))),
+              h(Btn, { small: true, disabled: busy, onClick: () => chooseRestore({ ...point, label: labels[point.kind] }) }, '使用此恢复点'))))
+          : h('p', { className: 'kd-meta kd-backup-empty' }, '暂无恢复点。'))))
+  }
+
+  function AttemptModal({ record, onClose }) {
+    const { lastAttempt, answer, answerVersionUnknown } = record
+    return h(Modal, { title: '当时的答案与解析', onClose,
+      footer: h(Btn, { onClick: onClose }, '关闭') },
+      h('p', { className: 'kd-meta' }, `${formatDateTime(lastAttempt.at)} · ${statusLabel(lastAttempt.result).text}`
+        + (lastAttempt.choice ? ` · 选择 ${lastAttempt.choice}` : '')),
+      answer ? h('div', { className: 'kd-answer-copy' },
+        answer.versionId ? h('p', { className: 'kd-meta' }, `版本 ${answer.versionId}`) : null,
+        h(Markdown, { text: answer.answer || '（无参考答案）' }),
+        h(Markdown, { text: answer.explanation || '（无解析）' }))
+        : h('p', null, answerVersionUnknown ? '这条旧作答无法确认当时的答案版本。' : '这次作答没有可用的参考答案。'))
   }
 
   function RevisionModal({ question, onClose, onConfirm, onDiscard, busy }) {
@@ -1159,18 +1468,18 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       h(Badge, { tone: candidate.verification?.status === 'passed' ? 'ok' : 'warn' },
         candidate.verification?.status === 'passed' ? '候选版本已通过独立校验' : '候选版本未通过校验'),
       ` ${candidate.verification?.summary || ''}（${candidate.verification?.method || ''}）`),
-    h('div', { className: 'kd-answer-block', style: { marginTop: '14px' } },
+    h('div', { className: 'kd-answer-block kd-answer-copy', style: { marginTop: '14px' } },
       h('div', { className: 'kd-answer-label' }, '候选标准答案'),
       h(Markdown, { text: candidate.answer })),
-    h('div', { className: 'kd-answer-block' },
+    h('div', { className: 'kd-answer-block kd-answer-copy' },
       h('div', { className: 'kd-answer-label' }, '候选解析'),
       h(Markdown, { text: candidate.explanation })),
     h('div', { className: 'kd-msg-meta' }, '确认后才会替换正式版本；旧版本会保留在版本历史中。'))
   }
 
-  function ConfirmModal({ title, message, confirmLabel, onConfirm, onClose, danger, busy }) {
+  function ConfirmModal({ title, message, confirmLabel, onConfirm, onClose, danger, busy, embedded, explicitClose }) {
     return h(Modal, {
-      title,
+      title, embedded, explicitClose,
       onClose,
       footer: [
         h(Btn, { key: 'cancel', onClick: onClose, disabled: busy }, T.cancel),
@@ -1200,7 +1509,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
   }
 
   return {
-    Icon, Btn, EmptyState, Presence, CountdownLines, ExamStrip, UpdateCheck, SubjectNav, TabBar, MobileBar,
-    QuestionPane, previewFadePosition, ListPane, ThreadPane, SubjectsModal, BanksModal, SyllabusesModal, PastPapersModal, RevisionModal, ConfirmModal, PluginLogo,
+    Icon, Btn, EmptyState, Presence, NotificationBanner, CountdownLines, ExamStrip, UpdateCheck, SubjectNav, TabBar, MobileBar, SettingsModal, AboutPanel,
+    QuestionPane, previewFadePosition, ListPane, ThreadPane, SubjectsModal, BanksModal, SyllabusesModal, PastPapersModal, BackupModal, AttemptModal, RevisionModal, ConfirmModal, PluginLogo,
   }
 }
