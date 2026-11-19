@@ -2,6 +2,7 @@ import { T, formatDate, newAttemptId } from './common.js'
 import { CSS } from './styles.js'
 import { STUDY_FILE_ACCEPT, readBankFile } from './import-file.js'
 import { createStudyStatsPage } from './study-stats.js'
+import { createStudyMemoryPage } from './study-memory.js'
 
 const SETTINGS_SECTIONS = new Set(['subjects', 'banks', 'syllabuses', 'past-papers', 'backup', 'about'])
 
@@ -13,6 +14,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
     AttemptModal, RevisionModal, ConfirmModal, PluginLogo,
   } = components
   const StudyStatsPage = createStudyStatsPage(React, { window, rpc, Btn, Icon })
+  const StudyMemoryPage = createStudyMemoryPage(React, { window, rpc, Btn, Icon })
 
   function watchDayChange(snapshot, onSnapshot) {
     let timer, stopped = false, checking = false
@@ -81,7 +83,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
     const [listError, setListError] = useState('')
     const [settingsBusy, setSettingsBusy] = useState(false)
     const [scheduleBusy, setScheduleBusy] = useState(false)
-    const [showStats, setShowStats] = useState(false)
+    const [studyPage, setStudyPage] = useState('')
     const [favoritePending, setFavoritePending] = useState(null)
     const statsTrigger = useRef(null)
     const subjectsDirty = useRef(false)
@@ -93,8 +95,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
       if (view === 'detail' && mainScroll.current) mainScroll.current.scrollTop = 0
     }, [view, list])
 
-    const notify = useCallback((message, tone = 'ok') => {
-      setToast((previous) => ({ id: (previous?.id || 0) + 1, message, tone }))
+    const notify = useCallback((message, tone = 'ok', onUndo) => {
+      setToast((previous) => ({ id: (previous?.id || 0) + 1, message, tone, onUndo }))
     }, [])
 
     const refreshBoot = useCallback(async () => {
@@ -281,7 +283,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
       const request = ++dailyRequest.current
       setBusy('question')
       try {
-        const result = await rpc('listQuestions', { subjectId, kind: 'review', page: 1 })
+        const result = await rpc('listQuestions', { subjectId, kind: 'review', page: 1, ...filters })
         if (request !== dailyRequest.current) return
         setList(result)
         if (result.items.length) await openQuestion(result.items[0].id)
@@ -326,6 +328,25 @@ export function createPage(React, { window, rpc, components, styleState }) {
     const currentSubject = useMemo(() => (boot?.subjects || []).find((subject) => subject.id === subjectId) || null,
       [boot, subjectId])
 
+    const showReviewRemoval = useCallback((qid, removalId) => {
+      if (!removalId) return
+      notify('连续三次复习答对，已自动移出错题本', 'ok', async () => {
+        try {
+          await rpc('undoReviewRemoval', { qid, removalId })
+          setQuestion((current) => current?.id === qid ? { ...current, wrongEver: true } : current)
+          notify('已撤销操作，题目已恢复到错题本')
+          refreshBoot()
+          const current = currentView.current
+          const request = dailyRequest.current
+          if (current.view === 'list' && ['review', 'wrong'].includes(current.kind)) {
+            const list = await rpc('listQuestions', { subjectId: current.subjectId, kind: current.kind,
+              page: current.page, ...current.filters }).catch(() => null)
+            if (list && request === dailyRequest.current) setList(list)
+          }
+        } catch (issue) { notify(issue.message, 'bad') }
+      })
+    }, [notify, refreshBoot])
+
     const reveal = useCallback(async (mode) => {
       if (!question) return
       const request = dailyRequest.current
@@ -342,8 +363,10 @@ export function createPage(React, { window, rpc, components, styleState }) {
           mode,
           choice: mode === 'submit' ? choice : '',
           attemptId,
+          fromReview: kind === 'review',
         })
         if (request === dailyRequest.current) showSaved(result.question)
+        showReviewRemoval(question.id, result.reviewRemovalId)
         refreshBoot()
       } catch (issue) {
         if (request !== dailyRequest.current) return
@@ -353,7 +376,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
           showSaved(saved.question)
           const last = saved.question.lastAttempt
           const changed = last.mode !== mode || (mode === 'submit' && last.choice !== choice)
-          notify(changed ? '已找回先前保存的作答。本次改选未提交，可点击「重新作答」再提交。' : '已找回本轮保存的作答', changed ? 'warn' : 'ok')
+          if (saved.reviewRemovalId) showReviewRemoval(question.id, saved.reviewRemovalId)
+          else notify(changed ? '已找回先前保存的作答。本次改选未提交，可点击「重新作答」再提交。' : '已找回本轮保存的作答', changed ? 'warn' : 'ok')
           refreshBoot()
         } else {
           notify(`${issue.message}。未确认本轮是否保存，可再次提交以核对。`, 'warn')
@@ -361,7 +385,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
       } finally {
         if (request === dailyRequest.current) setBusy('')
       }
-    }, [question, choice, notify, refreshBoot])
+    }, [question, choice, kind, notify, refreshBoot, showReviewRemoval])
 
     const judge = useCallback(async (verdict) => {
       if (!question) return
@@ -371,13 +395,14 @@ export function createPage(React, { window, rpc, components, styleState }) {
       try {
         const result = await rpc('judge', { qid: question.id, verdict, attemptId:question.lastAttempt.id })
         if (request === dailyRequest.current) setQuestion(result.question)
+        showReviewRemoval(question.id, result.reviewRemovalId)
         refreshBoot()
       } catch (issue) {
         if (request === dailyRequest.current) notify(issue.message, 'bad')
       } finally {
         if (request === dailyRequest.current) setBusy('')
       }
-    }, [question, notify, refreshBoot])
+    }, [question, notify, refreshBoot, showReviewRemoval])
 
     const favorite = useCallback(async () => {
       if (!question || favoritePending === question.id) return
@@ -765,7 +790,10 @@ export function createPage(React, { window, rpc, components, styleState }) {
           h('option', { value: 'mastered' }, '已掌握')) : null,
           hasFilters || queryDraft ? h(Btn, { variant: 'ghost', disabled: bulkLock.current,
             onClick: () => applyFilters({ query: '', type: '', mastery: '' }) }, '清除筛选') : null) : null
-        return h('div', null, search, listError ? h(EmptyState, { icon: 'refresh', title: '题目列表加载失败', body: listError,
+        const topicFilter = filters.topic ? h('div', { className: 'kd-row kd-memory-filter' },
+          h('span', { className: 'kd-meta' }, '知识点：', filters.topic),
+          h(Btn, { variant: 'ghost', disabled: bulkLock.current, onClick: () => applyFilters({ topic: '' }) }, '清除知识点筛选')) : null
+        return h('div', null, topicFilter, search, listError ? h(EmptyState, { icon: 'refresh', title: '题目列表加载失败', body: listError,
           actions: h(Btn, { onClick: () => loadList(subjectId, kind, list?.page || 1, filters) }, '重试') }) : h(ListPane, {
           list,
           kind,
@@ -862,6 +890,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
     }
     const reportSubjectsDirty = useCallback((value) => { subjectsDirty.current = value }, [])
     const closeSettings = () => requestSettingsNavigation('close')
+    const settingsOpen = SETTINGS_SECTIONS.has(modal?.kind)
     const settingsPanel = () => {
       const embedded = { embedded: true, onClose: closeSettings, onBusyChange: setSettingsBusy }
       switch (modal.kind) {
@@ -902,17 +931,23 @@ export function createPage(React, { window, rpc, components, styleState }) {
       }
     }
 
-    const openStats = (event) => {
+    const openStudyPage = (event, page) => {
       statsTrigger.current = event.currentTarget
-      setShowStats(true)
+      setStudyPage(page)
     }
-    const closeStats = () => {
-      setShowStats(false)
+    const closeStudyPage = () => {
+      setStudyPage('')
       window.requestAnimationFrame?.(() => statsTrigger.current?.focus({ preventScroll: true }))
+    }
+    const openRelated = (sid, tab, topic) => {
+      closeStudyPage()
+      setSubjectId(sid)
+      if (sid !== subjectId) rpc('saveSettings', { activeSubject: sid }).catch(() => {})
+      loadList(sid, tab, 1, { topic })
     }
     return h('div', { className: 'kd-page' },
       styleState.injected ? null : h('style', null, CSS),
-      h('div', { className: 'kd-practice-screen', inert: showStats || undefined },
+      h('div', { className: 'kd-practice-screen', inert: Boolean(studyPage) || settingsOpen || undefined },
       h('div', { className: 'kd-header' },
         h('div', { className: 'kd-header-top' },
           h('div', { className: 'kd-header-left' },
@@ -934,7 +969,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
         subjectId,
         onPick: pickSubject,
         onSettings: () => setModal({ kind: 'subjects' }),
-        onStats: openStats,
+        onStats: (event) => openStudyPage(event, 'stats'),
+        onMemory: (event) => openStudyPage(event, 'memory'),
       }) : null,
       h('div', { className: 'kd-shell' },
         boot ? h(SubjectNav, {
@@ -942,7 +978,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
           subjectId,
           onPick: pickSubject,
           onSettings: () => setModal({ kind: 'subjects' }),
-          onStats: openStats,
+          onStats: (event) => openStudyPage(event, 'stats'),
+          onMemory: (event) => openStudyPage(event, 'memory'),
         }) : null,
         h('main', { className: 'kd-main' },
           h('div', { className: 'kd-main-toolbar' },
@@ -984,7 +1021,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
         onChange: onFile,
       }),
       h(Presence, null,
-      SETTINGS_SECTIONS.has(modal?.kind) ? h(SettingsModal, {
+      settingsOpen ? h(SettingsModal, {
         active: modal.kind, ready: Boolean(boot),
         locked: settingsBusy || ['import', 'commit', 'delete-bank'].includes(busy),
         onPick: requestSettingsNavigation, onClose: closeSettings,
@@ -1017,13 +1054,15 @@ export function createPage(React, { window, rpc, components, styleState }) {
         onConfirm: modal.onConfirm,
         onClose: () => { if (!bulkLock.current) setModal(null) },
       }) : null,
+      studyPage === 'stats' ? h(StudyStatsPage, { today: boot?.today, onClose: closeStudyPage }) : null,
+      studyPage === 'memory' ? h(StudyMemoryPage, { subjects: boot?.subjects || [],
+        onClose: closeStudyPage, onRelated: openRelated }) : null,
       ),
-      toast ? h(NotificationBanner, { key: toast.id, message: toast.message, tone: toast.tone, floating: true }) : null,
+      toast ? h(NotificationBanner, { key: toast.id, message: toast.message, tone: toast.tone, onUndo: toast.onUndo, floating: true }) : null,
       busy === 'import' || busy === 'commit'
-        ? h('div', { className: 'kd-loading', style: { position: 'absolute', inset: 'auto 0 60px 0' } },
+        ? h('div', { className: 'kd-loading', style: { position: 'absolute', inset: 'auto 0 60px 0', zIndex: 45, pointerEvents: 'none' } },
           h('span', { className: 'kd-spinner' }), busy === 'import' ? '正在读取文件并让模型识别题目…' : '正在入库…')
-        : null),
-      showStats ? h(StudyStatsPage, { today: boot?.today, onClose: closeStats }) : null)
+        : null))
   }
 
   function useMediaQuery(query) {

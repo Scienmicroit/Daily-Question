@@ -97,10 +97,33 @@ assert.equal(f.state.get(4),'favorite');assert.equal(f.state.get(8).kind,'favori
 
 {
   const requests = []
+  const memory = fixture((op, args) => {
+    requests.push({ op, args })
+    return { items: [{ id: 'A' }], total: 1, page: 1 }
+  })
+  memory.props('SubjectNav').onMemory({ currentTarget: {} })
+  const panel = memory.props('StudyMemoryPage')
+  assert(Array.isArray(panel.subjects))
+  assert(memory.props((node) => node?.type?.name === 'Presence'
+    && node.children.some((child) => child?.type?.name === 'StudyMemoryPage')))
+  assert.equal(memory.props((node) => node?.props?.className === 'kd-practice-screen').inert, true)
+  assert.equal(requests.length, 0)
+  panel.onRelated('math1', 'review', '分段点的连续性')
+  await tick()
+  assert.deepEqual(requests.at(-1), { op: 'listQuestions', args: { subjectId: 'math1', kind: 'review', page: 1, topic: '分段点的连续性' } })
+  assert.equal(memory.props((node) => node?.props?.className === 'kd-practice-screen').inert, undefined)
+  memory.props('SubjectNav').onStats({ currentTarget: {} })
+  assert(memory.props((node) => node?.type?.name === 'Presence'
+    && node.children.some((child) => child?.type?.name === 'StudyStatsPage')))
+}
+
+{
+  const requests = []
   const pending = deferred()
   const settings = fixture((op, args) => { requests.push({ op, args }); return pending.promise })
   settings.props('SubjectNav').onSettings()
   assert.equal(settings.props('SettingsModal').active, 'subjects')
+  assert.equal(settings.props((node) => node?.props?.className === 'kd-practice-screen').inert, true)
   assert(settings.props('SubjectsModal').embedded)
   settings.props('SettingsModal').onPick('about')
   assert.equal(settings.props('SettingsModal').active, 'about')

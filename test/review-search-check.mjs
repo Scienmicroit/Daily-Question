@@ -70,6 +70,56 @@ try {
   assert.deepEqual((await list('wrong', { ...filters, mastery: 'mastered', idsOnly: true })).ids, ['trained'])
   assert.deepEqual((await list('wrong', { ...filters, mastery: 'unmastered', idsOnly: true })).ids, ['overdue'])
   assert.equal((await list('all', { query: '不存在的内容' })).total, 0)
+
+  const RealDate = Date
+  let clock = RealDate.now()
+  const atDay = (delta) => { clock = new RealDate(addDays(today, delta) + 'T12:00:00').getTime() }
+  globalThis.Date = class extends RealDate {
+    constructor(...args) { super(...(args.length ? args : [clock])) }
+    static now() { return clock }
+  }
+  try {
+    await service.store.update((draft) => {
+      for (const [id, type] of [['streak', 'single'], ['direct', 'single'], ['subjective', 'solution']]) {
+        draft.questions[id] = { ...draft.questions.overdue, id, type, wrongBookAdded: true, favoriteAt: null }
+        draft.attempts.push({ id: id + '-initial', questionId: id, result: 'wrong', practiceDate: addDays(today, -1) })
+      }
+    })
+    const answer = (qid, day, attemptId, choice = 'A', fromReview = true) => {
+      atDay(day)
+      return service.reveal({ qid, attemptId, choice, fromReview })
+    }
+    for (const day of [0, 3, 10]) {
+      const direct = await answer('direct', day, 'direct-' + day, 'A', false)
+      assert.equal(direct.question.wrongEver, true)
+      assert.equal(direct.reviewRemovalId, null)
+    }
+    assert.equal((await answer('streak', 0, 'correct-initial')).question.wrongEver, true)
+    assert.equal((await answer('streak', 0, 'early-repeat')).question.wrongEver, true)
+    await answer('streak', 3, 'wrong-reset', 'B')
+    assert.equal((await answer('streak', 4, 'correct-first')).question.wrongEver, true)
+    assert.equal((await answer('streak', 7, 'correct-second')).question.wrongEver, true)
+    const removed = await answer('streak', 14, 'correct-third')
+    assert.equal(removed.question.wrongEver, false)
+    assert.equal(removed.reviewRemovalId, 'correct-third')
+    assert(!(await list('wrong', { idsOnly: true })).ids.includes('streak'))
+    assert.equal((await answer('streak', 14, 'correct-third')).duplicated, true)
+    await service.undoReviewRemoval({ qid: 'streak', removalId: removed.reviewRemovalId })
+    assert((await list('wrong', { idsOnly: true })).ids.includes('streak'))
+    await assert.rejects(service.undoReviewRemoval({ qid: 'streak', removalId: removed.reviewRemovalId }), /无法撤销/)
+    assert.equal((await answer('streak', 28, 'after-undo')).question.wrongEver, true)
+
+    for (const day of [0, 3, 10]) {
+      atDay(day)
+      const attemptId = 'subjective-' + day
+      const pending = await service.reveal({ qid: 'subjective', attemptId, mode: 'done', fromReview: true })
+      assert.equal(pending.reviewRemovalId, null)
+      assert.equal(pending.question.wrongEver, true)
+      const judged = await service.judge({ qid: 'subjective', attemptId, verdict: 'correct' })
+      assert.equal(judged.question.wrongEver, day < 10)
+      assert.equal(judged.reviewRemovalId, day === 10 ? attemptId : null)
+    }
+  } finally { globalThis.Date = RealDate }
 } finally {
   service.dispose()
   assert.equal(dirname(resolve(root)), temp)

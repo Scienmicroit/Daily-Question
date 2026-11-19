@@ -1,6 +1,7 @@
 import { T, formatDate, formatDateTime, formatClock, methodLabel, statusLabel, isChoiceType, newAttemptId } from './common.js'
 import { STUDY_FILE_ACCEPT, readStudyFile } from './import-file.js'
 import { typeLabel } from '../lib/paper-types.js'
+import { fullscreen } from './fullscreen.js'
 
 export function createComponents(React, { window, rpc, Markdown, useMathJaxStatus }) {
   const { createElement: h, useState, useEffect, useRef, useMemo, useCallback, useId } = React
@@ -70,10 +71,11 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       const timer = setTimeout(() => setRetained([]), 160)
       return () => clearTimeout(timer)
     }, [children, active])
-    return h('div', { className: 'kd-presence' + (active ? '' : ' is-leaving') }, active ? children : retained)
+    return h('div', { className: 'kd-presence' + (active ? '' : ' is-leaving'), inert: !active || undefined },
+      active ? children : retained)
   }
 
-  function NotificationBanner({ message, tone = 'ok', floating = false }) {
+  function NotificationBanner({ message, tone = 'ok', floating = false, onUndo }) {
     const [phase, setPhase] = useState('visible')
     useEffect(() => {
       if (phase === 'hidden') return undefined
@@ -86,11 +88,15 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     return h('div', { className: 'kd-notification-slot' + (floating ? ' is-floating' : '') },
       h('div', { className: `kd-notification kd-notification-${tone}${phase === 'leaving' ? ' is-leaving' : ''}` },
         h('span', { role: tone === 'bad' ? 'alert' : 'status' }, message),
+        onUndo ? h(Btn, { small: true, disabled: phase === 'leaving', onClick: () => {
+          setPhase('leaving')
+          onUndo()
+        } }, '撤销') :
         h('button', { type: 'button', className: 'kd-iconbtn', 'aria-label': '关闭通知',
           disabled: phase === 'leaving', onClick: () => setPhase('leaving') }, h(Icon, { name: 'close' }))))
   }
 
-  function Modal({ title, children, footer, headerActions, dialog, notification, onClose, wide, embedded = false, settings = false, locked = false, explicitClose = settings }) {
+  function Modal({ title, children, footer, headerActions, dialog, notification, onClose, wide, embedded = false, locked = false, explicitClose = false }) {
     useEffect(() => {
       if (embedded || explicitClose || locked || dialog) return undefined
       const onKey = (event) => {
@@ -110,7 +116,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       className: 'kd-overlay',
       onMouseDown: explicitClose || dialog ? undefined : (event) => { if (!locked && event.target === event.currentTarget) onClose() },
     }, h('div', {
-      className: `kd-modal${wide ? ' kd-modal-wide' : ''}${settings ? ' kd-settings' : ''}`,
+      className: `kd-modal${wide ? ' kd-modal-wide' : ''}`,
       role: 'dialog',
       'aria-modal': 'true',
       'aria-label': title,
@@ -219,13 +225,15 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       return ()=>{active.current=false;window.clearInterval(timer);window.removeEventListener('focus',automatic)}
     },[])
     return h('div',{className:'kd-update'},
-      h(Btn,{variant:'ghost',disabled:state.busy,onClick:()=>check(true)},
-        state.busy?h('span',{className:'kd-spinner'}):h(Icon,{name:'refresh'}),state.busy?'正在检查…':'检查更新'),
-      h('div',{className:'kd-msg-meta',style:{padding:'0 8px'}},`当前版本 v${currentVersion||state.result?.currentVersion||'—'}`),
-      h('div',{className:'kd-msg-meta',role:'status','aria-live':'polite',title:state.error||'',style:{padding:'4px 8px',overflowWrap:'anywhere'}},
-        state.error?'暂时无法检查，请重试':state.result?.updateAvailable
-          ? h('a',{className:'kd-link',href:state.result.packageUrl,target:'_blank',rel:'noreferrer noopener'},`发现新版本 v${state.result.latestVersion} ↗`)
-          : state.result?'已是最新版本':null))
+      h('div', { className: 'kd-update-info' },
+        h('div', { className: 'kd-update-version' }, '当前版本 ', h('strong', null, `v${currentVersion||state.result?.currentVersion||'—'}`)),
+        h('div', { className: 'kd-update-status', role: 'status', 'aria-live': 'polite', title: state.error || '' },
+          state.error ? '暂时无法检查，请重试' : state.result?.updateAvailable
+            ? h('a', { className: 'kd-link', href: state.result.packageUrl, target: '_blank', rel: 'noreferrer noopener' },
+              `发现新版本 v${state.result.latestVersion} ↗`)
+            : state.result ? '已是最新版本' : null)),
+      h(Btn, { disabled: state.busy, onClick: () => check(true) },
+        state.busy ? h('span', { className: 'kd-spinner' }) : h(Icon, { name: 'refresh' }), state.busy ? '正在检查…' : '检查更新'))
   }
 
   function SettingsModal({ active, ready, locked, dialog, onPick, onClose, children }) {
@@ -237,8 +245,8 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       ['backup', '备份与恢复', 'backup'],
       ['about', '关于', 'info'],
     ]
-    return h(Modal, { title: '设置', settings: true, locked, dialog, onClose },
-      h('div', { className: 'kd-settings-layout' },
+    return fullscreen(h, Icon, { title: '设置', onClose, settings: true, locked, dialog },
+      h('div', { className: 'kd-settings-layout', inert: dialog ? true : undefined },
         h('nav', { className: 'kd-settings-nav', 'aria-label': '设置选项' },
           ...sections.map(([id, label, icon]) => h('button', {
             key: id,
@@ -257,12 +265,16 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         h('div', { className: 'kd-about-brand' },
           h(PluginLogo, { size: 44 }),
           h('div', null, h('h3', null, T.title), h('p', null, '面向 DeepSeek Harness 的考研练习插件。支持每日出题、错题复习、收藏和逐题追问。'))),
-        h('a', { className: 'kd-link', href: 'https://github.com/Scienmicroit/Daily-Question', target: '_blank', rel: 'noopener noreferrer' },
-          'GitHub 仓库 ↗'),
-        h(UpdateCheck, { currentVersion })))
+        h('a', { className: 'kd-btn kd-about-github', href: 'https://github.com/Scienmicroit/Daily-Question',
+          target: '_blank', rel: 'noopener noreferrer', title: '打开 GitHub 仓库' },
+          h('svg', { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'currentColor', 'aria-hidden': true },
+            h('path', { d: 'M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z' })),
+          'Github'),
+        h(UpdateCheck, { currentVersion }),
+        h('p', { className: 'kd-meta' }, '界面使用 HarmonyOS Sans SC 字体，© 2021 Huawei Device Co., Ltd.')))
   }
 
-  function SubjectNav({ boot, subjectId, onPick, onSettings, onStats }) {
+  function SubjectNav({ boot, subjectId, onPick, onSettings, onStats, onMemory }) {
     const enabled = (boot.subjects || []).filter((subject) => subject.enabled)
     const subjectButton = (subject) => {
       const done = Boolean(boot.todayMap?.[subject.id])
@@ -284,6 +296,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           : h('div', { className: 'kd-msg-meta', style: { padding: '4px 8px' } }, '还没有启用科目')),
       h('div', { className: 'kd-nav-spacer' }),
       h('div', { className: 'kd-nav-group' },
+        h(Btn, { variant: 'ghost', onClick: onMemory }, h(Icon, { name: 'spark' }), '记忆与建议'),
         h(Btn, { variant: 'ghost', onClick: onStats }, h(Icon, { name: 'stats' }), '统计'),
         h(Btn, { variant: 'ghost', onClick: onSettings }, h(Icon, { name: 'settings' }), '设置')))
   }
@@ -314,7 +327,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         h(Icon, { name: 'chevron-left', size: 16 }))))
   }
 
-  function MobileBar({ boot, subjectId, onPick, onSettings, onStats }) {
+  function MobileBar({ boot, subjectId, onPick, onSettings, onStats, onMemory }) {
     const enabled = (boot.subjects || []).filter((subject) => subject.enabled)
     const active = enabled.some((subject) => subject.id === subjectId) ? subjectId : ''
     return h('div', { className: 'kd-mobilebar' },
@@ -325,6 +338,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         onChange: (event) => onPick(event.target.value),
       }, !active ? h('option', { value: '', disabled: true }, '选择科目') : null,
       enabled.map((subject) => h('option', { key: subject.id, value: subject.id }, subject.name))),
+      h(Btn, { small: true, variant: 'ghost', onClick: onMemory }, h(Icon, { name: 'spark', size: 13 }), '记忆与建议'),
       h(Btn, { small: true, variant: 'ghost', onClick: onStats }, h(Icon, { name: 'stats', size: 13 }), '统计'),
       h(Btn, { small: true, variant: 'ghost', onClick: onSettings }, h(Icon, { name: 'settings', size: 13 }), '设置'))
   }
@@ -782,6 +796,23 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
   }
 
   /* ============================== 弹窗 ============================== */
+  function ManageSection({ title, hint, children }) {
+    return h('section', { className: 'kd-manage-section', 'aria-label': title },
+      h('header', { className: 'kd-manage-section-head' }, h('h3', null, title),
+        hint ? h('p', { className: 'kd-meta' }, hint) : null),
+      children)
+  }
+
+  function ManageFileRow({ icon, name, meta, badges, action }) {
+    return h('div', { className: 'kd-manage-card kd-manage-file' },
+      h('span', { className: 'kd-manage-file-icon' }, h(Icon, { name: icon, size: 18 })),
+      h('div', { className: 'kd-manage-file-info' },
+        h('strong', null, name),
+        meta ? h('div', { className: 'kd-meta' }, meta) : null,
+        badges?.length ? h('div', { className: 'kd-row kd-manage-badges' }, badges.map((label) => h(Badge, { key: label }, label))) : null),
+      action)
+  }
+
   function SubjectsModal({ boot, savedNotice, onClose, onDone, embedded, onBusyChange, onDirtyChange }) {
     const [draft, setDraft] = useState(() => ({ subjects: [...boot.settings.subjects],
       subjectSource: { ...boot.settings.subjectSource }, customSubjects: structuredClone(boot.customSubjects || []), deleteSubjectIds: [] }))
@@ -798,8 +829,8 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     const [outlineDraft, setOutlineDraft] = useState('')
     const [deletion, setDeletion] = useState(null)
     const [undoOpen, setUndoOpen] = useState(false)
-    const outlineEditor = (value, onChange, label) => h('label', { className:'kd-field', style:{marginBottom:0} },
-      h('span',{className:'kd-meta'},label),
+    const outlineEditor = (value, onChange, label) => h('label', { className:'kd-field' },
+      h('span',{className:'kd-field-label'},label),
       h('textarea',{className:'kd-input kd-outline-input',rows:3,value,maxLength:2400,placeholder:'每行填写一个知识点，例如：链表、栈与队列',onChange:(event)=>onChange(event.target.value)}))
     const referenceExams = boot.referenceExams || (boot.subjects || []).filter((s) => !s.custom)
     const referenceEditor = (value, change, label) => h('div', { className:'kd-field', style:{ marginBottom:0 } },
@@ -954,46 +985,48 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     },
     draft.deleteSubjectIds.length ? h('div', { className:'kd-error-text', role:'status' },
       `有 ${draft.deleteSubjectIds.length} 个科目待删除，点击「保存」后生效。`) : null,
-    h('fieldset', { disabled: saving, style: { border: 0, padding: 0, margin: 0, minWidth: 0 } },
-    h('div', { className: 'kd-meta', style: { marginBottom: '12px' } },
-      '点击「保存」统一应用科目设置，点击「撤销」可放弃本次更改。停用科目会保留历史题目、作答、收藏和追问。'),
+    h('fieldset', { disabled: saving, className: 'kd-manage-stack kd-manage-fieldset' },
+    h(ManageSection, { title: `科目列表 · ${enabled.size} 门已启用`,
+      hint: '勾选要练习的科目，点击「保存」统一生效。停用科目会保留历史记录。' },
+    !subjects.length ? h('p', { className: 'kd-manage-empty' }, '暂无科目，可在下方添加自定义科目。') : null,
     subjects.map((subject) => h('div', {
       key: subject.id,
-      className: 'kd-row-between kd-manage-card' + (enabled.has(subject.id) ? ' is-enabled' : ''),
+      className: 'kd-manage-card kd-manage-subject' + (enabled.has(subject.id) ? ' is-enabled' : ''),
     },
-    h('label', { className: 'kd-checkline', style: { flex: '1 1 240px', cursor: 'pointer' } },
+    h('div', { className: 'kd-row-between kd-manage-subject-head' },
+    h('label', { className: 'kd-checkline kd-manage-subject-label' },
       h('input', {
         type: 'checkbox',
         checked: enabled.has(subject.id),
         onChange: () => toggleSubject(subject.id),
       }),
       h('span', null,
-        h('span', null, subject.name),
-        subject.code ? h('span', { className: 'kd-msg-meta' }, ` · ${subject.code}`) : null,
-        h('div', { className: 'kd-msg-meta' }, subject.typeLabels.join(' / ')))),
+        h('strong', null, subject.name),
+        subject.code ? h('span', { className: 'kd-manage-subject-code' }, subject.code) : null,
+        h('span', { className: 'kd-meta kd-manage-types' }, subject.typeLabels.join(' / ')))),
+    h(Btn, { small:true, variant:'danger', ariaLabel:`删除${subject.name}`, onClick:() => setDeletion({subject,final:false}) }, '删除')),
     enabled.has(subject.id)
-      ? h('div', { className: 'kd-row' },
+      ? h('div', { className: 'kd-manage-subject-options' },
+        h('div', { className: 'kd-row' },
+          h('label', { className: 'kd-row' }, h('span', { className: 'kd-meta' }, '出题来源'),
+            h('select', {
+              className: 'kd-select',
+              value: draft.subjectSource[subject.id] || 'auto',
+              'aria-label': `${subject.name} 出题来源`,
+              onChange: (event) => { const source = event.target.value; setDraft((current) => ({ ...current, subjectSource: { ...current.subjectSource, [subject.id]: source } })) },
+            },
+            h('option', { value: 'auto' }, '自动（优先题库）'),
+            h('option', { value: 'online' }, '在线出题'),
+            h('option', { value: 'bank' }, '题库出题'))),
+          h(Badge, null, subject.bankItemCount ? `题库 ${subject.bankItemCount} 题` : '题库为空')),
+        subject.custom ? h('span', { className: 'kd-field-label' }, '参考考试') : null,
         subject.custom ? referenceEditor(draft.customSubjects.find((s)=>s.id === subject.id) || subject,
           (patch)=>setDraft((current)=>({...current,customSubjects:current.customSubjects.map((s)=>s.id === subject.id ? {...s,...patch} : s)})),`${subject.name} 参考考试科目`) : null,
         subject.custom ? outlineEditor((draft.customSubjects.find((s)=>s.id === subject.id)?.outline || []).join('\n'),
-          (text)=>setDraft((current)=>({...current,customSubjects:current.customSubjects.map((s)=>s.id===subject.id ? {...s,outline:text.split('\n')} : s)})),`${subject.name} 练习范围`) : null,
-        h('select', {
-          className: 'kd-select',
-          value: draft.subjectSource[subject.id] || 'auto',
-          'aria-label': `${subject.name} 出题来源`,
-          onChange: (event) => { const source = event.target.value; setDraft((current) => ({ ...current, subjectSource: { ...current.subjectSource, [subject.id]: source } })) },
-        },
-        h('option', { value: 'auto' }, '自动（优先题库）'),
-        h('option', { value: 'online' }, '在线出题'),
-        h('option', { value: 'bank' }, '题库出题')),
-        subject.bankItemCount
-          ? h('span', { className: 'kd-msg-meta' }, `题库 ${subject.bankItemCount} 题`)
-          : h('span', { className: 'kd-msg-meta' }, '题库为空'))
-      : null,
-    h(Btn, { small:true, variant:'danger', ariaLabel:`删除${subject.name}`, onClick:() => setDeletion({subject,final:false}) }, '删除'))),
-    h('div', { className: 'kd-divider' }),
+          (text)=>setDraft((current)=>({...current,customSubjects:current.customSubjects.map((s)=>s.id===subject.id ? {...s,outline:text.split('\n')} : s)})),`${subject.name} 练习范围`) : null)
+      : null))),
+    h(ManageSection, { title: '添加自定义科目' },
     h('div', { className: 'kd-field kd-custom-subject' },
-      h('h3', { className: 'kd-custom-subject-title' }, '添加自定义科目'),
       h('label', { className: 'kd-field' },
         h('span', { className: 'kd-field-label' }, '科目名称（必填）'),
         h('input', {
@@ -1005,7 +1038,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           onKeyDown: (event) => { if (event.key === 'Enter') submit() },
         })),
       h('div', { className: 'kd-field-label' }, '练习题型（至少选一种）'),
-      h('div', { className: 'kd-row', style: { marginTop: '6px' } },
+      h('div', { className: 'kd-row kd-manage-types-options' },
         [['single', '单项选择题'], ['multiple', '多项选择题'], ['fill', '填空题'], ['solution', '解答题']]
           .map(([value, label]) =>
             h('label', { key: value, className: 'kd-checkline', style: { cursor: 'pointer' } },
@@ -1056,7 +1089,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       h('div',{className:'kd-meta'},'考试大纲和用于难度校验的真题，可分别在「大纲管理」和「真题管理」中导入。'),
       h('div', { className: 'kd-row-between kd-custom-subject-actions' },
         h('span', { className: 'kd-meta' }, '可以直接点「保存」。要继续添加其他科目，可先加入列表，再统一保存。'),
-        h(Btn, { disabled: !canAdd, onClick: submit }, '加入科目列表')))))
+        h(Btn, { disabled: !canAdd, onClick: submit }, '加入科目列表'))))))
   }
 
   function PdfImportPreview({ pages }) {
@@ -1066,10 +1099,10 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     const labels = { text: '文字层提取', ocr: '模型识别', blank: '空白页', failed: '识别失败' }
     const current = pages[selected] || pages[0]
     return h('section', { className: 'kd-pdf-preview', 'aria-label': 'PDF 逐页预览' },
-      failed.length ? h('div', { className: 'kd-error-text', role: 'alert' },
+      failed.length ? h('div', { className: 'kd-manage-feedback is-error', role: 'alert' },
         h('strong', null, `识别失败页：${failed.map((entry) => entry.page).join('、')}。请修复这些页面后重新导入。`),
         h('ul', null, failed.map((entry) => h('li', { key: entry.page }, `第 ${entry.page} 页 · ${entry.reason}`)))) : null,
-      h('label', { className: 'kd-row' }, h('span', null, '逐页预览'),
+      h('label', { className: 'kd-row' }, h('strong', null, '逐页预览'),
         h('select', { className: 'kd-select', value: selected, onChange: (event) => setSelected(Number(event.target.value)) },
           ...pages.map((entry, index) => h('option', { key: entry.page, value: index }, `第 ${entry.page} 页 · ${labels[entry.source]}`)))),
       current.text ? h('pre', { className: 'kd-import-text', tabIndex: 0 }, current.text)
@@ -1083,17 +1116,19 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         h(Btn, { key: 'confirm', variant: 'primary', disabled: busy || !preview.canSave, onClick: onConfirm }, busy ? '正在保存…' : '确认导入'),
       ],
     },
-    h('p', { className: 'kd-meta kd-import-filename' }, `${preview.subjectName} · ${preview.year ? `${preview.year} 年 · ` : ''}${preview.fileName}`),
-    preview.issue || error ? h('p', { role: 'alert', className: 'kd-error-text' }, error || preview.issue) : null,
-    preview.recognition ? h('section', { className: 'kd-pdf-preview', 'aria-label': '模型识别结果' },
-      preview.recognition.warnings?.length ? h('ul', { className: 'kd-warn-text' },
+    h('div', { className: 'kd-manage-stack' },
+    h(ManageFileRow, { icon: preview.year ? 'papers' : 'syllabus', name: preview.fileName,
+      meta: [preview.subjectName, preview.year ? `${preview.year} 年` : null].filter(Boolean).join(' · ') }),
+    preview.issue || error ? h('p', { role: 'alert', className: 'kd-manage-feedback is-error' }, error || preview.issue) : null,
+    preview.recognition ? h(ManageSection, { title: '模型识别结果', hint: '核对识别内容后再确认导入。' },
+      preview.recognition.warnings?.length ? h('ul', { className: 'kd-manage-feedback is-warning' },
         preview.recognition.warnings.map((warning, index) => h('li', { key: index }, warning))) : null,
       preview.recognition.scopeText ? h('details', { open: true },
         h('summary', null, '模型识别的考试范围'), h('pre', { className: 'kd-import-text', tabIndex: 0 }, preview.recognition.scopeText)) : null,
       Object.entries(preview.recognition.typeExcerpts || {}).map(([type, text]) => h('details', { key: type },
         h('summary', null, `识别题型 · ${typeLabel(type)}`), h('pre', { className: 'kd-import-text', tabIndex: 0 }, text)))) : null,
-    preview.pages?.length ? h(PdfImportPreview, { pages: preview.pages })
-      : h('pre', { className: 'kd-import-text', tabIndex: 0 }, preview.text))
+    h(ManageSection, { title: '原文核对' }, preview.pages?.length ? h(PdfImportPreview, { pages: preview.pages })
+      : h('pre', { className: 'kd-import-text', tabIndex: 0 }, preview.text))))
   }
 
   function BankItemPreview({ item }) {
@@ -1130,15 +1165,17 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           }, T.commit),
         ],
       },
-      h('div', { className: 'kd-meta', style: { marginBottom: '10px' } },
-        `模型识别 ${importResult.stats.total} 道，可用 ${importResult.usable} 道，已选 ${selectedCount} 道入库。`),
+      h('div', { className: 'kd-manage-stack' },
+      h('div', { className: 'kd-manage-metrics' },
+        [['识别题目', importResult.stats.total], ['可用题目', importResult.usable], ['已选入库', selectedCount]]
+          .map(([label, value]) => h('div', { key: label }, h('strong', null, value), h('span', null, label)))),
       importResult.pages?.length ? h(PdfImportPreview, { pages: importResult.pages }) : null,
       importResult.sourceText ? h('details', { className: 'kd-pdf-preview' },
         h('summary', null, '查看文件原文'),
         h('pre', { className: 'kd-import-text', tabIndex: 0 }, importResult.sourceText)) : null,
       importResult.warnings.length
-        ? h('div', { className: 'kd-verify' },
-          h('div', null, '解析提示：'),
+        ? h('div', { className: 'kd-manage-feedback is-warning' },
+          h('strong', null, '解析提示'),
           h('ul', null, importResult.warnings.map((item, index) => h('li', { key: index }, item))))
         : null,
       pageCount > 1
@@ -1147,9 +1184,9 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           h('span', { className: 'kd-meta' }, `${previewPage + 1} / ${pageCount}`),
           h(Btn, { small: true, disabled: previewPage + 1 === pageCount, onClick: () => setPreviewPage(previewPage + 1) }, '下一页'))
         : null,
-      h('div', { style: { marginTop: '12px' } },
+      h(ManageSection, { title: '选择入库题目', hint: '可取消勾选不想导入的题目，展开后可核对选项、答案和解析。' },
         importResult.items.slice(previewPage * pageSize, (previewPage + 1) * pageSize).map((item) => h('div', { key: item.index, className: 'kd-preview-item' },
-          h('div', { className: 'kd-meta' },
+          h('div', { className: 'kd-row' },
             h('input', {
               type: 'checkbox',
               'aria-label': `第 ${item.index} 题入库`,
@@ -1172,7 +1209,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           h(BankItemPreview, { item }),
           item.issues.length
             ? h('div', { className: 'kd-warn-text', style: { marginTop: '6px' } }, `问题：${item.issues.join('；')}`)
-            : null))))
+            : null)))))
     }
 
     const importButton = h(Btn, { key: 'import', variant: 'primary', onClick: onPickFile }, h(Icon, { name: 'upload', size: 13 }), T.import)
@@ -1184,23 +1221,20 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       headerActions: embedded ? importButton : null,
       footer: embedded ? null : [importButton, h(Btn, { key: 'close', onClick: onClose }, T.close)],
     },
-    h('div', { className: 'kd-meta', style: { marginBottom: '12px' } }, T.importHint),
+    h(ManageSection, { title: `已导入题库 · ${(boot.banks || []).length} 份`, hint: T.importHint },
     (boot.banks || []).length
-      ? boot.banks.map((bank) => h('div', {
-        key: bank.id,
-        className: 'kd-row-between kd-manage-card',
-      },
-      h('div', { style: { minWidth: 0 } },
-        h('div', null, bank.name),
-        h('div', { className: 'kd-msg-meta' },
-          `${bank.itemCount} 道 · ${bank.kind === 'pdf' ? 'PDF' : 'Markdown'} · 导入于 ${formatDateTime(bank.importedAt)}`,
-          bank.pendingAnswers ? ` · ${bank.pendingAnswers} 道答案待核验` : '')),
-      h(Btn, { small: true, variant: 'danger', onClick: () => onDelete(bank) }, h(Icon, { name: 'trash', size: 13 }), T.deleteBank)))
+      ? boot.banks.map((bank) => h(ManageFileRow, {
+        key: bank.id, icon: 'book', name: bank.name,
+        meta: `导入于 ${formatDateTime(bank.importedAt)}`,
+        badges: [`${bank.itemCount} 道`, bank.kind === 'pdf' ? 'PDF' : '文本文档',
+          ...(bank.pendingAnswers ? [`${bank.pendingAnswers} 道答案待核验`] : [])],
+        action: h(Btn, { small: true, variant: 'danger', onClick: () => onDelete(bank) }, h(Icon, { name: 'trash', size: 13 }), T.deleteBank),
+      }))
       : h(EmptyState, {
         icon: 'upload',
         title: '还没有导入题库',
-        body: '题库用于「题库出题」来源：每道题会被分配唯一题目 ID，同一题反复出现也不会在列表里产生重复记录。',
-      }))
+        body: '导入并核对题目后，即可在科目管理中将题库设为出题来源。',
+      })))
   }
 
   function SyllabusesModal({ boot, onClose, onSaved, embedded, onBusyChange }) {
@@ -1245,23 +1279,25 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     })
     return h(Modal, {title:T.manageSyllabuses,wide:true,embedded,onClose:() => { if (!busy) onClose() },
       footer:embedded ? null : h(Btn,{disabled:busy,onClick:onClose},T.close)},
-    h('p',{className:'kd-meta'},'每科可导入一份 PDF、TXT 或 Markdown 大纲。DSH 默认模型会通读正文、识别考试范围，确认预览后保存。'),
-    h('label',{className:'kd-field'},h('span',{className:'kd-field-label'},'科目'),
+    h('div', { className: 'kd-manage-stack' },
+    h(ManageSection, { title: '导入考试大纲',
+      hint: '每科可保存一份 PDF、TXT 或 Markdown 大纲。模型识别考试范围后，先核对预览再保存。' },
+    h('div', { className: 'kd-manage-fields' }, h('label',{className:'kd-field'},h('span',{className:'kd-field-label'},'科目'),
       h('select',{className:selected ? 'kd-select' : 'kd-select is-placeholder',value:selected,disabled:busy||!subjects.length,onChange:(event)=>{setSelected(event.target.value);setError('');setMessage('')}},
         h('option',{value:'',disabled:true},'选择一门科目'),
-        ...subjects.map((subject)=>h('option',{key:subject.id,value:subject.id},subject.name)))),
-    !subjects.length ? h('p',{className:'kd-meta'},'请先在科目管理添加科目。') : null,
-    current ? h('div',{className:'kd-manage-card'},
-      h('div',null,current.fileName),
-      h('div',{className:'kd-msg-meta'},`导入于 ${formatDateTime(current.importedAt)} · ${current.characters} 字符`))
-      : selected ? h('p',{className:'kd-meta'},'这个科目尚未导入大纲。') : null,
+        ...subjects.map((subject)=>h('option',{key:subject.id,value:subject.id},subject.name))))),
+    !subjects.length ? h('p',{className:'kd-manage-empty'},'请先在科目管理添加科目。') : null,
     h('input',{type:'file',accept:STUDY_FILE_ACCEPT,ref:fileInput,hidden:true,onChange:onFile}),
     h('div',{className:'kd-actions'},
-      h(Btn,{variant:'primary',disabled:busy||!selected,onClick:()=>fileInput.current?.click()},h(Icon,{name:'upload'}),current?'替换大纲':'导入大纲'),
-      current ? h(Btn,{variant:'danger',disabled:busy,onClick:()=>save('removeSyllabus',async()=>({}))},'移除大纲') : null),
-    busy ? h('p',{className:'kd-meta',role:'status'},'正在读取文件并让模型识别考试范围…') : null,
-    error ? h('p',{className:'kd-error-text',role:'alert'},error) : null,
-    message ? h('p',{className:'kd-meta',role:'status'},message) : null)
+      h(Btn,{variant:'primary',disabled:busy||!selected,onClick:()=>fileInput.current?.click()},h(Icon,{name:'upload'}),current?'替换大纲':'导入大纲')),
+    busy ? h('p',{className:'kd-manage-feedback',role:'status'},'正在读取文件并让模型识别考试范围…') : null,
+    error ? h('p',{className:'kd-manage-feedback is-error',role:'alert'},error) : null,
+    message ? h('p',{className:'kd-manage-feedback',role:'status'},message) : null),
+    h(ManageSection, { title: '已导入大纲' },
+      current ? h(ManageFileRow, { icon:'syllabus', name:current.fileName, meta:`导入于 ${formatDateTime(current.importedAt)}`,
+        badges:[`${current.characters} 字符`],
+        action:h(Btn,{small:true,variant:'danger',disabled:busy,onClick:()=>save('removeSyllabus',async()=>({}))},'移除大纲') })
+        : h('p', { className: 'kd-manage-empty' }, selected ? '这个科目尚未导入大纲。' : '选择科目后查看已导入的大纲。'))))
   }
 
   function PastPapersModal({ boot, onClose, onSaved, embedded, onBusyChange }) {
@@ -1312,8 +1348,10 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     })
     return h(Modal,{title:T.managePastPapers,wide:true,embedded,onClose:()=>{if(!busy)onClose()},
       footer:embedded ? null : h(Btn,{disabled:busy,onClick:onClose},T.close)},
-    h('p',{className:'kd-meta'},'支持 PDF、TXT 和 Markdown。同一科目每年保存一份真题。DSH 默认模型会通读正文并识别题型。'),
-    h('div',{className:'kd-paper-fields'},
+    h('div', { className: 'kd-manage-stack' },
+    h(ManageSection, { title: '导入历年真题',
+      hint: '支持 PDF、TXT 和 Markdown。同一科目每年保存一份真题，导入前可核对模型识别的题型。' },
+    h('div',{className:'kd-manage-fields kd-paper-fields'},
       h('label',{className:'kd-field'},h('span',{className:'kd-field-label'},'科目'),
         h('select',{className:selected ? 'kd-select' : 'kd-select is-placeholder',value:selected,disabled:busy||!subjects.length,onChange:(event)=>{setSelected(event.target.value);setType('');setError('');setMessage('')}},
           h('option',{value:'',disabled:true},'选择一门科目'),
@@ -1324,19 +1362,20 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         h('select',{className:'kd-select',value:type,disabled:busy,onChange:(event)=>setType(event.target.value)},
           h('option',{value:''},'由模型识别'),
           ...(subject?.types || []).map((value)=>h('option',{key:value,value},typeName(value)))))),
-    h('p',{className:'kd-msg-meta'},'可提供题型提示。至少两个年份的可核对同题型真题才能用于难度校验。'),
+    h('p',{className:'kd-meta'},'至少两个年份的可核对同题型真题才能用于难度校验。'),
     h('input',{type:'file',accept:STUDY_FILE_ACCEPT,ref:fileInput,hidden:true,onChange:onFile}),
     h('div',{className:'kd-actions'},
       h(Btn,{variant:'primary',disabled:busy||!subject||!validYear,onClick:()=>fileInput.current?.click()},
         h(Icon,{name:'upload'}),existing?'替换该年份真题':'导入真题')),
-    papers.map((paper)=>h('div',{key:paper.year,className:'kd-row-between kd-manage-card'},
-      h('div',null,h('div',null,`${paper.year} 年 · ${paper.fileName}`),
-        h('div',{className:'kd-msg-meta'},paper.types?.length ? paper.types.map(typeName).join('、') : '未识别题型')),
-      h(Btn,{small:true,variant:'danger',disabled:busy,
-        onClick:()=>save('removePastPaper',async()=>({year:paper.year}),'真题已移除。')},'移除'))),
-    busy ? h('p',{className:'kd-meta',role:'status'},'正在读取文件并让模型识别真题题型…') : null,
-    error ? h('p',{className:'kd-error-text',role:'alert'},error) : null,
-    message ? h('p',{className:'kd-meta',role:'status'},message) : null)
+    busy ? h('p',{className:'kd-manage-feedback',role:'status'},'正在读取文件并让模型识别真题题型…') : null,
+    error ? h('p',{className:'kd-manage-feedback is-error',role:'alert'},error) : null,
+    message ? h('p',{className:'kd-manage-feedback',role:'status'},message) : null),
+    h(ManageSection, { title: subject ? `已导入真题 · ${papers.length} 份` : '已导入真题' },
+      papers.length ? papers.map((paper)=>h(ManageFileRow,{key:paper.year,icon:'papers',name:paper.fileName,
+        meta:`${paper.year} 年`, badges:paper.types?.length ? paper.types.map(typeName) : ['未识别题型'],
+        action:h(Btn,{small:true,variant:'danger',disabled:busy,
+          onClick:()=>save('removePastPaper',async()=>({year:paper.year}),'真题已移除。')},'移除')}))
+        : h('p', { className: 'kd-manage-empty' }, subject ? '这个科目尚未导入真题。' : '选择科目后查看已导入的真题。'))))
   }
 
   function BackupModal({ onClose, onRestored, embedded, onBusyChange }) {

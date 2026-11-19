@@ -60,6 +60,16 @@ for (const asset of ['tex-svg.js', 'a11y/assistive-mml.js', 'newcm/svg/dynamic/a
   assert(head.headers.get('content-length') > 0)
   assert.equal(await head.text(), '')
 }
+const fontUrl = 'http://localhost/api/daily-question/vendor/harmonyos-sans-sc-regular-v1.ttf'
+const fontRoute = registrations.get(new URL(fontUrl).pathname)
+const fontHead = await fontRoute.fetch(new Request(fontUrl, { method: 'HEAD' }))
+assert.equal(fontHead.status, 200)
+assert.equal(fontHead.headers.get('content-type'), 'font/ttf')
+assert.equal(await fontHead.text(), '')
+const fontResponse = await fontRoute.fetch(new Request(fontUrl))
+const fontBytes = new Uint8Array(await fontResponse.arrayBuffer())
+assert.equal(fontBytes.length, Number(fontHead.headers.get('content-length')))
+assert.deepEqual([...fontBytes.subarray(0, 4)], [0, 1, 0, 0])
 await dispose()
 assert.equal(registrations.size, 0)
 let injected

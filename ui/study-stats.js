@@ -1,4 +1,5 @@
 import { formatDate } from './common.js'
+import { fullscreen } from './fullscreen.js'
 
 function accuracy({ correct, wrong }) {
   const graded = correct + wrong
@@ -74,13 +75,8 @@ export function createStudyStatsPage(React, { window, rpc, Btn, Icon }) {
       ['连续练习', `${data.streak} 天`, '每天至少作答一次'],
       ['待复习', `${totals.review} 道`, `错题本 ${totals.wrongBook} 道 · 收藏 ${totals.favorite} 道`],
     ] : []
-    return h('section', { className: 'kd-stats-screen', role: 'dialog', 'aria-modal': true, 'aria-label': '学习统计' },
-      h('header', { className: 'kd-stats-header' },
-        h('div', { className: 'kd-stats-heading' },
-          h('button', { type: 'button', className: 'kd-iconbtn', onClick: onClose, autoFocus: true, 'aria-label': '返回练习', title: '返回练习' },
-            h(Icon, { name: 'chevron-left', size: 20 })),
-          h('h1', null, '学习统计')),
-        (data?.today || today) ? h('span', { className: 'kd-meta' }, formatDate(data?.today || today)) : null),
+    return fullscreen(h, Icon, { title: '学习统计', onClose,
+      detail: (data?.today || today) ? h('span', { className: 'kd-meta' }, formatDate(data?.today || today)) : null },
       h('div', { className: 'kd-stats-scroll' },
         h('div', { className: 'kd-stats-content' },
           error ? h('div', { className: 'kd-stats-card', role: 'alert' },

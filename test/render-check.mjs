@@ -1,5 +1,6 @@
 import { createMarkdown } from '../ui/markdown.js'
 import { createClient } from '../ui/app.js'
+import { createStudyMemoryPage } from '../ui/study-memory.js'
 
 const h = (type, props, ...children) => ({ type, props: props || {}, children: children.flat(9) })
 function useState(initial) { return [typeof initial === 'function' ? initial() : initial, () => {}] }
@@ -401,15 +402,46 @@ check('桌面和窄屏只显示启用科目，省去分组标题',
 for (const component of [components.SubjectNav, components.MobileBar]) {
   const nav = textOf(component({ boot: archivedBoot }))
   check('桌面和窄屏各只有一个设置入口', nav.includes('设置') && !/科目管理|题库管理|检查更新|当前版本/.test(nav))
+  check('记忆与建议入口位于统计之前', /记忆与建议统计/.test(nav))
+}
+{
+  const subjects = [
+    { id: 'math1', name: '数学一', enabled: true },
+    { id: 'math2', name: '数学二', enabled: false },
+    { id: 'custom', name: '自定义科目', enabled: true },
+  ]
+  const panel = (enabled) => createStudyMemoryPage({
+    createElement: h, useState: (initial) => [initial ?? { enabled, reinforce: false }, () => {}], useEffect() {},
+  }, { window, rpc: () => { throw new Error('渲染时不应发起请求') }, Btn: components.Btn, Icon: components.Icon })
+  const inspect = (enabled, subjects) => {
+    const panels = []
+    let selector = false
+    walk(panel(enabled)({ subjects }), (node) => {
+      if (node.type === 'article') panels.push(node.props['aria-label'])
+      if (node.type === 'select') selector = true
+    })
+    return { panels, selector }
+  }
+  const enabled = inspect(true, subjects)
+  check('记忆页直接列出全部已启用科目且没有科目下拉菜单',
+    enabled.panels.join() === '数学一,自定义科目' && !enabled.selector)
+  check('关闭记忆或没有启用科目时不渲染学情面板',
+    !inspect(false, subjects).panels.length && !inspect(true, subjects.filter((item) => !item.enabled)).panels.length)
 }
 let selectedSection, closeRequested = false, settingsKeys
 effectHook = (fn) => { settingsKeys = fn }
 const settingsNav = resolve(components.SettingsModal({ active: 'subjects', ready: true,
   onPick: (id) => { selectedSection = id }, onClose: () => { closeRequested = true } }))
 effectHook = () => {}
-check('设置弹窗不响应遮罩点击和 Escape', !settingsNav.props.onMouseDown && settingsKeys?.() === undefined)
-walk(settingsNav, (node) => { if (node.type === 'button' && node.props['aria-label'] === '关闭') node.props.onClick() })
-check('设置弹窗保留右上角关闭按钮', closeRequested)
+check('设置作为独立全屏页面，不响应遮罩点击和 Escape',
+  settingsNav.props.className === 'kd-fullscreen kd-settings-screen' && !settingsNav.props.onMouseDown && settingsKeys?.() === undefined)
+const settingsHeaderButtons = []
+walk(settingsNav.children[0], (node) => { if (node.type === 'button') settingsHeaderButtons.push(node) })
+const [settingsBack] = settingsHeaderButtons
+settingsBack?.props.onClick()
+check('全屏设置标题左侧提供返回按钮', settingsHeaderButtons.length === 1
+  && settingsBack.props['aria-label'] === '返回练习'
+  && settingsNav.children[0].children[0].children[0] === settingsBack && closeRequested)
 const sectionButtons = []
 walk(settingsNav, (node) => { if (node.props.className === 'kd-settings-option') sectionButtons.push(node) })
 check('设置左侧按顺序列出管理功能和关于', sectionButtons.map(textOf).join() === '科目管理,题库管理,大纲管理,真题管理,备份与恢复,关于')
@@ -419,7 +451,9 @@ const about = resolve(components.AboutPanel({ currentVersion: '2.2.0' }))
 let repoLink
 walk(about, (node) => { if (node.type === 'a') repoLink = node })
 check('关于显示简介、GitHub 仓库和当前版本', textOf(about).includes('考研练习插件')
-  && textOf(about).includes('当前版本 v2.2.0') && repoLink?.props.href === 'https://github.com/Scienmicroit/Daily-Question')
+  && textOf(about).includes('当前版本 v2.2.0') && repoLink?.props.href === 'https://github.com/Scienmicroit/Daily-Question'
+  && repoLink.props.className.includes('kd-btn') && repoLink.children.some((node) => node.type === 'svg')
+  && textOf(repoLink) === 'Github')
 for (const [panel, labels] of [
   [components.SubjectsModal({ boot: { settings: { subjects: [] } }, embedded: true }), '撤销保存'],
   [components.BanksModal({ boot: archivedBoot, embedded: true }), '导入题库'],
@@ -885,18 +919,24 @@ check('关闭页面清理更新检查定时器与事件',cleared&&focusListener=
   unload()
 }
 
-for (const manual of [false, true]) {
-  let phase, bannerEffect
+for (const action of ['auto', 'close', 'undo']) {
+  let phase, bannerEffect, undone = false
   stateHook = (initial) => [phase ?? initial, (value) => { phase = value }]
   effectHook = (fn) => { bannerEffect = fn }
-  const banner = () => resolve(components.NotificationBanner({ message: '测试通知', tone: manual ? 'bad' : 'ok' }))
+  const banner = () => resolve(components.NotificationBanner({ message: '测试通知',
+    tone: action === 'close' ? 'bad' : 'ok', onUndo: action === 'undo' ? () => { undone = true } : undefined }))
   const nodes = []
   walk(banner(), (node) => nodes.push(node))
   const closeButton = nodes.find((node) => node.props['aria-label'] === '关闭通知')
   const stopDisplay = bannerEffect()
   const [[showTimer, show]] = timers
-  check('通知支持关闭按钮并停留三秒', closeButton && show.delay === 3000)
-  if (manual) closeButton.props.onClick()
+  const undoButton = nodes.find((node) => node.type === 'button' && textOf(node) === '撤销')
+  check('通知停留三秒，撤销按钮与关闭按钮互斥', show.delay === 3000
+    && (action === 'undo' ? undoButton && !closeButton : closeButton && !undoButton))
+  if (action === 'undo') {
+    undoButton.props.onClick()
+    check('点击撤销会执行操作', undone)
+  } else if (action === 'close') closeButton.props.onClick()
   else show.fn()
   stopDisplay()
   check('手动或自动关闭都会进入收回动画', banner().children[0].props.className.includes('is-leaving') && !timers.has(showTimer))

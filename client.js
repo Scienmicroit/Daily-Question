@@ -137,6 +137,11 @@ var DailyQuestionClient = (() => {
 
   // ui/styles.js
   var CSS = `
+@font-face {
+  font-family:"DQ HarmonyOS Sans SC";
+  src:url("/api/daily-question/vendor/harmonyos-sans-sc-regular-v1.ttf") format("truetype");
+  font-style:normal; font-weight:400; font-display:swap;
+}
 .kd-page {
   --kd-bg-base:var(--dsw-alias-bg-base, #ffffff);
   --kd-bg-layer-1:var(--dsw-alias-bg-layer-1, #ffffff);
@@ -157,21 +162,25 @@ var DailyQuestionClient = (() => {
   --kd-glass:color-mix(in srgb,var(--kd-surface) 88%,transparent);
   --kd-glass-edge:color-mix(in srgb,var(--kd-surface) 64%,transparent);
   --kd-ink:var(--kd-label-primary); --kd-surface:var(--kd-bg-base);
-  font-family:inherit; isolation:isolate; height:100%; min-height:0; display:flex; flex-direction:column; position:relative;
+  font-family:"DQ HarmonyOS Sans SC", "HarmonyOS Sans SC", system-ui, sans-serif;
+  isolation:isolate; height:100%; min-height:0; display:flex; flex-direction:column; position:relative;
   background:color-mix(in srgb, var(--kd-brand-primary) 2%, var(--kd-surface)); color: var(--kd-label-primary);
   font-size:14px; line-height:1.65; -webkit-font-smoothing:antialiased; box-sizing:border-box; }
 .kd-page *, .kd-page *::before, .kd-page *::after { box-sizing:border-box; }
+.kd-page :where(button,input,select,textarea) { font-family:inherit; }
 .kd-page :focus-visible { outline:2px solid var(--kd-brand-primary); outline-offset:2px; }
 .kd-practice-screen { display:flex; flex:1; min-height:0; flex-direction:column; }
-.kd-stats-screen { position:absolute; inset:0; z-index:65; display:flex; flex-direction:column;
+.kd-fullscreen { position:absolute; inset:0; z-index:65; display:flex; flex-direction:column;
   background:color-mix(in srgb, var(--kd-brand-primary) 3%, var(--kd-surface)); animation:kd-enter .2s ease-out; }
+.kd-settings-screen { z-index:40; }
 .kd-stats-header { flex:none; display:flex; align-items:center; justify-content:space-between; gap:12px;
   padding:18px clamp(14px,4vw,42px); background:var(--kd-surface); border-bottom:1px solid var(--kd-border-l1); }
 .kd-stats-heading { display:flex; align-items:center; gap:12px; }
 .kd-stats-heading h1 { margin:0; font-size:20px; }
 .kd-stats-heading .kd-iconbtn { width:34px; height:34px; border:1px solid var(--kd-border-l2); }
 .kd-stats-scroll { flex:1; min-height:0; overflow:auto; }
-.kd-stats-content { display:grid; gap:16px; max-width:1200px; margin:0 auto; padding:24px clamp(14px,4vw,42px) 40px; }
+.kd-stats-content, .kd-settings-layout { display:grid; gap:16px; width:100%; max-width:1200px;
+  margin:0 auto; padding:24px clamp(14px,4vw,42px) 40px; }
 .kd-stats-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(185px,100%),1fr)); gap:12px; }
 .kd-stats-card { min-width:0; padding:18px; border:1px solid var(--kd-border-l1); border-radius:14px; background:var(--kd-surface); }
 .kd-stats-card h2 { margin:0; font-size:15px; }
@@ -203,6 +212,18 @@ var DailyQuestionClient = (() => {
 .kd-stats-table tbody th { white-space:normal; min-width:100px; }
 .kd-stats-table small { margin-inline-start:8px; color:var(--kd-label-secondary); font-weight:400; }
 .kd-stats-table tbody tr:last-child > * { border-bottom:0; }
+.kd-memory-settings label { display:flex; align-items:center; gap:8px; }
+.kd-memory-settings label { margin-top:12px; }
+.kd-memory-settings input { accent-color:var(--kd-brand-primary); }
+.kd-memory-subject-card > h2 { font-size:17px; overflow-wrap:anywhere; }
+.kd-memory-panel { border-top:1px solid var(--kd-border-l1); margin-top:12px; padding-top:12px; }
+.kd-memory-panel h3 { margin:0; font-size:14px; }
+.kd-memory-topic { padding:12px 0; border-top:1px solid var(--kd-border-l1); }
+.kd-memory-topic summary { cursor:pointer; overflow-wrap:anywhere; }
+.kd-memory-topic summary > span { margin-inline-start:12px; }
+.kd-memory-topic textarea { box-sizing:border-box; min-height:84px; margin-bottom:8px; }
+.kd-memory-analysis { overflow-wrap:anywhere; }
+.kd-memory-filter { margin-bottom:12px; }
 .kd-header { padding:20px 28px 12px; background:var(--kd-surface); border-bottom:1px solid var(--kd-border-l1);
   display:flex; flex-direction:column; gap:12px; }
 .kd-header-top { display:flex; gap:20px; justify-content:space-between; align-items:center; flex-wrap:wrap; }
@@ -250,9 +271,8 @@ var DailyQuestionClient = (() => {
 .kd-dot { width:6px; height:6px; border-radius:50%; background:var(--kd-state-success-primary); }
 .kd-dot-idle { background:var(--kd-state-idle-primary); }
 .kd-nav-spacer { flex:1 1 auto; }
-.kd-update { display:flex; flex-direction:column; gap:4px; }
 .kd-main { flex:1 1 auto; min-width:0; overflow:hidden; display:flex; flex-direction:column; }
-.kd-main-toolbar { --kd-toolbar-control-height:46px; flex:none; padding:24px 28px 20px; display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
+.kd-main-toolbar { --kd-toolbar-control-height:36px; flex:none; padding:12px 28px 10px; display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; }
 .kd-daily-schedule { margin-inline-start:auto; align-self:stretch; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
 .kd-daily-schedule > .kd-btn { min-height:var(--kd-toolbar-control-height); border-radius:12px; }
 .kd-main-scroll { flex:1; min-height:0; overflow:auto; padding:0 28px 48px; scrollbar-gutter:stable; }
@@ -285,7 +305,7 @@ var DailyQuestionClient = (() => {
 .kd-tabs { display:flex; width:fit-content; max-width:100%; min-width:0; height:var(--kd-toolbar-control-height);
   overflow:hidden; border:1px solid var(--kd-border-l1); border-radius:12px; background:var(--kd-surface);
   box-shadow:0 2px 7px rgb(18 27 52 / 4%); }
-.kd-tab-strip { display:flex; gap:4px; min-width:0; padding:4px; overflow-x:auto; scrollbar-width:none; }
+.kd-tab-strip { display:flex; gap:4px; min-width:0; padding:3px 4px; overflow-x:auto; scrollbar-width:none; }
 .kd-tab-return { --kd-tab-return-size:calc(var(--kd-toolbar-control-height) - 2px); flex:none; width:0; overflow:hidden;
   transition:width .22s var(--kd-motion-out); }
 .kd-tab-return.is-open { width:var(--kd-tab-return-size); }
@@ -296,7 +316,7 @@ var DailyQuestionClient = (() => {
 .kd-tab-return.is-open .kd-tab-return-button { transform:none; }
 .kd-tab-return-button:hover:not(:disabled) { background:var(--kd-bg-layer-2); }
 .kd-tab-return-button:focus-visible { outline-offset:-3px; }
-.kd-tab { position:relative; display:inline-flex; align-items:center; gap:6px; padding:7px 14px; white-space:nowrap;
+.kd-tab { position:relative; display:inline-flex; align-items:center; gap:6px; padding:3px 14px; white-space:nowrap;
   border:0; background:transparent; color:var(--kd-label-secondary); font:inherit; font-size:13px;
   cursor:pointer; border-radius:8px; transition:color .15s, background-color .15s; }
 .kd-tab:hover { color:var(--kd-label-primary); background:var(--kd-bg-layer-2); }
@@ -453,10 +473,11 @@ var DailyQuestionClient = (() => {
 .kd-preview-item { border:1px solid var(--kd-border-l1); border-radius:12px; padding:12px 14px;
   background:var(--kd-bg-base); }
 .kd-preview-item + .kd-preview-item { margin-top:8px; }
-.kd-pdf-preview { display:grid; gap:10px; margin:12px 0; }
+.kd-pdf-preview { display:grid; gap:10px; }
+.kd-pdf-preview summary, .kd-manage-section details summary, .kd-bank-preview-stem summary {
+  padding-block:7px; cursor:pointer; font-weight:550; overflow-wrap:anywhere; }
 .kd-import-text { margin:0; max-height:320px; overflow:auto; padding:12px; border:1px solid var(--kd-border-l2);
-  border-radius:8px; background:var(--kd-bg-base); white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; }
-.kd-import-filename { overflow-wrap:anywhere; }
+  border-radius:8px; background:var(--kd-bg-layer-1); white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; }
 .kd-warn-text { color:var(--kd-state-warn-primary); font-size:12px; line-height:1.7; }
 .kd-error-text { color:var(--kd-state-error-primary); font-size:12px; line-height:1.7; }
 .kd-notification-slot { flex:none; overflow:hidden; }
@@ -470,6 +491,7 @@ var DailyQuestionClient = (() => {
 .kd-notification-warn { --kd-notification-color:var(--kd-state-warn-primary); }
 .kd-notification > span { min-width:0; overflow-wrap:anywhere; }
 .kd-notification > .kd-iconbtn { flex:none; color:inherit; margin-bottom:2px; }
+.kd-notification > .kd-btn { flex:none; color:inherit; }
 .kd-notification.is-leaving { pointer-events:none; animation:kd-notification-slide-out .18s var(--kd-motion-in) both; }
 @keyframes kd-notification-slide { from { transform:translateY(100%); } to { transform:translateY(0); } }
 @keyframes kd-notification-slide-out { from { transform:translateY(0); } to { transform:translateY(100%); } }
@@ -548,18 +570,16 @@ var DailyQuestionClient = (() => {
   box-shadow:inset 0 1px var(--kd-glass-edge), 0 22px 65px rgb(12 25 60 / 20%), 0 4px 14px rgb(12 25 60 / 7%); }
 .kd-presence.is-leaving .kd-overlay { animation:kd-fade-out .16s var(--kd-motion-in) both; pointer-events:none; }
 .kd-presence.is-leaving .kd-modal { animation:kd-modal-out .16s var(--kd-motion-in) both; }
+.kd-presence.is-leaving .kd-fullscreen { animation:kd-fade-out .16s var(--kd-motion-in) both; pointer-events:none; }
 .kd-thread { animation:kd-drawer .22s var(--kd-motion-out); }
 .kd-presence.is-leaving .kd-thread { animation:kd-drawer-out .16s var(--kd-motion-in) both; pointer-events:none; }
 .kd-modal-head { padding:22px 24px; }
 .kd-modal-title { font-size:18px; }
 .kd-modal-body { padding:20px 24px; background:color-mix(in srgb, var(--kd-brand-primary) 2%, var(--kd-surface)); }
 .kd-modal-foot { padding:16px 24px; }
-.kd-settings { width:min(1100px,100%); height:min(780px,100%); }
-.kd-settings > .kd-modal-head { flex:none; }
-.kd-settings > .kd-modal-body { flex:1; display:flex; overflow:hidden; padding:0; background:var(--kd-surface); }
-.kd-settings-layout { flex:1; min-width:0; display:grid; grid-template-columns:164px minmax(0,1fr); }
+.kd-settings-layout { flex:1; min-width:0; min-height:0; grid-template-columns:164px minmax(0,1fr); }
 .kd-settings-nav { display:flex; flex-direction:column; gap:4px; min-height:0; overflow:auto;
-  padding:14px 10px; border-right:1px solid var(--kd-border-l1); background:var(--kd-bg-base); }
+  padding:14px 10px; border:1px solid var(--kd-border-l1); border-radius:14px; background:var(--kd-surface); }
 .kd-settings-option { flex:none; display:flex; align-items:center; gap:9px; width:100%; min-height:38px;
   border:0; border-radius:8px; padding:7px 10px; background:transparent; color:var(--kd-label-secondary);
   font:inherit; text-align:left; white-space:nowrap; cursor:pointer; }
@@ -570,6 +590,7 @@ var DailyQuestionClient = (() => {
 .kd-settings-option:focus-visible { outline:2px solid var(--kd-brand-primary); outline-offset:-2px; }
 .kd-settings-option:disabled { opacity:.55; cursor:default; }
 .kd-settings-content, .kd-settings-section { min-width:0; min-height:0; display:flex; flex-direction:column; }
+.kd-settings-content { border:1px solid var(--kd-border-l1); border-radius:14px; background:var(--kd-surface); }
 .kd-settings-section { flex:1; }
 .kd-settings-section > .kd-modal-head, .kd-settings-section > .kd-modal-body {
   animation:kd-content-in .18s var(--kd-motion-out) both;
@@ -579,15 +600,24 @@ var DailyQuestionClient = (() => {
 .kd-settings-section > .kd-modal-head .kd-modal-title { margin:0; font-size:16px; overflow-wrap:anywhere; }
 .kd-settings-header-actions { margin-inline-start:auto; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
 .kd-settings-header-actions .kd-btn:disabled { background:var(--kd-bg-layer-2); color:var(--kd-label-secondary); border-color:var(--kd-border-l2); }
-.kd-settings-section > .kd-modal-body { flex:1; }
-.kd-paper-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(136px,100%),1fr));
-  gap:0 12px; max-width:660px; }
-.kd-paper-fields .kd-input, .kd-paper-fields .kd-select { box-sizing:border-box; width:100%; min-width:0; height:38px; }
+.kd-settings-section > .kd-modal-body { flex:1; background:transparent; }
+.kd-manage-fields { max-width:680px; }
+.kd-paper-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(158px,100%),1fr)); gap:10px 12px; }
+.kd-manage-fields .kd-field, .kd-manage-subject-options .kd-field { margin:0; }
+.kd-manage-fields .kd-input, .kd-manage-fields .kd-select, .kd-custom-subject .kd-select {
+  width:100%; min-width:0; min-height:38px; }
 .kd-about { display:grid; gap:18px; align-content:start; justify-items:start; }
 .kd-about-brand { display:flex; align-items:flex-start; gap:12px; }
 .kd-about-brand svg { flex:none; }
 .kd-about-brand h3 { margin:0 0 4px; font-size:16px; }
 .kd-about-brand p { margin:0; color:var(--kd-label-secondary); line-height:1.65; }
+.kd-about-github { text-decoration:none; }
+.kd-update { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px 24px;
+  width:min(100%,640px); padding:14px 16px; border:1px solid var(--kd-border-l1); border-radius:12px; background:var(--kd-bg-base); }
+.kd-update-info { min-width:0; overflow-wrap:anywhere; }
+.kd-update-version { font-size:16px; }
+.kd-update-version strong { font-weight:650; font-variant-numeric:tabular-nums; }
+.kd-update-status { font-size:14px; color:var(--kd-label-secondary); }
 .kd-backup-layout { display:grid; gap:16px; }
 .kd-backup-actions { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr)); gap:16px; }
 .kd-backup-card { min-width:0; padding:18px; border:1px solid var(--kd-border-l1); border-radius:14px;
@@ -603,13 +633,46 @@ var DailyQuestionClient = (() => {
 .kd-recovery-list li + li { border-top:1px solid var(--kd-border-l1); }
 .kd-recovery-list strong, .kd-backup-confirm strong { font-weight:600; }
 .kd-backup-confirm { overflow-wrap:anywhere; }
-.kd-manage-card { padding:16px; border:1px solid var(--kd-border-l1); border-radius:14px; background:var(--kd-bg-base); margin-bottom:10px; }
-.kd-manage-card.is-enabled { border-color:color-mix(in srgb, var(--kd-brand-primary) 25%, var(--kd-surface)); }
-.kd-manage-card .kd-checkline { font-weight:550; }
-.kd-manage-card .kd-msg-meta { font-weight:400; line-height:1.7; }
-.kd-custom-subject { padding:20px; border-radius:14px; border:1px solid var(--kd-border-l1); background:var(--kd-bg-base); }
-.kd-custom-subject-title { margin:0 0 8px; font-size:15px; }
+.kd-manage-stack { display:grid; gap:16px; min-width:0; }
+.kd-manage-fieldset { border:0; padding:0; margin:0; }
+.kd-manage-section { min-width:0; padding:clamp(12px,2.2vw,20px); border:1px solid var(--kd-border-l1);
+  border-radius:14px; background:var(--kd-surface); }
+.kd-manage-section-head { margin-bottom:12px; }
+.kd-manage-section-head h3 { margin:0; font-size:15px; }
+.kd-manage-section-head p { margin:4px 0 0; }
+.kd-manage-section > .kd-actions { margin-top:12px; }
+.kd-manage-section > .kd-empty { padding:22px 12px; }
+.kd-manage-card { padding:12px 14px; border:1px solid var(--kd-border-l1); border-radius:10px; background:var(--kd-bg-base); }
+.kd-manage-card + .kd-manage-card { margin-top:8px; }
+.kd-manage-card.is-enabled { border-color:color-mix(in srgb,var(--kd-brand-primary) 28%,var(--kd-border-l1)); }
+.kd-manage-file { display:flex; align-items:center; flex-wrap:wrap; gap:10px 12px; }
+.kd-manage-file-icon { display:grid; place-items:center; flex:none; width:36px; height:36px; border-radius:9px;
+  color:var(--kd-brand-primary); background:color-mix(in srgb,var(--kd-brand-primary) 9%,var(--kd-surface)); }
+.kd-manage-file-info { min-width:0; flex:1 1 140px; overflow-wrap:anywhere; }
+.kd-manage-file-info strong { display:block; }
+.kd-manage-badges { margin-top:5px; gap:5px; }
+.kd-manage-subject-head { align-items:flex-start; }
+.kd-manage-subject-label { flex:1 1 160px; min-width:0; padding:0; cursor:pointer; overflow-wrap:anywhere; }
+.kd-manage-subject-code { margin-inline-start:8px; font-size:12px; color:var(--kd-label-secondary); }
+.kd-manage-types { display:block; margin-top:3px; }
+.kd-manage-subject-options { display:grid; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid var(--kd-border-l1); }
+.kd-manage-subject .kd-select, .kd-pdf-preview .kd-select { max-width:100%; min-height:34px; }
+.kd-manage-types-options .kd-checkline { padding:5px 9px; border:1px solid var(--kd-border-l1);
+  border-radius:8px; background:var(--kd-bg-layer-1); }
+.kd-custom-subject { margin:0; gap:8px; }
+.kd-custom-subject .kd-field { margin:0; }
 .kd-custom-subject-actions { margin-top:8px; }
+.kd-manage-empty { margin:0; padding:14px; border:1px dashed var(--kd-border-l2); border-radius:10px; color:var(--kd-label-secondary); }
+.kd-manage-feedback { padding:9px 12px; border:1px solid var(--kd-border-l1); border-radius:9px;
+  margin:10px 0 0; font-size:13px; color:var(--kd-label-secondary); background:var(--kd-bg-layer-1); overflow-wrap:anywhere; }
+.kd-manage-stack > .kd-manage-feedback, .kd-pdf-preview > .kd-manage-feedback { margin:0; }
+.kd-manage-feedback:is(ul) { padding-inline-start:30px; }
+.kd-manage-feedback.is-error { color:var(--kd-state-error-primary); border-color:currentColor; }
+.kd-manage-feedback.is-warning { color:var(--kd-state-warn-primary); }
+.kd-manage-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.kd-manage-metrics > div { display:grid; padding:8px 10px; border-radius:10px; border:1px solid var(--kd-border-l1);
+  color:var(--kd-label-secondary); font-size:12px; }
+.kd-manage-metrics strong { font-size:19px; color:var(--kd-label-primary); font-variant-numeric:tabular-nums; }
 .kd-field-label { font-size:13px; }
 .kd-input { height:38px; }
 .kd-outline-input { box-sizing:border-box; width:100%; height:auto; padding:8px 11px; line-height:1.6; resize:vertical; }
@@ -629,9 +692,6 @@ var DailyQuestionClient = (() => {
 @supports (backdrop-filter:blur(1px)) {
   .kd-modal { background:var(--kd-glass); backdrop-filter:blur(20px) saturate(1.2); }
   .kd-modal-body { background:color-mix(in srgb,var(--kd-surface) 82%,transparent); }
-  .kd-settings > .kd-modal-body { background:transparent; }
-  .kd-settings-nav { background:color-mix(in srgb,var(--kd-surface) 48%,transparent); }
-  .kd-settings-section > .kd-modal-head { background:color-mix(in srgb,var(--kd-surface) 68%,transparent); }
   .kd-notification-slot.is-floating .kd-notification {
     background:color-mix(in srgb,var(--kd-notification-color) 8%,var(--kd-glass));
     backdrop-filter:blur(14px) saturate(1.15);
@@ -648,28 +708,27 @@ var DailyQuestionClient = (() => {
 @media (max-width: 860px) {
   .kd-nav { display:none; }
   .kd-mobilebar { display:flex; }
-  .kd-main-toolbar { padding:16px 14px; }
+  .kd-main-toolbar { padding:10px 14px 8px; }
   .kd-main-scroll { padding:0 14px 40px; }
   .kd-header { padding:14px 14px 12px; gap:10px; }
   .kd-header-left { flex-basis:100%; }
   .kd-cd-lines { align-items:flex-start; text-align:left; }
   .kd-cd-primary { font-size:19px; }
   .kd-tabs, .kd-tab-strip { flex:1; }
-  .kd-tab { flex:1 0 auto; justify-content:center; padding:7px 10px; }
+  .kd-tab { flex:1 0 auto; justify-content:center; padding-inline:10px; }
   .kd-strip-item { white-space:normal; }
   .kd-card { padding:16px 14px; }
   .kd-answer-panel-body { padding:14px; }
   .kd-exam-strip { padding:8px 10px; }
-  .kd-overlay:has(> .kd-settings) { padding:12px; }
-  .kd-settings-layout { grid-template-columns:112px minmax(0,1fr); }
+  .kd-settings-layout { grid-template-columns:112px minmax(0,1fr); gap:8px; padding-block:12px; }
   .kd-settings-nav { padding:10px 5px; }
   .kd-settings-option { padding-inline:6px; gap:4px; font-size:12px; }
-  .kd-settings > .kd-modal-head, .kd-settings-section > .kd-modal-head,
+  .kd-settings-section > .kd-modal-head,
   .kd-settings-section > .kd-modal-body, .kd-settings-section > .kd-modal-foot { padding:12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .kd-page *, .kd-page *::before, .kd-page *::after { transition:none !important; animation:none !important; }
-  .kd-notification.is-leaving { visibility:hidden; }
+  .kd-notification.is-leaving, .kd-presence.is-leaving .kd-fullscreen { visibility:hidden; }
 }
 
 `;
@@ -1303,6 +1362,45 @@ ${lines[index]}`;
   }
   __name(typeLabel, "typeLabel");
 
+  // ui/fullscreen.js
+  function fullscreen(h, Icon, { title, onClose, detail, settings = false, locked, dialog }, content) {
+    return h(
+      "section",
+      {
+        className: settings ? "kd-fullscreen kd-settings-screen" : "kd-fullscreen",
+        role: "dialog",
+        "aria-modal": true,
+        "aria-label": title
+      },
+      h(
+        "header",
+        { className: "kd-stats-header", inert: dialog ? true : void 0 },
+        h(
+          "div",
+          { className: "kd-stats-heading" },
+          h(
+            "button",
+            {
+              type: "button",
+              className: "kd-iconbtn",
+              onClick: onClose,
+              autoFocus: true,
+              disabled: locked || Boolean(dialog),
+              "aria-label": "返回练习",
+              title: "返回练习"
+            },
+            h(Icon, { name: "chevron-left", size: 20 })
+          ),
+          h("h1", null, title)
+        ),
+        detail
+      ),
+      content,
+      dialog
+    );
+  }
+  __name(fullscreen, "fullscreen");
+
   // ui/components.js
   function createComponents(React, { window, rpc, Markdown, useMathJaxStatus }) {
     const { createElement: h, useState, useEffect, useRef, useMemo, useCallback, useId } = React;
@@ -1381,10 +1479,14 @@ ${lines[index]}`;
         const timer = setTimeout(() => setRetained([]), 160);
         return () => clearTimeout(timer);
       }, [children, active]);
-      return h("div", { className: "kd-presence" + (active ? "" : " is-leaving") }, active ? children : retained);
+      return h(
+        "div",
+        { className: "kd-presence" + (active ? "" : " is-leaving"), inert: !active || void 0 },
+        active ? children : retained
+      );
     }
     __name(Presence, "Presence");
-    function NotificationBanner({ message, tone = "ok", floating = false }) {
+    function NotificationBanner({ message, tone = "ok", floating = false, onUndo }) {
       const [phase, setPhase] = useState("visible");
       useEffect(() => {
         if (phase === "hidden") return void 0;
@@ -1401,7 +1503,10 @@ ${lines[index]}`;
           "div",
           { className: `kd-notification kd-notification-${tone}${phase === "leaving" ? " is-leaving" : ""}` },
           h("span", { role: tone === "bad" ? "alert" : "status" }, message),
-          h("button", {
+          onUndo ? h(Btn, { small: true, disabled: phase === "leaving", onClick: /* @__PURE__ */ __name(() => {
+            setPhase("leaving");
+            onUndo();
+          }, "onClick") }, "撤销") : h("button", {
             type: "button",
             className: "kd-iconbtn",
             "aria-label": "关闭通知",
@@ -1412,7 +1517,7 @@ ${lines[index]}`;
       );
     }
     __name(NotificationBanner, "NotificationBanner");
-    function Modal({ title, children, footer, headerActions, dialog, notification, onClose, wide, embedded = false, settings = false, locked = false, explicitClose = settings }) {
+    function Modal({ title, children, footer, headerActions, dialog, notification, onClose, wide, embedded = false, locked = false, explicitClose = false }) {
       useEffect(() => {
         if (embedded || explicitClose || locked || dialog) return void 0;
         const onKey = /* @__PURE__ */ __name((event) => {
@@ -1445,7 +1550,7 @@ ${lines[index]}`;
       }, h(
         "div",
         {
-          className: `kd-modal${wide ? " kd-modal-wide" : ""}${settings ? " kd-settings" : ""}`,
+          className: `kd-modal${wide ? " kd-modal-wide" : ""}`,
           role: "dialog",
           "aria-modal": "true",
           "aria-label": title
@@ -1570,16 +1675,24 @@ ${sourceUrl}` : ""}` : ""
         "div",
         { className: "kd-update" },
         h(
+          "div",
+          { className: "kd-update-info" },
+          h("div", { className: "kd-update-version" }, "当前版本 ", h("strong", null, `v${currentVersion || state.result?.currentVersion || "—"}`)),
+          h(
+            "div",
+            { className: "kd-update-status", role: "status", "aria-live": "polite", title: state.error || "" },
+            state.error ? "暂时无法检查，请重试" : state.result?.updateAvailable ? h(
+              "a",
+              { className: "kd-link", href: state.result.packageUrl, target: "_blank", rel: "noreferrer noopener" },
+              `发现新版本 v${state.result.latestVersion} ↗`
+            ) : state.result ? "已是最新版本" : null
+          )
+        ),
+        h(
           Btn,
-          { variant: "ghost", disabled: state.busy, onClick: /* @__PURE__ */ __name(() => check(true), "onClick") },
+          { disabled: state.busy, onClick: /* @__PURE__ */ __name(() => check(true), "onClick") },
           state.busy ? h("span", { className: "kd-spinner" }) : h(Icon, { name: "refresh" }),
           state.busy ? "正在检查…" : "检查更新"
-        ),
-        h("div", { className: "kd-msg-meta", style: { padding: "0 8px" } }, `当前版本 v${currentVersion || state.result?.currentVersion || "—"}`),
-        h(
-          "div",
-          { className: "kd-msg-meta", role: "status", "aria-live": "polite", title: state.error || "", style: { padding: "4px 8px", overflowWrap: "anywhere" } },
-          state.error ? "暂时无法检查，请重试" : state.result?.updateAvailable ? h("a", { className: "kd-link", href: state.result.packageUrl, target: "_blank", rel: "noreferrer noopener" }, `发现新版本 v${state.result.latestVersion} ↗`) : state.result ? "已是最新版本" : null
         )
       );
     }
@@ -1593,12 +1706,13 @@ ${sourceUrl}` : ""}` : ""
         ["backup", "备份与恢复", "backup"],
         ["about", "关于", "info"]
       ];
-      return h(
-        Modal,
-        { title: "设置", settings: true, locked, dialog, onClose },
+      return fullscreen(
+        h,
+        Icon,
+        { title: "设置", onClose, settings: true, locked, dialog },
         h(
           "div",
-          { className: "kd-settings-layout" },
+          { className: "kd-settings-layout", inert: dialog ? true : void 0 },
           h(
             "nav",
             { className: "kd-settings-nav", "aria-label": "设置选项" },
@@ -1633,15 +1747,27 @@ ${sourceUrl}` : ""}` : ""
           ),
           h(
             "a",
-            { className: "kd-link", href: "https://github.com/Scienmicroit/Daily-Question", target: "_blank", rel: "noopener noreferrer" },
-            "GitHub 仓库 ↗"
+            {
+              className: "kd-btn kd-about-github",
+              href: "https://github.com/Scienmicroit/Daily-Question",
+              target: "_blank",
+              rel: "noopener noreferrer",
+              title: "打开 GitHub 仓库"
+            },
+            h(
+              "svg",
+              { width: 16, height: 16, viewBox: "0 0 16 16", fill: "currentColor", "aria-hidden": true },
+              h("path", { d: "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z" })
+            ),
+            "Github"
           ),
-          h(UpdateCheck, { currentVersion })
+          h(UpdateCheck, { currentVersion }),
+          h("p", { className: "kd-meta" }, "界面使用 HarmonyOS Sans SC 字体，© 2021 Huawei Device Co., Ltd.")
         )
       );
     }
     __name(AboutPanel, "AboutPanel");
-    function SubjectNav({ boot, subjectId, onPick, onSettings, onStats }) {
+    function SubjectNav({ boot, subjectId, onPick, onSettings, onStats, onMemory }) {
       const enabled = (boot.subjects || []).filter((subject) => subject.enabled);
       const subjectButton = /* @__PURE__ */ __name((subject) => {
         const done = Boolean(boot.todayMap?.[subject.id]);
@@ -1675,6 +1801,7 @@ ${sourceUrl}` : ""}` : ""
         h(
           "div",
           { className: "kd-nav-group" },
+          h(Btn, { variant: "ghost", onClick: onMemory }, h(Icon, { name: "spark" }), "记忆与建议"),
           h(Btn, { variant: "ghost", onClick: onStats }, h(Icon, { name: "stats" }), "统计"),
           h(Btn, { variant: "ghost", onClick: onSettings }, h(Icon, { name: "settings" }), "设置")
         )
@@ -1725,7 +1852,7 @@ ${sourceUrl}` : ""}` : ""
       );
     }
     __name(TabBar, "TabBar");
-    function MobileBar({ boot, subjectId, onPick, onSettings, onStats }) {
+    function MobileBar({ boot, subjectId, onPick, onSettings, onStats, onMemory }) {
       const enabled = (boot.subjects || []).filter((subject) => subject.enabled);
       const active = enabled.some((subject) => subject.id === subjectId) ? subjectId : "";
       return h(
@@ -1742,6 +1869,7 @@ ${sourceUrl}` : ""}` : ""
           !active ? h("option", { value: "", disabled: true }, "选择科目") : null,
           enabled.map((subject) => h("option", { key: subject.id, value: subject.id }, subject.name))
         ),
+        h(Btn, { small: true, variant: "ghost", onClick: onMemory }, h(Icon, { name: "spark", size: 13 }), "记忆与建议"),
         h(Btn, { small: true, variant: "ghost", onClick: onStats }, h(Icon, { name: "stats", size: 13 }), "统计"),
         h(Btn, { small: true, variant: "ghost", onClick: onSettings }, h(Icon, { name: "settings", size: 13 }), "设置")
       );
@@ -2351,6 +2479,36 @@ ${sourceUrl}` : ""}` : ""
       );
     }
     __name(ThreadPane, "ThreadPane");
+    function ManageSection({ title, hint, children }) {
+      return h(
+        "section",
+        { className: "kd-manage-section", "aria-label": title },
+        h(
+          "header",
+          { className: "kd-manage-section-head" },
+          h("h3", null, title),
+          hint ? h("p", { className: "kd-meta" }, hint) : null
+        ),
+        children
+      );
+    }
+    __name(ManageSection, "ManageSection");
+    function ManageFileRow({ icon, name, meta, badges, action }) {
+      return h(
+        "div",
+        { className: "kd-manage-card kd-manage-file" },
+        h("span", { className: "kd-manage-file-icon" }, h(Icon, { name: icon, size: 18 })),
+        h(
+          "div",
+          { className: "kd-manage-file-info" },
+          h("strong", null, name),
+          meta ? h("div", { className: "kd-meta" }, meta) : null,
+          badges?.length ? h("div", { className: "kd-row kd-manage-badges" }, badges.map((label) => h(Badge, { key: label }, label))) : null
+        ),
+        action
+      );
+    }
+    __name(ManageFileRow, "ManageFileRow");
     function SubjectsModal({ boot, savedNotice, onClose, onDone, embedded, onBusyChange, onDirtyChange }) {
       const [draft, setDraft] = useState(() => ({
         subjects: [...boot.settings.subjects],
@@ -2373,8 +2531,8 @@ ${sourceUrl}` : ""}` : ""
       const [undoOpen, setUndoOpen] = useState(false);
       const outlineEditor = /* @__PURE__ */ __name((value, onChange, label) => h(
         "label",
-        { className: "kd-field", style: { marginBottom: 0 } },
-        h("span", { className: "kd-meta" }, label),
+        { className: "kd-field" },
+        h("span", { className: "kd-field-label" }, label),
         h("textarea", { className: "kd-input kd-outline-input", rows: 3, value, maxLength: 2400, placeholder: "每行填写一个知识点，例如：链表、栈与队列", onChange: /* @__PURE__ */ __name((event) => onChange(event.target.value), "onChange") })
       ), "outlineEditor");
       const referenceExams = boot.referenceExams || (boot.subjects || []).filter((s) => !s.custom);
@@ -2590,157 +2748,176 @@ ${sourceUrl}` : ""}` : ""
         ) : null,
         h(
           "fieldset",
-          { disabled: saving, style: { border: 0, padding: 0, margin: 0, minWidth: 0 } },
+          { disabled: saving, className: "kd-manage-stack kd-manage-fieldset" },
           h(
-            "div",
-            { className: "kd-meta", style: { marginBottom: "12px" } },
-            "点击「保存」统一应用科目设置，点击「撤销」可放弃本次更改。停用科目会保留历史题目、作答、收藏和追问。"
-          ),
-          subjects.map((subject) => h(
-            "div",
+            ManageSection,
             {
-              key: subject.id,
-              className: "kd-row-between kd-manage-card" + (enabled.has(subject.id) ? " is-enabled" : "")
+              title: `科目列表 · ${enabled.size} 门已启用`,
+              hint: "勾选要练习的科目，点击「保存」统一生效。停用科目会保留历史记录。"
             },
-            h(
-              "label",
-              { className: "kd-checkline", style: { flex: "1 1 240px", cursor: "pointer" } },
-              h("input", {
-                type: "checkbox",
-                checked: enabled.has(subject.id),
-                onChange: /* @__PURE__ */ __name(() => toggleSubject(subject.id), "onChange")
-              }),
+            !subjects.length ? h("p", { className: "kd-manage-empty" }, "暂无科目，可在下方添加自定义科目。") : null,
+            subjects.map((subject) => h(
+              "div",
+              {
+                key: subject.id,
+                className: "kd-manage-card kd-manage-subject" + (enabled.has(subject.id) ? " is-enabled" : "")
+              },
               h(
-                "span",
-                null,
-                h("span", null, subject.name),
-                subject.code ? h("span", { className: "kd-msg-meta" }, ` · ${subject.code}`) : null,
-                h("div", { className: "kd-msg-meta" }, subject.typeLabels.join(" / "))
-              )
-            ),
-            enabled.has(subject.id) ? h(
-              "div",
-              { className: "kd-row" },
-              subject.custom ? referenceEditor(
-                draft.customSubjects.find((s) => s.id === subject.id) || subject,
-                (patch) => setDraft((current) => ({ ...current, customSubjects: current.customSubjects.map((s) => s.id === subject.id ? { ...s, ...patch } : s) })),
-                `${subject.name} 参考考试科目`
-              ) : null,
-              subject.custom ? outlineEditor(
-                (draft.customSubjects.find((s) => s.id === subject.id)?.outline || []).join("\n"),
-                (text) => setDraft((current) => ({ ...current, customSubjects: current.customSubjects.map((s) => s.id === subject.id ? { ...s, outline: text.split("\n") } : s) })),
-                `${subject.name} 练习范围`
-              ) : null,
-              h(
-                "select",
-                {
-                  className: "kd-select",
-                  value: draft.subjectSource[subject.id] || "auto",
-                  "aria-label": `${subject.name} 出题来源`,
-                  onChange: /* @__PURE__ */ __name((event) => {
-                    const source = event.target.value;
-                    setDraft((current) => ({ ...current, subjectSource: { ...current.subjectSource, [subject.id]: source } }));
-                  }, "onChange")
-                },
-                h("option", { value: "auto" }, "自动（优先题库）"),
-                h("option", { value: "online" }, "在线出题"),
-                h("option", { value: "bank" }, "题库出题")
-              ),
-              subject.bankItemCount ? h("span", { className: "kd-msg-meta" }, `题库 ${subject.bankItemCount} 题`) : h("span", { className: "kd-msg-meta" }, "题库为空")
-            ) : null,
-            h(Btn, { small: true, variant: "danger", ariaLabel: `删除${subject.name}`, onClick: /* @__PURE__ */ __name(() => setDeletion({ subject, final: false }), "onClick") }, "删除")
-          )),
-          h("div", { className: "kd-divider" }),
-          h(
-            "div",
-            { className: "kd-field kd-custom-subject" },
-            h("h3", { className: "kd-custom-subject-title" }, "添加自定义科目"),
-            h(
-              "label",
-              { className: "kd-field" },
-              h("span", { className: "kd-field-label" }, "科目名称（必填）"),
-              h("input", {
-                className: "kd-input",
-                value: name,
-                "aria-required": true,
-                placeholder: "例如：数据结构（自命题）",
-                onChange: /* @__PURE__ */ __name((event) => setName(event.target.value), "onChange"),
-                onKeyDown: /* @__PURE__ */ __name((event) => {
-                  if (event.key === "Enter") submit();
-                }, "onKeyDown")
-              })
-            ),
-            h("div", { className: "kd-field-label" }, "练习题型（至少选一种）"),
-            h(
-              "div",
-              { className: "kd-row", style: { marginTop: "6px" } },
-              [["single", "单项选择题"], ["multiple", "多项选择题"], ["fill", "填空题"], ["solution", "解答题"]].map(([value, label]) => h(
-                "label",
-                { key: value, className: "kd-checkline", style: { cursor: "pointer" } },
-                h("input", {
-                  type: "checkbox",
-                  checked: types.includes(value),
-                  onChange: /* @__PURE__ */ __name(() => toggleType(value), "onChange")
-                }),
-                h("span", null, label)
-              ))
-            ),
-            customTypes.length ? h(
-              "div",
-              { className: "kd-row", style: { marginTop: "6px" } },
-              customTypes.map((value) => h(
-                "span",
-                { key: value, className: "kd-chip" },
+                "div",
+                { className: "kd-row-between kd-manage-subject-head" },
                 h(
                   "label",
-                  { className: "kd-checkline", style: { cursor: "pointer" } },
+                  { className: "kd-checkline kd-manage-subject-label" },
+                  h("input", {
+                    type: "checkbox",
+                    checked: enabled.has(subject.id),
+                    onChange: /* @__PURE__ */ __name(() => toggleSubject(subject.id), "onChange")
+                  }),
+                  h(
+                    "span",
+                    null,
+                    h("strong", null, subject.name),
+                    subject.code ? h("span", { className: "kd-manage-subject-code" }, subject.code) : null,
+                    h("span", { className: "kd-meta kd-manage-types" }, subject.typeLabels.join(" / "))
+                  )
+                ),
+                h(Btn, { small: true, variant: "danger", ariaLabel: `删除${subject.name}`, onClick: /* @__PURE__ */ __name(() => setDeletion({ subject, final: false }), "onClick") }, "删除")
+              ),
+              enabled.has(subject.id) ? h(
+                "div",
+                { className: "kd-manage-subject-options" },
+                h(
+                  "div",
+                  { className: "kd-row" },
+                  h(
+                    "label",
+                    { className: "kd-row" },
+                    h("span", { className: "kd-meta" }, "出题来源"),
+                    h(
+                      "select",
+                      {
+                        className: "kd-select",
+                        value: draft.subjectSource[subject.id] || "auto",
+                        "aria-label": `${subject.name} 出题来源`,
+                        onChange: /* @__PURE__ */ __name((event) => {
+                          const source = event.target.value;
+                          setDraft((current) => ({ ...current, subjectSource: { ...current.subjectSource, [subject.id]: source } }));
+                        }, "onChange")
+                      },
+                      h("option", { value: "auto" }, "自动（优先题库）"),
+                      h("option", { value: "online" }, "在线出题"),
+                      h("option", { value: "bank" }, "题库出题")
+                    )
+                  ),
+                  h(Badge, null, subject.bankItemCount ? `题库 ${subject.bankItemCount} 题` : "题库为空")
+                ),
+                subject.custom ? h("span", { className: "kd-field-label" }, "参考考试") : null,
+                subject.custom ? referenceEditor(
+                  draft.customSubjects.find((s) => s.id === subject.id) || subject,
+                  (patch) => setDraft((current) => ({ ...current, customSubjects: current.customSubjects.map((s) => s.id === subject.id ? { ...s, ...patch } : s) })),
+                  `${subject.name} 参考考试科目`
+                ) : null,
+                subject.custom ? outlineEditor(
+                  (draft.customSubjects.find((s) => s.id === subject.id)?.outline || []).join("\n"),
+                  (text) => setDraft((current) => ({ ...current, customSubjects: current.customSubjects.map((s) => s.id === subject.id ? { ...s, outline: text.split("\n") } : s) })),
+                  `${subject.name} 练习范围`
+                ) : null
+              ) : null
+            ))
+          ),
+          h(
+            ManageSection,
+            { title: "添加自定义科目" },
+            h(
+              "div",
+              { className: "kd-field kd-custom-subject" },
+              h(
+                "label",
+                { className: "kd-field" },
+                h("span", { className: "kd-field-label" }, "科目名称（必填）"),
+                h("input", {
+                  className: "kd-input",
+                  value: name,
+                  "aria-required": true,
+                  placeholder: "例如：数据结构（自命题）",
+                  onChange: /* @__PURE__ */ __name((event) => setName(event.target.value), "onChange"),
+                  onKeyDown: /* @__PURE__ */ __name((event) => {
+                    if (event.key === "Enter") submit();
+                  }, "onKeyDown")
+                })
+              ),
+              h("div", { className: "kd-field-label" }, "练习题型（至少选一种）"),
+              h(
+                "div",
+                { className: "kd-row kd-manage-types-options" },
+                [["single", "单项选择题"], ["multiple", "多项选择题"], ["fill", "填空题"], ["solution", "解答题"]].map(([value, label]) => h(
+                  "label",
+                  { key: value, className: "kd-checkline", style: { cursor: "pointer" } },
                   h("input", {
                     type: "checkbox",
                     checked: types.includes(value),
                     onChange: /* @__PURE__ */ __name(() => toggleType(value), "onChange")
                   }),
-                  h("span", null, value)
-                ),
-                h("button", {
-                  type: "button",
-                  className: "kd-iconbtn",
-                  title: "删除这个自定义题型",
-                  onClick: /* @__PURE__ */ __name(() => dropCustomType(value), "onClick")
-                }, h(Icon, { name: "close", size: 12 }))
-              ))
-            ) : null,
-            h(
-              "div",
-              { className: "kd-row", style: { marginTop: "8px" } },
-              h("input", {
-                className: "kd-input",
-                style: { flex: "1 1 160px" },
-                value: typeDraft,
-                "aria-label": "自定义题型名称",
-                placeholder: "自定义题型，例如：名词解释",
-                onChange: /* @__PURE__ */ __name((event) => setTypeDraft(event.target.value), "onChange"),
-                onKeyDown: /* @__PURE__ */ __name((event) => {
-                  if (event.key === "Enter") addCustomType();
-                }, "onKeyDown")
-              }),
-              h(Btn, { small: true, disabled: !typeDraft.trim(), onClick: addCustomType }, "添加题型")
-            ),
-            h("div", { className: "kd-divider" }),
-            h("div", { className: "kd-field-label" }, "参考考试（选填）"),
-            h("div", { className: "kd-meta" }, "例如可选 408 作为参考考试，科目名称仍由上方的输入框决定。"),
-            referenceEditor({ referenceSubjectId, referenceExamName, referenceExamCode, code: subjectCode }, (patch) => {
-              if (patch.referenceSubjectId !== void 0) setReferenceSubjectId(patch.referenceSubjectId);
-              if (patch.referenceExamName !== void 0) setReferenceExamName(patch.referenceExamName);
-              if (patch.referenceExamCode !== void 0) setReferenceExamCode(patch.referenceExamCode);
-              if (patch.code !== void 0) setSubjectCode(patch.code);
-            }, "自定义科目的参考考试"),
-            outlineEditor(outlineDraft, setOutlineDraft, "练习范围（选填）"),
-            h("div", { className: "kd-meta" }, "考试大纲和用于难度校验的真题，可分别在「大纲管理」和「真题管理」中导入。"),
-            h(
-              "div",
-              { className: "kd-row-between kd-custom-subject-actions" },
-              h("span", { className: "kd-meta" }, "可以直接点「保存」。要继续添加其他科目，可先加入列表，再统一保存。"),
-              h(Btn, { disabled: !canAdd, onClick: submit }, "加入科目列表")
+                  h("span", null, label)
+                ))
+              ),
+              customTypes.length ? h(
+                "div",
+                { className: "kd-row", style: { marginTop: "6px" } },
+                customTypes.map((value) => h(
+                  "span",
+                  { key: value, className: "kd-chip" },
+                  h(
+                    "label",
+                    { className: "kd-checkline", style: { cursor: "pointer" } },
+                    h("input", {
+                      type: "checkbox",
+                      checked: types.includes(value),
+                      onChange: /* @__PURE__ */ __name(() => toggleType(value), "onChange")
+                    }),
+                    h("span", null, value)
+                  ),
+                  h("button", {
+                    type: "button",
+                    className: "kd-iconbtn",
+                    title: "删除这个自定义题型",
+                    onClick: /* @__PURE__ */ __name(() => dropCustomType(value), "onClick")
+                  }, h(Icon, { name: "close", size: 12 }))
+                ))
+              ) : null,
+              h(
+                "div",
+                { className: "kd-row", style: { marginTop: "8px" } },
+                h("input", {
+                  className: "kd-input",
+                  style: { flex: "1 1 160px" },
+                  value: typeDraft,
+                  "aria-label": "自定义题型名称",
+                  placeholder: "自定义题型，例如：名词解释",
+                  onChange: /* @__PURE__ */ __name((event) => setTypeDraft(event.target.value), "onChange"),
+                  onKeyDown: /* @__PURE__ */ __name((event) => {
+                    if (event.key === "Enter") addCustomType();
+                  }, "onKeyDown")
+                }),
+                h(Btn, { small: true, disabled: !typeDraft.trim(), onClick: addCustomType }, "添加题型")
+              ),
+              h("div", { className: "kd-divider" }),
+              h("div", { className: "kd-field-label" }, "参考考试（选填）"),
+              h("div", { className: "kd-meta" }, "例如可选 408 作为参考考试，科目名称仍由上方的输入框决定。"),
+              referenceEditor({ referenceSubjectId, referenceExamName, referenceExamCode, code: subjectCode }, (patch) => {
+                if (patch.referenceSubjectId !== void 0) setReferenceSubjectId(patch.referenceSubjectId);
+                if (patch.referenceExamName !== void 0) setReferenceExamName(patch.referenceExamName);
+                if (patch.referenceExamCode !== void 0) setReferenceExamCode(patch.referenceExamCode);
+                if (patch.code !== void 0) setSubjectCode(patch.code);
+              }, "自定义科目的参考考试"),
+              outlineEditor(outlineDraft, setOutlineDraft, "练习范围（选填）"),
+              h("div", { className: "kd-meta" }, "考试大纲和用于难度校验的真题，可分别在「大纲管理」和「真题管理」中导入。"),
+              h(
+                "div",
+                { className: "kd-row-between kd-custom-subject-actions" },
+                h("span", { className: "kd-meta" }, "可以直接点「保存」。要继续添加其他科目，可先加入列表，再统一保存。"),
+                h(Btn, { disabled: !canAdd, onClick: submit }, "加入科目列表")
+              )
             )
           )
         )
@@ -2751,25 +2928,25 @@ ${sourceUrl}` : ""}` : ""
       const [selected, setSelected] = useState(0);
       if (!pages?.length) return null;
       const failed = pages.filter((entry) => entry.source === "failed");
-      const labels = { text: "文字层提取", ocr: "模型识别", blank: "空白页", failed: "识别失败" };
+      const labels2 = { text: "文字层提取", ocr: "模型识别", blank: "空白页", failed: "识别失败" };
       const current = pages[selected] || pages[0];
       return h(
         "section",
         { className: "kd-pdf-preview", "aria-label": "PDF 逐页预览" },
         failed.length ? h(
           "div",
-          { className: "kd-error-text", role: "alert" },
+          { className: "kd-manage-feedback is-error", role: "alert" },
           h("strong", null, `识别失败页：${failed.map((entry) => entry.page).join("、")}。请修复这些页面后重新导入。`),
           h("ul", null, failed.map((entry) => h("li", { key: entry.page }, `第 ${entry.page} 页 · ${entry.reason}`)))
         ) : null,
         h(
           "label",
           { className: "kd-row" },
-          h("span", null, "逐页预览"),
+          h("strong", null, "逐页预览"),
           h(
             "select",
             { className: "kd-select", value: selected, onChange: /* @__PURE__ */ __name((event) => setSelected(Number(event.target.value)), "onChange") },
-            ...pages.map((entry, index) => h("option", { key: entry.page, value: index }, `第 ${entry.page} 页 · ${labels[entry.source]}`))
+            ...pages.map((entry, index) => h("option", { key: entry.page, value: index }, `第 ${entry.page} 页 · ${labels2[entry.source]}`))
           )
         ),
         current.text ? h("pre", { className: "kd-import-text", tabIndex: 0 }, current.text) : h("p", { className: "kd-meta" }, current.reason || "此页没有正文。")
@@ -2790,30 +2967,38 @@ ${sourceUrl}` : ""}` : ""
             h(Btn, { key: "confirm", variant: "primary", disabled: busy || !preview.canSave, onClick: onConfirm }, busy ? "正在保存…" : "确认导入")
           ]
         },
-        h("p", { className: "kd-meta kd-import-filename" }, `${preview.subjectName} · ${preview.year ? `${preview.year} 年 · ` : ""}${preview.fileName}`),
-        preview.issue || error ? h("p", { role: "alert", className: "kd-error-text" }, error || preview.issue) : null,
-        preview.recognition ? h(
-          "section",
-          { className: "kd-pdf-preview", "aria-label": "模型识别结果" },
-          preview.recognition.warnings?.length ? h(
-            "ul",
-            { className: "kd-warn-text" },
-            preview.recognition.warnings.map((warning, index) => h("li", { key: index }, warning))
+        h(
+          "div",
+          { className: "kd-manage-stack" },
+          h(ManageFileRow, {
+            icon: preview.year ? "papers" : "syllabus",
+            name: preview.fileName,
+            meta: [preview.subjectName, preview.year ? `${preview.year} 年` : null].filter(Boolean).join(" · ")
+          }),
+          preview.issue || error ? h("p", { role: "alert", className: "kd-manage-feedback is-error" }, error || preview.issue) : null,
+          preview.recognition ? h(
+            ManageSection,
+            { title: "模型识别结果", hint: "核对识别内容后再确认导入。" },
+            preview.recognition.warnings?.length ? h(
+              "ul",
+              { className: "kd-manage-feedback is-warning" },
+              preview.recognition.warnings.map((warning, index) => h("li", { key: index }, warning))
+            ) : null,
+            preview.recognition.scopeText ? h(
+              "details",
+              { open: true },
+              h("summary", null, "模型识别的考试范围"),
+              h("pre", { className: "kd-import-text", tabIndex: 0 }, preview.recognition.scopeText)
+            ) : null,
+            Object.entries(preview.recognition.typeExcerpts || {}).map(([type, text]) => h(
+              "details",
+              { key: type },
+              h("summary", null, `识别题型 · ${typeLabel(type)}`),
+              h("pre", { className: "kd-import-text", tabIndex: 0 }, text)
+            ))
           ) : null,
-          preview.recognition.scopeText ? h(
-            "details",
-            { open: true },
-            h("summary", null, "模型识别的考试范围"),
-            h("pre", { className: "kd-import-text", tabIndex: 0 }, preview.recognition.scopeText)
-          ) : null,
-          Object.entries(preview.recognition.typeExcerpts || {}).map(([type, text]) => h(
-            "details",
-            { key: type },
-            h("summary", null, `识别题型 · ${typeLabel(type)}`),
-            h("pre", { className: "kd-import-text", tabIndex: 0 }, text)
-          ))
-        ) : null,
-        preview.pages?.length ? h(PdfImportPreview, { pages: preview.pages }) : h("pre", { className: "kd-import-text", tabIndex: 0 }, preview.text)
+          h(ManageSection, { title: "原文核对" }, preview.pages?.length ? h(PdfImportPreview, { pages: preview.pages }) : h("pre", { className: "kd-import-text", tabIndex: 0 }, preview.text))
+        )
       );
     }
     __name(StudyImportPreview, "StudyImportPreview");
@@ -2858,62 +3043,66 @@ ${sourceUrl}` : ""}` : ""
           },
           h(
             "div",
-            { className: "kd-meta", style: { marginBottom: "10px" } },
-            `模型识别 ${importResult.stats.total} 道，可用 ${importResult.usable} 道，已选 ${selectedCount} 道入库。`
-          ),
-          importResult.pages?.length ? h(PdfImportPreview, { pages: importResult.pages }) : null,
-          importResult.sourceText ? h(
-            "details",
-            { className: "kd-pdf-preview" },
-            h("summary", null, "查看文件原文"),
-            h("pre", { className: "kd-import-text", tabIndex: 0 }, importResult.sourceText)
-          ) : null,
-          importResult.warnings.length ? h(
-            "div",
-            { className: "kd-verify" },
-            h("div", null, "解析提示："),
-            h("ul", null, importResult.warnings.map((item, index) => h("li", { key: index }, item)))
-          ) : null,
-          pageCount > 1 ? h(
-            "div",
-            { className: "kd-actions" },
-            h(Btn, { small: true, disabled: previewPage === 0, onClick: /* @__PURE__ */ __name(() => setPreviewPage(previewPage - 1), "onClick") }, "上一页"),
-            h("span", { className: "kd-meta" }, `${previewPage + 1} / ${pageCount}`),
-            h(Btn, { small: true, disabled: previewPage + 1 === pageCount, onClick: /* @__PURE__ */ __name(() => setPreviewPage(previewPage + 1), "onClick") }, "下一页")
-          ) : null,
-          h(
-            "div",
-            { style: { marginTop: "12px" } },
-            importResult.items.slice(previewPage * pageSize, (previewPage + 1) * pageSize).map((item) => h(
+            { className: "kd-manage-stack" },
+            h(
               "div",
-              { key: item.index, className: "kd-preview-item" },
-              h(
+              { className: "kd-manage-metrics" },
+              [["识别题目", importResult.stats.total], ["可用题目", importResult.usable], ["已选入库", selectedCount]].map(([label, value]) => h("div", { key: label }, h("strong", null, value), h("span", null, label)))
+            ),
+            importResult.pages?.length ? h(PdfImportPreview, { pages: importResult.pages }) : null,
+            importResult.sourceText ? h(
+              "details",
+              { className: "kd-pdf-preview" },
+              h("summary", null, "查看文件原文"),
+              h("pre", { className: "kd-import-text", tabIndex: 0 }, importResult.sourceText)
+            ) : null,
+            importResult.warnings.length ? h(
+              "div",
+              { className: "kd-manage-feedback is-warning" },
+              h("strong", null, "解析提示"),
+              h("ul", null, importResult.warnings.map((item, index) => h("li", { key: index }, item)))
+            ) : null,
+            pageCount > 1 ? h(
+              "div",
+              { className: "kd-actions" },
+              h(Btn, { small: true, disabled: previewPage === 0, onClick: /* @__PURE__ */ __name(() => setPreviewPage(previewPage - 1), "onClick") }, "上一页"),
+              h("span", { className: "kd-meta" }, `${previewPage + 1} / ${pageCount}`),
+              h(Btn, { small: true, disabled: previewPage + 1 === pageCount, onClick: /* @__PURE__ */ __name(() => setPreviewPage(previewPage + 1), "onClick") }, "下一页")
+            ) : null,
+            h(
+              ManageSection,
+              { title: "选择入库题目", hint: "可取消勾选不想导入的题目，展开后可核对选项、答案和解析。" },
+              importResult.items.slice(previewPage * pageSize, (previewPage + 1) * pageSize).map((item) => h(
                 "div",
-                { className: "kd-meta" },
-                h("input", {
-                  type: "checkbox",
-                  "aria-label": `第 ${item.index} 题入库`,
-                  disabled: !item.usable || committing,
-                  checked: item.usable && !excluded.includes(item.index),
-                  onChange: /* @__PURE__ */ __name((event) => {
-                    const checked = event.target.checked;
-                    setExcluded((items) => checked ? items.filter((index) => index !== item.index) : [...items, item.index]);
-                  }, "onChange")
-                }),
-                h(Badge, null, `第 ${item.index} 题`),
-                h(Badge, null, item.typeLabel),
-                item.usable === false ? h(Badge, { tone: "warn" }, "不入库") : null,
-                item.answerStatus === "missing" ? h(Badge, { tone: "warn" }, T.missing) : h(Badge, { tone: "ok" }, "含参考答案（待核验）"),
-                item.options.length ? h(Badge, null, `${item.options.length} 个选项`) : null
-              ),
-              h(
-                "div",
-                { className: "kd-bank-preview-stem", style: { marginTop: "6px", fontSize: "13px" } },
-                h(Markdown, { text: (item.stem || "(未识别到题干)").slice(0, 400) })
-              ),
-              h(BankItemPreview, { item }),
-              item.issues.length ? h("div", { className: "kd-warn-text", style: { marginTop: "6px" } }, `问题：${item.issues.join("；")}`) : null
-            ))
+                { key: item.index, className: "kd-preview-item" },
+                h(
+                  "div",
+                  { className: "kd-row" },
+                  h("input", {
+                    type: "checkbox",
+                    "aria-label": `第 ${item.index} 题入库`,
+                    disabled: !item.usable || committing,
+                    checked: item.usable && !excluded.includes(item.index),
+                    onChange: /* @__PURE__ */ __name((event) => {
+                      const checked = event.target.checked;
+                      setExcluded((items) => checked ? items.filter((index) => index !== item.index) : [...items, item.index]);
+                    }, "onChange")
+                  }),
+                  h(Badge, null, `第 ${item.index} 题`),
+                  h(Badge, null, item.typeLabel),
+                  item.usable === false ? h(Badge, { tone: "warn" }, "不入库") : null,
+                  item.answerStatus === "missing" ? h(Badge, { tone: "warn" }, T.missing) : h(Badge, { tone: "ok" }, "含参考答案（待核验）"),
+                  item.options.length ? h(Badge, null, `${item.options.length} 个选项`) : null
+                ),
+                h(
+                  "div",
+                  { className: "kd-bank-preview-stem", style: { marginTop: "6px", fontSize: "13px" } },
+                  h(Markdown, { text: (item.stem || "(未识别到题干)").slice(0, 400) })
+                ),
+                h(BankItemPreview, { item }),
+                item.issues.length ? h("div", { className: "kd-warn-text", style: { marginTop: "6px" } }, `问题：${item.issues.join("；")}`) : null
+              ))
+            )
           )
         );
       }
@@ -2928,30 +3117,26 @@ ${sourceUrl}` : ""}` : ""
           headerActions: embedded ? importButton : null,
           footer: embedded ? null : [importButton, h(Btn, { key: "close", onClick: onClose }, T.close)]
         },
-        h("div", { className: "kd-meta", style: { marginBottom: "12px" } }, T.importHint),
-        (boot.banks || []).length ? boot.banks.map((bank) => h(
-          "div",
-          {
+        h(
+          ManageSection,
+          { title: `已导入题库 · ${(boot.banks || []).length} 份`, hint: T.importHint },
+          (boot.banks || []).length ? boot.banks.map((bank) => h(ManageFileRow, {
             key: bank.id,
-            className: "kd-row-between kd-manage-card"
-          },
-          h(
-            "div",
-            { style: { minWidth: 0 } },
-            h("div", null, bank.name),
-            h(
-              "div",
-              { className: "kd-msg-meta" },
-              `${bank.itemCount} 道 · ${bank.kind === "pdf" ? "PDF" : "Markdown"} · 导入于 ${formatDateTime(bank.importedAt)}`,
-              bank.pendingAnswers ? ` · ${bank.pendingAnswers} 道答案待核验` : ""
-            )
-          ),
-          h(Btn, { small: true, variant: "danger", onClick: /* @__PURE__ */ __name(() => onDelete(bank), "onClick") }, h(Icon, { name: "trash", size: 13 }), T.deleteBank)
-        )) : h(EmptyState, {
-          icon: "upload",
-          title: "还没有导入题库",
-          body: "题库用于「题库出题」来源：每道题会被分配唯一题目 ID，同一题反复出现也不会在列表里产生重复记录。"
-        })
+            icon: "book",
+            name: bank.name,
+            meta: `导入于 ${formatDateTime(bank.importedAt)}`,
+            badges: [
+              `${bank.itemCount} 道`,
+              bank.kind === "pdf" ? "PDF" : "文本文档",
+              ...bank.pendingAnswers ? [`${bank.pendingAnswers} 道答案待核验`] : []
+            ],
+            action: h(Btn, { small: true, variant: "danger", onClick: /* @__PURE__ */ __name(() => onDelete(bank), "onClick") }, h(Icon, { name: "trash", size: 13 }), T.deleteBank)
+          })) : h(EmptyState, {
+            icon: "upload",
+            title: "还没有导入题库",
+            body: "导入并核对题目后，即可在科目管理中将题库设为出题来源。"
+          })
+        )
       );
     }
     __name(BanksModal, "BanksModal");
@@ -3014,39 +3199,53 @@ ${sourceUrl}` : ""}` : ""
           }, "onClose"),
           footer: embedded ? null : h(Btn, { disabled: busy, onClick: onClose }, T.close)
         },
-        h("p", { className: "kd-meta" }, "每科可导入一份 PDF、TXT 或 Markdown 大纲。DSH 默认模型会通读正文、识别考试范围，确认预览后保存。"),
         h(
-          "label",
-          { className: "kd-field" },
-          h("span", { className: "kd-field-label" }, "科目"),
+          "div",
+          { className: "kd-manage-stack" },
           h(
-            "select",
-            { className: selected ? "kd-select" : "kd-select is-placeholder", value: selected, disabled: busy || !subjects.length, onChange: /* @__PURE__ */ __name((event) => {
-              setSelected(event.target.value);
-              setError("");
-              setMessage("");
-            }, "onChange") },
-            h("option", { value: "", disabled: true }, "选择一门科目"),
-            ...subjects.map((subject) => h("option", { key: subject.id, value: subject.id }, subject.name))
+            ManageSection,
+            {
+              title: "导入考试大纲",
+              hint: "每科可保存一份 PDF、TXT 或 Markdown 大纲。模型识别考试范围后，先核对预览再保存。"
+            },
+            h("div", { className: "kd-manage-fields" }, h(
+              "label",
+              { className: "kd-field" },
+              h("span", { className: "kd-field-label" }, "科目"),
+              h(
+                "select",
+                { className: selected ? "kd-select" : "kd-select is-placeholder", value: selected, disabled: busy || !subjects.length, onChange: /* @__PURE__ */ __name((event) => {
+                  setSelected(event.target.value);
+                  setError("");
+                  setMessage("");
+                }, "onChange") },
+                h("option", { value: "", disabled: true }, "选择一门科目"),
+                ...subjects.map((subject) => h("option", { key: subject.id, value: subject.id }, subject.name))
+              )
+            )),
+            !subjects.length ? h("p", { className: "kd-manage-empty" }, "请先在科目管理添加科目。") : null,
+            h("input", { type: "file", accept: STUDY_FILE_ACCEPT, ref: fileInput, hidden: true, onChange: onFile }),
+            h(
+              "div",
+              { className: "kd-actions" },
+              h(Btn, { variant: "primary", disabled: busy || !selected, onClick: /* @__PURE__ */ __name(() => fileInput.current?.click(), "onClick") }, h(Icon, { name: "upload" }), current ? "替换大纲" : "导入大纲")
+            ),
+            busy ? h("p", { className: "kd-manage-feedback", role: "status" }, "正在读取文件并让模型识别考试范围…") : null,
+            error ? h("p", { className: "kd-manage-feedback is-error", role: "alert" }, error) : null,
+            message ? h("p", { className: "kd-manage-feedback", role: "status" }, message) : null
+          ),
+          h(
+            ManageSection,
+            { title: "已导入大纲" },
+            current ? h(ManageFileRow, {
+              icon: "syllabus",
+              name: current.fileName,
+              meta: `导入于 ${formatDateTime(current.importedAt)}`,
+              badges: [`${current.characters} 字符`],
+              action: h(Btn, { small: true, variant: "danger", disabled: busy, onClick: /* @__PURE__ */ __name(() => save("removeSyllabus", async () => ({})), "onClick") }, "移除大纲")
+            }) : h("p", { className: "kd-manage-empty" }, selected ? "这个科目尚未导入大纲。" : "选择科目后查看已导入的大纲。")
           )
-        ),
-        !subjects.length ? h("p", { className: "kd-meta" }, "请先在科目管理添加科目。") : null,
-        current ? h(
-          "div",
-          { className: "kd-manage-card" },
-          h("div", null, current.fileName),
-          h("div", { className: "kd-msg-meta" }, `导入于 ${formatDateTime(current.importedAt)} · ${current.characters} 字符`)
-        ) : selected ? h("p", { className: "kd-meta" }, "这个科目尚未导入大纲。") : null,
-        h("input", { type: "file", accept: STUDY_FILE_ACCEPT, ref: fileInput, hidden: true, onChange: onFile }),
-        h(
-          "div",
-          { className: "kd-actions" },
-          h(Btn, { variant: "primary", disabled: busy || !selected, onClick: /* @__PURE__ */ __name(() => fileInput.current?.click(), "onClick") }, h(Icon, { name: "upload" }), current ? "替换大纲" : "导入大纲"),
-          current ? h(Btn, { variant: "danger", disabled: busy, onClick: /* @__PURE__ */ __name(() => save("removeSyllabus", async () => ({})), "onClick") }, "移除大纲") : null
-        ),
-        busy ? h("p", { className: "kd-meta", role: "status" }, "正在读取文件并让模型识别考试范围…") : null,
-        error ? h("p", { className: "kd-error-text", role: "alert" }, error) : null,
-        message ? h("p", { className: "kd-meta", role: "status" }, message) : null
+        )
       );
     }
     __name(SyllabusesModal, "SyllabusesModal");
@@ -3115,75 +3314,86 @@ ${sourceUrl}` : ""}` : ""
           }, "onClose"),
           footer: embedded ? null : h(Btn, { disabled: busy, onClick: onClose }, T.close)
         },
-        h("p", { className: "kd-meta" }, "支持 PDF、TXT 和 Markdown。同一科目每年保存一份真题。DSH 默认模型会通读正文并识别题型。"),
         h(
           "div",
-          { className: "kd-paper-fields" },
+          { className: "kd-manage-stack" },
           h(
-            "label",
-            { className: "kd-field" },
-            h("span", { className: "kd-field-label" }, "科目"),
+            ManageSection,
+            {
+              title: "导入历年真题",
+              hint: "支持 PDF、TXT 和 Markdown。同一科目每年保存一份真题，导入前可核对模型识别的题型。"
+            },
             h(
-              "select",
-              { className: selected ? "kd-select" : "kd-select is-placeholder", value: selected, disabled: busy || !subjects.length, onChange: /* @__PURE__ */ __name((event) => {
-                setSelected(event.target.value);
-                setType("");
-                setError("");
-                setMessage("");
-              }, "onChange") },
-              h("option", { value: "", disabled: true }, "选择一门科目"),
-              ...subjects.map((item) => h("option", { key: item.id, value: item.id }, item.name))
-            )
-          ),
-          h(
-            "label",
-            { className: "kd-field" },
-            h("span", { className: "kd-field-label" }, "年份"),
-            h("input", { className: "kd-input", type: "number", min: 1900, max: maxYear, step: 1, placeholder: "例如 2025", value: year, disabled: busy, onChange: /* @__PURE__ */ __name((event) => setYear(event.target.value), "onChange") })
-          ),
-          h(
-            "label",
-            { className: "kd-field" },
-            h("span", { className: "kd-field-label" }, "题型提示（选填）"),
+              "div",
+              { className: "kd-manage-fields kd-paper-fields" },
+              h(
+                "label",
+                { className: "kd-field" },
+                h("span", { className: "kd-field-label" }, "科目"),
+                h(
+                  "select",
+                  { className: selected ? "kd-select" : "kd-select is-placeholder", value: selected, disabled: busy || !subjects.length, onChange: /* @__PURE__ */ __name((event) => {
+                    setSelected(event.target.value);
+                    setType("");
+                    setError("");
+                    setMessage("");
+                  }, "onChange") },
+                  h("option", { value: "", disabled: true }, "选择一门科目"),
+                  ...subjects.map((item) => h("option", { key: item.id, value: item.id }, item.name))
+                )
+              ),
+              h(
+                "label",
+                { className: "kd-field" },
+                h("span", { className: "kd-field-label" }, "年份"),
+                h("input", { className: "kd-input", type: "number", min: 1900, max: maxYear, step: 1, placeholder: "例如 2025", value: year, disabled: busy, onChange: /* @__PURE__ */ __name((event) => setYear(event.target.value), "onChange") })
+              ),
+              h(
+                "label",
+                { className: "kd-field" },
+                h("span", { className: "kd-field-label" }, "题型提示（选填）"),
+                h(
+                  "select",
+                  { className: "kd-select", value: type, disabled: busy, onChange: /* @__PURE__ */ __name((event) => setType(event.target.value), "onChange") },
+                  h("option", { value: "" }, "由模型识别"),
+                  ...(subject?.types || []).map((value) => h("option", { key: value, value }, typeName(value)))
+                )
+              )
+            ),
+            h("p", { className: "kd-meta" }, "至少两个年份的可核对同题型真题才能用于难度校验。"),
+            h("input", { type: "file", accept: STUDY_FILE_ACCEPT, ref: fileInput, hidden: true, onChange: onFile }),
             h(
-              "select",
-              { className: "kd-select", value: type, disabled: busy, onChange: /* @__PURE__ */ __name((event) => setType(event.target.value), "onChange") },
-              h("option", { value: "" }, "由模型识别"),
-              ...(subject?.types || []).map((value) => h("option", { key: value, value }, typeName(value)))
-            )
-          )
-        ),
-        h("p", { className: "kd-msg-meta" }, "可提供题型提示。至少两个年份的可核对同题型真题才能用于难度校验。"),
-        h("input", { type: "file", accept: STUDY_FILE_ACCEPT, ref: fileInput, hidden: true, onChange: onFile }),
-        h(
-          "div",
-          { className: "kd-actions" },
-          h(
-            Btn,
-            { variant: "primary", disabled: busy || !subject || !validYear, onClick: /* @__PURE__ */ __name(() => fileInput.current?.click(), "onClick") },
-            h(Icon, { name: "upload" }),
-            existing ? "替换该年份真题" : "导入真题"
-          )
-        ),
-        papers.map((paper) => h(
-          "div",
-          { key: paper.year, className: "kd-row-between kd-manage-card" },
-          h(
-            "div",
-            null,
-            h("div", null, `${paper.year} 年 · ${paper.fileName}`),
-            h("div", { className: "kd-msg-meta" }, paper.types?.length ? paper.types.map(typeName).join("、") : "未识别题型")
+              "div",
+              { className: "kd-actions" },
+              h(
+                Btn,
+                { variant: "primary", disabled: busy || !subject || !validYear, onClick: /* @__PURE__ */ __name(() => fileInput.current?.click(), "onClick") },
+                h(Icon, { name: "upload" }),
+                existing ? "替换该年份真题" : "导入真题"
+              )
+            ),
+            busy ? h("p", { className: "kd-manage-feedback", role: "status" }, "正在读取文件并让模型识别真题题型…") : null,
+            error ? h("p", { className: "kd-manage-feedback is-error", role: "alert" }, error) : null,
+            message ? h("p", { className: "kd-manage-feedback", role: "status" }, message) : null
           ),
-          h(Btn, {
-            small: true,
-            variant: "danger",
-            disabled: busy,
-            onClick: /* @__PURE__ */ __name(() => save("removePastPaper", async () => ({ year: paper.year }), "真题已移除。"), "onClick")
-          }, "移除")
-        )),
-        busy ? h("p", { className: "kd-meta", role: "status" }, "正在读取文件并让模型识别真题题型…") : null,
-        error ? h("p", { className: "kd-error-text", role: "alert" }, error) : null,
-        message ? h("p", { className: "kd-meta", role: "status" }, message) : null
+          h(
+            ManageSection,
+            { title: subject ? `已导入真题 · ${papers.length} 份` : "已导入真题" },
+            papers.length ? papers.map((paper) => h(ManageFileRow, {
+              key: paper.year,
+              icon: "papers",
+              name: paper.fileName,
+              meta: `${paper.year} 年`,
+              badges: paper.types?.length ? paper.types.map(typeName) : ["未识别题型"],
+              action: h(Btn, {
+                small: true,
+                variant: "danger",
+                disabled: busy,
+                onClick: /* @__PURE__ */ __name(() => save("removePastPaper", async () => ({ year: paper.year }), "真题已移除。"), "onClick")
+              }, "移除")
+            })) : h("p", { className: "kd-manage-empty" }, subject ? "这个科目尚未导入真题。" : "选择科目后查看已导入的真题。")
+          )
+        )
       );
     }
     __name(PastPapersModal, "PastPapersModal");
@@ -3194,7 +3404,7 @@ ${sourceUrl}` : ""}` : ""
       const [busy, setBusy] = useState(false);
       const [error, setError] = useState("");
       const fileInput = useRef(null);
-      const labels = { "before-delete": "删除科目前", "before-restore": "恢复数据前" };
+      const labels2 = { "before-delete": "删除科目前", "before-restore": "恢复数据前" };
       useEffect(() => {
         let alive = true;
         rpc("recoveryPoints").then((value) => {
@@ -3323,10 +3533,10 @@ ${sourceUrl}` : ""}` : ""
                 h(
                   "div",
                   null,
-                  h("strong", null, labels[point.kind]),
+                  h("strong", null, labels2[point.kind]),
                   h("div", { className: "kd-meta" }, formatDateTime(point.at))
                 ),
-                h(Btn, { small: true, disabled: busy, onClick: /* @__PURE__ */ __name(() => chooseRestore({ ...point, label: labels[point.kind] }), "onClick") }, "使用此恢复点")
+                h(Btn, { small: true, disabled: busy, onClick: /* @__PURE__ */ __name(() => chooseRestore({ ...point, label: labels2[point.kind] }), "onClick") }, "使用此恢复点")
               ))
             ) : h("p", { className: "kd-meta kd-backup-empty" }, "暂无恢复点。")
           )
@@ -3585,24 +3795,14 @@ ${sourceUrl}` : ""}` : ""
         ["连续练习", `${data.streak} 天`, "每天至少作答一次"],
         ["待复习", `${totals.review} 道`, `错题本 ${totals.wrongBook} 道 · 收藏 ${totals.favorite} 道`]
       ] : [];
-      return h(
-        "section",
-        { className: "kd-stats-screen", role: "dialog", "aria-modal": true, "aria-label": "学习统计" },
-        h(
-          "header",
-          { className: "kd-stats-header" },
-          h(
-            "div",
-            { className: "kd-stats-heading" },
-            h(
-              "button",
-              { type: "button", className: "kd-iconbtn", onClick: onClose, autoFocus: true, "aria-label": "返回练习", title: "返回练习" },
-              h(Icon, { name: "chevron-left", size: 20 })
-            ),
-            h("h1", null, "学习统计")
-          ),
-          data?.today || today ? h("span", { className: "kd-meta" }, formatDate(data?.today || today)) : null
-        ),
+      return fullscreen(
+        h,
+        Icon,
+        {
+          title: "学习统计",
+          onClose,
+          detail: data?.today || today ? h("span", { className: "kd-meta" }, formatDate(data?.today || today)) : null
+        },
         h(
           "div",
           { className: "kd-stats-scroll" },
@@ -3641,6 +3841,239 @@ ${sourceUrl}` : ""}` : ""
   }
   __name(createStudyStatsPage, "createStudyStatsPage");
 
+  // ui/study-memory.js
+  var labels = { weak: "建议巩固", insufficient: "样本不足", observed: "继续观察" };
+  function evidence(row) {
+    return `近 30 天练过 ${row.recent} 道不同题，${row.wrong} 道最近一次作答错误 · ${row.reviewed} 道最近一次在今日复习中答对 · ${row.due} 道待复习`;
+  }
+  __name(evidence, "evidence");
+  function createStudyMemoryPage(React, { window, rpc, Btn, Icon }) {
+    const { createElement: h, useState, useEffect } = React;
+    function SubjectMemory({ subject, onRelated }) {
+      const [data, setData] = useState(null);
+      const [error, setError] = useState("");
+      const [retry, setRetry] = useState(0);
+      const [pending, setPending] = useState("");
+      const [status, setStatus] = useState("");
+      const [analysisError, setAnalysisError] = useState("");
+      useEffect(() => {
+        let active = true;
+        rpc("getStudyMemory", { subjectId: subject.id }).then((result) => {
+          if (active) setData(result);
+        }).catch((issue) => {
+          if (active) setError(issue.message);
+        });
+        return () => {
+          active = false;
+        };
+      }, [subject.id, retry]);
+      const run = /* @__PURE__ */ __name(async (job, action) => {
+        const reportError = job === "analysis" ? setAnalysisError : setError;
+        reportError("");
+        setStatus("");
+        setPending(job);
+        try {
+          await action();
+        } catch (issue) {
+          reportError(issue.message);
+        } finally {
+          setPending("");
+        }
+      }, "run");
+      if (!data) return h(
+        "div",
+        { className: "kd-memory-panel" },
+        h("p", { role: error ? "alert" : "status" }, error || "正在读取学习记忆…"),
+        error ? h(Btn, { onClick: /* @__PURE__ */ __name(() => {
+          setError("");
+          setRetry(retry + 1);
+        }, "onClick") }, "重试") : null
+      );
+      if (!data.enabled) return h("p", { className: "kd-meta" }, "功能已关闭，请重新打开页面以同步设置。");
+      const { rows, analysis } = data;
+      const analyze = /* @__PURE__ */ __name(() => run("analysis", async () => {
+        const next = await rpc("analyzeStudyMemory", { subjectId: subject.id });
+        setData((current) => ({ ...current, analysis: next }));
+      }), "analyze");
+      const download = /* @__PURE__ */ __name(() => {
+        const markdown = [`# ${subject.name} · 学习记忆`, ...rows.map((row) => [
+          `## ${row.topic}`,
+          `- ${labels[row.status]}：${evidence(row)}`,
+          ...row.note ? ["### 我的错因", row.note] : []
+        ].join("\n")), ...analysis ? [
+          `## 上次 AI 建议 · ${formatDateTime(analysis.at)}`,
+          ...analysis.topics.map((item) => `- ${item.topic}（分析时 ${item.distinctQuestions} 道，${item.latestWrong} 道错）：${item.suggestion}`)
+        ] : []].join("\n\n");
+        const url = window.URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
+        const link = window.document.createElement("a");
+        link.href = url;
+        link.download = "daily-question-memory.md";
+        link.click();
+        window.setTimeout(() => window.URL.revokeObjectURL(url), 1e3);
+      }, "download");
+      return h(
+        React.Fragment,
+        null,
+        h(
+          "section",
+          { className: "kd-memory-panel" },
+          h(
+            "div",
+            { className: "kd-stats-section-head" },
+            h("h3", null, "AI 薄弱点分析"),
+            h(
+              "div",
+              { className: "kd-actions" },
+              h(Btn, { onClick: download, disabled: !rows.length && !analysis }, "导出 Markdown"),
+              h(Btn, {
+                variant: "primary",
+                disabled: Boolean(pending) || !rows.some((row) => row.status === "weak"),
+                onClick: analyze
+              }, pending === "analysis" ? "正在分析…" : "AI 分析")
+            )
+          ),
+          h("p", { className: "kd-meta" }, "仅在点击时调用 DSH 默认模型，发送当前科目的学习摘要和相关错因片段。"),
+          analysisError ? h("p", { role: "alert", className: "kd-error-text" }, analysisError) : null,
+          !rows.some((row) => row.status === "weak") ? h("p", { className: "kd-meta" }, "暂无证据充足的薄弱点。近 30 天同一知识点至少练过 3 道已判定的不同题，其中至少 2 道最近一次答错，才建议巩固。") : null,
+          analysis ? h(
+            "div",
+            { className: "kd-memory-analysis" },
+            h("p", { className: "kd-meta" }, "上次分析：", formatDateTime(analysis.at)),
+            h("ul", null, analysis.topics.map((item) => h(
+              "li",
+              { key: item.topic },
+              h("strong", null, item.topic),
+              `（分析时 ${item.distinctQuestions} 道，${item.latestWrong} 道错）`,
+              h("p", null, item.suggestion)
+            )))
+          ) : null
+        ),
+        h(
+          "section",
+          { className: "kd-memory-panel" },
+          h("h3", null, "知识点与错因笔记"),
+          h("p", { className: "kd-meta" }, "每道题只统计最近一次已判定作答。展开知识点可记录 Markdown 笔记；清空并保存可删除。"),
+          error ? h("p", { role: "alert", className: "kd-error-text" }, error) : null,
+          status ? h("p", { role: "status", className: "kd-meta" }, status) : null,
+          rows.length ? rows.map((row) => h(
+            "details",
+            { className: "kd-memory-topic", key: row.topic },
+            h("summary", null, h("strong", null, row.topic), h("span", { className: "kd-meta" }, labels[row.status], row.note ? " · 有笔记" : "")),
+            h("p", { className: "kd-meta" }, evidence(row)),
+            h(
+              "form",
+              { onSubmit: /* @__PURE__ */ __name((event) => {
+                event.preventDefault();
+                const note = event.currentTarget.elements.namedItem("note").value;
+                run("note", async () => {
+                  const saved = await rpc("saveMemoryNote", { subjectId: subject.id, topic: row.topic, note });
+                  setData((current) => ({ ...current, rows: current.rows.map((item) => item.topic === row.topic ? { ...item, note: saved.note } : item) }));
+                  setStatus("已保存错因笔记");
+                });
+              }, "onSubmit") },
+              h("textarea", {
+                name: "note",
+                className: "kd-textarea",
+                "aria-label": `${row.topic}的错因笔记`,
+                placeholder: "例如：忘记先核对分段点的左右极限",
+                defaultValue: row.note,
+                maxLength: 1e3
+              }),
+              h(
+                "div",
+                { className: "kd-actions" },
+                h(Btn, { type: "submit", disabled: Boolean(pending) }, "保存笔记"),
+                row.wrongBook ? h(Btn, { onClick: /* @__PURE__ */ __name(() => onRelated(subject.id, "wrong", row.topic), "onClick") }, "查看相关错题") : null,
+                row.due ? h(Btn, { onClick: /* @__PURE__ */ __name(() => onRelated(subject.id, "review", row.topic), "onClick") }, "复习相关错题") : null
+              )
+            )
+          )) : h("p", { className: "kd-meta" }, "作答后，这里会按题目的知识点标签汇总学习记录。")
+        )
+      );
+    }
+    __name(SubjectMemory, "SubjectMemory");
+    return /* @__PURE__ */ __name(function StudyMemoryPage({ subjects, onClose, onRelated }) {
+      const [preferences, setPreferences] = useState(null);
+      const [pending, setPending] = useState(false);
+      const [error, setError] = useState("");
+      const [retry, setRetry] = useState(0);
+      useEffect(() => {
+        let active = true;
+        rpc("getStudyMemory").then((result) => {
+          if (active) setPreferences(result);
+        }).catch((issue) => {
+          if (active) setError(issue.message);
+        });
+        return () => {
+          active = false;
+        };
+      }, [retry]);
+      useEffect(() => {
+        const keydown = /* @__PURE__ */ __name((event) => {
+          if (event.key === "Escape") onClose();
+        }, "keydown");
+        window.addEventListener("keydown", keydown);
+        return () => window.removeEventListener("keydown", keydown);
+      }, [onClose]);
+      const change = /* @__PURE__ */ __name(async (patch) => {
+        setPending(true);
+        setError("");
+        try {
+          setPreferences(await rpc("saveMemoryPreferences", patch));
+        } catch (issue) {
+          setError(issue.message);
+        } finally {
+          setPending(false);
+        }
+      }, "change");
+      const enabledSubjects = subjects.filter((subject) => subject.enabled);
+      return fullscreen(
+        h,
+        Icon,
+        { title: "记忆与建议", onClose },
+        h("div", { className: "kd-stats-scroll" }, h(
+          "div",
+          { className: "kd-stats-content" },
+          h(
+            "section",
+            { className: "kd-stats-card kd-memory-settings" },
+            h("h2", null, "功能设置"),
+            preferences ? h("label", null, h("input", {
+              type: "checkbox",
+              checked: preferences.enabled,
+              disabled: pending,
+              onChange: /* @__PURE__ */ __name((event) => change({ enabled: event.target.checked }), "onChange")
+            }), "启用记忆与建议") : null,
+            h("p", { className: "kd-meta" }, "关闭期间不分析、不影响出题。笔记保留，重新启用时按本地作答记录计算。"),
+            preferences?.enabled ? h(
+              React.Fragment,
+              null,
+              h("label", null, h("input", {
+                type: "checkbox",
+                checked: preferences.reinforce,
+                disabled: pending,
+                onChange: /* @__PURE__ */ __name((event) => change({ reinforce: event.target.checked }), "onChange")
+              }), "每日题目优先巩固薄弱点"),
+              h("p", { className: "kd-meta" }, "每科 7 天内最多安排 2 道补弱题，同一知识点不连续安排；每日仍最多一道新题。在线命题会参考当前知识点和相关错因片段。")
+            ) : null,
+            error ? h("p", { role: "alert", className: "kd-error-text" }, error) : null,
+            !preferences && error ? h(Btn, { onClick: /* @__PURE__ */ __name(() => {
+              setError("");
+              setRetry(retry + 1);
+            }, "onClick") }, "重试") : null
+          ),
+          preferences?.enabled ? enabledSubjects.length ? enabledSubjects.map((subject) => h(
+            "article",
+            { className: "kd-stats-card kd-memory-subject-card", key: subject.id, "aria-label": subject.name },
+            h("h2", null, subject.name),
+            h(SubjectMemory, { subject, onRelated })
+          )) : h("p", { className: "kd-meta" }, "还没有启用科目。请先在科目管理里启用要查看的科目。") : null
+        ))
+      );
+    }, "StudyMemoryPage");
+  }
+  __name(createStudyMemoryPage, "createStudyMemoryPage");
+
   // ui/page.js
   var SETTINGS_SECTIONS = /* @__PURE__ */ new Set(["subjects", "banks", "syllabuses", "past-papers", "backup", "about"]);
   function createPage(React, { window, rpc, components, styleState }) {
@@ -3672,6 +4105,7 @@ ${sourceUrl}` : ""}` : ""
       PluginLogo
     } = components;
     const StudyStatsPage = createStudyStatsPage(React, { window, rpc, Btn, Icon });
+    const StudyMemoryPage = createStudyMemoryPage(React, { window, rpc, Btn, Icon });
     function watchDayChange(snapshot, onSnapshot) {
       let timer, stopped = false, checking = false;
       const schedule = /* @__PURE__ */ __name((retry = false) => {
@@ -3748,7 +4182,7 @@ ${sourceUrl}` : ""}` : ""
       const [listError, setListError] = useState("");
       const [settingsBusy, setSettingsBusy] = useState(false);
       const [scheduleBusy, setScheduleBusy] = useState(false);
-      const [showStats, setShowStats] = useState(false);
+      const [studyPage, setStudyPage] = useState("");
       const [favoritePending, setFavoritePending] = useState(null);
       const statsTrigger = useRef(null);
       const subjectsDirty = useRef(false);
@@ -3758,8 +4192,8 @@ ${sourceUrl}` : ""}` : ""
         if (view === "list" && list && mainScroll.current) mainScroll.current.scrollTop = listScroll.current;
         if (view === "detail" && mainScroll.current) mainScroll.current.scrollTop = 0;
       }, [view, list]);
-      const notify = useCallback((message, tone = "ok") => {
-        setToast((previous) => ({ id: (previous?.id || 0) + 1, message, tone }));
+      const notify = useCallback((message, tone = "ok", onUndo) => {
+        setToast((previous) => ({ id: (previous?.id || 0) + 1, message, tone, onUndo }));
       }, []);
       const refreshBoot = useCallback(async () => {
         const request = ++bootRequest.current;
@@ -3952,7 +4386,7 @@ ${sourceUrl}` : ""}` : ""
         const request = ++dailyRequest.current;
         setBusy("question");
         try {
-          const result = await rpc("listQuestions", { subjectId, kind: "review", page: 1 });
+          const result = await rpc("listQuestions", { subjectId, kind: "review", page: 1, ...filters });
           if (request !== dailyRequest.current) return;
           setList(result);
           if (result.items.length) await openQuestion(result.items[0].id);
@@ -4002,6 +4436,30 @@ ${sourceUrl}` : ""}` : ""
         () => (boot?.subjects || []).find((subject) => subject.id === subjectId) || null,
         [boot, subjectId]
       );
+      const showReviewRemoval = useCallback((qid, removalId) => {
+        if (!removalId) return;
+        notify("连续三次复习答对，已自动移出错题本", "ok", async () => {
+          try {
+            await rpc("undoReviewRemoval", { qid, removalId });
+            setQuestion((current2) => current2?.id === qid ? { ...current2, wrongEver: true } : current2);
+            notify("已撤销操作，题目已恢复到错题本");
+            refreshBoot();
+            const current = currentView.current;
+            const request = dailyRequest.current;
+            if (current.view === "list" && ["review", "wrong"].includes(current.kind)) {
+              const list2 = await rpc("listQuestions", {
+                subjectId: current.subjectId,
+                kind: current.kind,
+                page: current.page,
+                ...current.filters
+              }).catch(() => null);
+              if (list2 && request === dailyRequest.current) setList(list2);
+            }
+          } catch (issue) {
+            notify(issue.message, "bad");
+          }
+        });
+      }, [notify, refreshBoot]);
       const reveal = useCallback(async (mode) => {
         if (!question) return;
         const request = dailyRequest.current;
@@ -4017,9 +4475,11 @@ ${sourceUrl}` : ""}` : ""
             qid: question.id,
             mode,
             choice: mode === "submit" ? choice : "",
-            attemptId
+            attemptId,
+            fromReview: kind === "review"
           });
           if (request === dailyRequest.current) showSaved(result.question);
+          showReviewRemoval(question.id, result.reviewRemovalId);
           refreshBoot();
         } catch (issue) {
           if (request !== dailyRequest.current) return;
@@ -4029,7 +4489,8 @@ ${sourceUrl}` : ""}` : ""
             showSaved(saved.question);
             const last = saved.question.lastAttempt;
             const changed = last.mode !== mode || mode === "submit" && last.choice !== choice;
-            notify(changed ? "已找回先前保存的作答。本次改选未提交，可点击「重新作答」再提交。" : "已找回本轮保存的作答", changed ? "warn" : "ok");
+            if (saved.reviewRemovalId) showReviewRemoval(question.id, saved.reviewRemovalId);
+            else notify(changed ? "已找回先前保存的作答。本次改选未提交，可点击「重新作答」再提交。" : "已找回本轮保存的作答", changed ? "warn" : "ok");
             refreshBoot();
           } else {
             notify(`${issue.message}。未确认本轮是否保存，可再次提交以核对。`, "warn");
@@ -4037,7 +4498,7 @@ ${sourceUrl}` : ""}` : ""
         } finally {
           if (request === dailyRequest.current) setBusy("");
         }
-      }, [question, choice, notify, refreshBoot]);
+      }, [question, choice, kind, notify, refreshBoot, showReviewRemoval]);
       const judge = useCallback(async (verdict) => {
         if (!question) return;
         if (!question.lastAttempt?.id) {
@@ -4049,13 +4510,14 @@ ${sourceUrl}` : ""}` : ""
         try {
           const result = await rpc("judge", { qid: question.id, verdict, attemptId: question.lastAttempt.id });
           if (request === dailyRequest.current) setQuestion(result.question);
+          showReviewRemoval(question.id, result.reviewRemovalId);
           refreshBoot();
         } catch (issue) {
           if (request === dailyRequest.current) notify(issue.message, "bad");
         } finally {
           if (request === dailyRequest.current) setBusy("");
         }
-      }, [question, notify, refreshBoot]);
+      }, [question, notify, refreshBoot, showReviewRemoval]);
       const favorite = useCallback(async () => {
         if (!question || favoritePending === question.id) return;
         const request = dailyRequest.current;
@@ -4501,7 +4963,13 @@ ${sourceUrl}` : ""}` : ""
               onClick: /* @__PURE__ */ __name(() => applyFilters({ query: "", type: "", mastery: "" }), "onClick")
             }, "清除筛选") : null
           ) : null;
-          return h("div", null, search, listError ? h(EmptyState, {
+          const topicFilter = filters.topic ? h(
+            "div",
+            { className: "kd-row kd-memory-filter" },
+            h("span", { className: "kd-meta" }, "知识点：", filters.topic),
+            h(Btn, { variant: "ghost", disabled: bulkLock.current, onClick: /* @__PURE__ */ __name(() => applyFilters({ topic: "" }), "onClick") }, "清除知识点筛选")
+          ) : null;
+          return h("div", null, topicFilter, search, listError ? h(EmptyState, {
             icon: "refresh",
             title: "题目列表加载失败",
             body: listError,
@@ -4606,6 +5074,7 @@ ${sourceUrl}` : ""}` : ""
         subjectsDirty.current = value;
       }, []);
       const closeSettings = /* @__PURE__ */ __name(() => requestSettingsNavigation("close"), "closeSettings");
+      const settingsOpen = SETTINGS_SECTIONS.has(modal?.kind);
       const settingsPanel = /* @__PURE__ */ __name(() => {
         const embedded = { embedded: true, onClose: closeSettings, onBusyChange: setSettingsBusy };
         switch (modal.kind) {
@@ -4671,21 +5140,28 @@ ${sourceUrl}` : ""}` : ""
             return h(AboutPanel, { currentVersion: boot?.pluginVersion });
         }
       }, "settingsPanel");
-      const openStats = /* @__PURE__ */ __name((event) => {
+      const openStudyPage = /* @__PURE__ */ __name((event, page) => {
         statsTrigger.current = event.currentTarget;
-        setShowStats(true);
-      }, "openStats");
-      const closeStats = /* @__PURE__ */ __name(() => {
-        setShowStats(false);
+        setStudyPage(page);
+      }, "openStudyPage");
+      const closeStudyPage = /* @__PURE__ */ __name(() => {
+        setStudyPage("");
         window.requestAnimationFrame?.(() => statsTrigger.current?.focus({ preventScroll: true }));
-      }, "closeStats");
+      }, "closeStudyPage");
+      const openRelated = /* @__PURE__ */ __name((sid, tab, topic) => {
+        closeStudyPage();
+        setSubjectId(sid);
+        if (sid !== subjectId) rpc("saveSettings", { activeSubject: sid }).catch(() => {
+        });
+        loadList(sid, tab, 1, { topic });
+      }, "openRelated");
       return h(
         "div",
         { className: "kd-page" },
         styleState.injected ? null : h("style", null, CSS),
         h(
           "div",
-          { className: "kd-practice-screen", inert: showStats || void 0 },
+          { className: "kd-practice-screen", inert: Boolean(studyPage) || settingsOpen || void 0 },
           h(
             "div",
             { className: "kd-header" },
@@ -4722,7 +5198,8 @@ ${sourceUrl}` : ""}` : ""
             subjectId,
             onPick: pickSubject,
             onSettings: /* @__PURE__ */ __name(() => setModal({ kind: "subjects" }), "onSettings"),
-            onStats: openStats
+            onStats: /* @__PURE__ */ __name((event) => openStudyPage(event, "stats"), "onStats"),
+            onMemory: /* @__PURE__ */ __name((event) => openStudyPage(event, "memory"), "onMemory")
           }) : null,
           h(
             "div",
@@ -4732,7 +5209,8 @@ ${sourceUrl}` : ""}` : ""
               subjectId,
               onPick: pickSubject,
               onSettings: /* @__PURE__ */ __name(() => setModal({ kind: "subjects" }), "onSettings"),
-              onStats: openStats
+              onStats: /* @__PURE__ */ __name((event) => openStudyPage(event, "stats"), "onStats"),
+              onMemory: /* @__PURE__ */ __name((event) => openStudyPage(event, "memory"), "onMemory")
             }) : null,
             h(
               "main",
@@ -4797,7 +5275,7 @@ ${sourceUrl}` : ""}` : ""
           h(
             Presence,
             null,
-            SETTINGS_SECTIONS.has(modal?.kind) ? h(SettingsModal, {
+            settingsOpen ? h(SettingsModal, {
               active: modal.kind,
               ready: Boolean(boot),
               locked: settingsBusy || ["import", "commit", "delete-bank"].includes(busy),
@@ -4831,17 +5309,22 @@ ${sourceUrl}` : ""}` : ""
               onClose: /* @__PURE__ */ __name(() => {
                 if (!bulkLock.current) setModal(null);
               }, "onClose")
+            }) : null,
+            studyPage === "stats" ? h(StudyStatsPage, { today: boot?.today, onClose: closeStudyPage }) : null,
+            studyPage === "memory" ? h(StudyMemoryPage, {
+              subjects: boot?.subjects || [],
+              onClose: closeStudyPage,
+              onRelated: openRelated
             }) : null
           ),
-          toast ? h(NotificationBanner, { key: toast.id, message: toast.message, tone: toast.tone, floating: true }) : null,
+          toast ? h(NotificationBanner, { key: toast.id, message: toast.message, tone: toast.tone, onUndo: toast.onUndo, floating: true }) : null,
           busy === "import" || busy === "commit" ? h(
             "div",
-            { className: "kd-loading", style: { position: "absolute", inset: "auto 0 60px 0" } },
+            { className: "kd-loading", style: { position: "absolute", inset: "auto 0 60px 0", zIndex: 45, pointerEvents: "none" } },
             h("span", { className: "kd-spinner" }),
             busy === "import" ? "正在读取文件并让模型识别题目…" : "正在入库…"
           ) : null
-        ),
-        showStats ? h(StudyStatsPage, { today: boot?.today, onClose: closeStats }) : null
+        )
       );
     }
     __name(Page, "Page");
@@ -4883,7 +5366,7 @@ ${sourceUrl}` : ""}` : ""
       try {
         response = await fetch("/api/daily-question/rpc", {
           method: "POST",
-          signal: AbortSignal.timeout(op === "ensureDaily" || op === "revise" || slowPdf ? 16 * 60 * 1e3 : op === "followup" ? 6 * 60 * 1e3 : 6e4),
+          signal: AbortSignal.timeout(op === "ensureDaily" || op === "revise" || slowPdf ? 16 * 60 * 1e3 : ["followup", "analyzeStudyMemory"].includes(op) ? 6 * 60 * 1e3 : 6e4),
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ op, args: args || {} })
         });
