@@ -31,6 +31,10 @@ function scripted(steps) {
       calls.push({ role: roleOf(options.system), ...options })
       const step = steps[index]
       if (!step) throw new Error('Unexpected model call')
+      if (step.chunks) {
+        yield* step.chunks
+        return
+      }
       yield { type: 'text-delta', text: typeof step === 'string' ? step : JSON.stringify(step) }
     } }
   } }
@@ -51,6 +55,50 @@ assert(!blindPrompt.includes('WRITER_EXPLANATION'))
 assert(accepted.calls.every((c) => c.messages.length === 1 && c.model === 'default-model'))
 assert.equal(accepted.result.question.answerKey, 'A')
 console.log('ok   盲解只接收题干与选项，所有角色独立调用默认模型；一致时发布')
+
+const applicationType = '综合应用题'
+const cs408 = { ...subject, id: 'custom_408', name: '计算机学科专业基础综合', types: ['single', applicationType] }
+const application = { ...writer, type: applicationType, options: [], answer: '方案甲的平均等待时间更短。', answerKey: '' }
+const genericApplication = { ...application, type: 'solution' }
+const cs408Options = { subject: cs408, preferredType: applicationType, localReferences: { sources: [] } }
+const correctedType = scripted([genericApplication, application, { ...solver(), answer: application.answer, answerKey: '' }, agree])
+const customQuestion = await createVerifiedQuestion({ ...cs408Options, ctx: correctedType.ctx })
+roles(correctedType.calls, 'writer writer solver compare')
+const customPrompt = correctedType.calls[0].messages[0].content[0].text
+assert(customPrompt.includes('"type": "综合应用题"') && customPrompt.includes('"options": []'))
+const retryPrompt = correctedType.calls[1].messages[0].content[0].text
+assert(retryPrompt.includes('本轮需采用指定题型：综合应用题；模型返回："solution"'))
+assert(!retryPrompt.includes('选择题至少需要两个有效选项'))
+assert.equal(customQuestion.question.type, applicationType)
+assert.deepEqual(customQuestion.question.options, [])
+for (const wrongType of [genericApplication, { ...application, type: 'single' }, { ...writer, type: undefined }]) {
+  const wrongTypeRun = scripted([wrongType, wrongType])
+  const requested = wrongType.type === undefined ? { ...cs408Options, preferredType: 'single' } : cs408Options
+  await assert.rejects(createVerifiedQuestion({ ...requested, ctx: wrongTypeRun.ctx }), (error) =>
+    error instanceof QuestionGenerationError && error.details.trail.length === 2
+    && error.details.trail.every((entry) => entry.issues.length === 1 && entry.issues[0].includes('本轮需采用指定题型')))
+  roles(wrongTypeRun.calls, 'writer writer')
+}
+console.log('ok   在线命题精确传递自定义题型，题型错误或缺失不回退成单选')
+
+const hitOutputLimit = (partial) => ({ chunks: [
+  { type: 'reasoning-delta', text: '模型正在推演' },
+  ...(partial ? [{ type: 'text-delta', text: '{"type":"single","stem":' }] : []),
+  { type: 'usage', usage: { outputTokens: 8000 } },
+  { type: 'finish', reason: { kind: 'max-tokens' } },
+] })
+for (const partial of [false, true]) {
+  const recovered = scripted([hitOutputLimit(partial), writer, solver(), agree])
+  const result = await createVerifiedQuestion({ ctx: recovered.ctx, subject })
+  roles(recovered.calls, 'writer writer solver compare')
+  assert.deepEqual(recovered.calls.map((call) => call.maxTokens), [8000, 16000, 5000, 5000])
+  assert(recovered.calls[1].messages[0].content[0].text.includes('已耗尽输出额度'))
+  assert.equal(result.question.answerKey, 'A')
+}
+const twiceLimited = scripted([hitOutputLimit(false), hitOutputLimit(false)])
+await assert.rejects(createVerifiedQuestion({ ctx: twiceLimited.ctx, subject }), /连续 2 次命题.*耗尽输出额度/)
+roles(twiceLimited.calls, 'writer writer')
+console.log('ok   命题推理耗尽预算或截断时扩大一次预算；两轮仍失败则不进入盲解')
 
 const corrected = await generate([writer, solver('B'), disagree, decision('solver')])
 roles(corrected.calls, 'writer solver compare arbiter')

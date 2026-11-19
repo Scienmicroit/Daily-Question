@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { generationPlan,indexQuestionHistory,findQuestionRepeat } from '../lib/generation-history.js'
 import { DailyQuestionService } from '../lib/service.js'
 import { Store } from '../lib/store.js'
-import { referencePages,referenceSnapshot,fitResponse,generateWithLocalReferences } from './reference-fixture.mjs'
+import { outlineQuote,referencePages,referenceSnapshot,fitResponse,generateWithLocalReferences } from './reference-fixture.mjs'
 import { createVerifiedQuestion } from '../lib/generate.js'
 
 const subject={id:'math1',name:'数学一',types:['single','fill','solution'],outline:['函数极限','矩阵秩'],guidance:''}
@@ -27,6 +27,19 @@ const english=generationPlan({subject:{id:'english',types:['translation'],outlin
 assert.equal(english.topic,'','题型名称不会被当作知识模块强行覆盖')
 const administrative=generationPlan({subject:{...subject,outline:[]},references:{sources:[{kind:'outline',text:'# 考试性质\n# 试卷结构\n# 2027年数学考试大纲\n# 函数极限\n# 矩阵秩'}]},history:[old]})
 assert.equal(administrative.topic,'矩阵秩','大纲的目录和行政性章节不作为命题知识目标')
+const numberedSubject = { ...subject, outline: [] }
+const numberedOutline = [
+  '## 目录', '### 目录中的占位项', '## 统计', '## I. 考试性质', '## Ⅱ．考查目标',
+  '## III. 考试形式和试卷结构', '1. 试卷满分及考试时间：满分 150 分', '### 分值',
+  '## IV. 考查内容', '### 一、数据结构', '**Ⅰ. 线性表**', '２．１．图的遍历：广度优先搜索',
+].join('\n')
+const numberedPlan = generationPlan({ subject: numberedSubject, references: { sources: [{ kind: 'outline', text: numberedOutline }] } })
+assert.deepEqual(numberedPlan.topicCounts.map(({ topic }) => topic), ['数据结构', '线性表', '图的遍历'],
+  '编号、前置说明及其子标题被排除，保留范围章节下的考点')
+const proseOutline = { ...referencePages[0], text: `## I. 考试性质\n本考试按照下列范围命题。\n## II. 考查内容\n${outlineQuote}` }
+const proseReferences = referenceSnapshot(numberedSubject, proseOutline, [])
+assert.equal(generationPlan({ subject: numberedSubject, references: proseReferences }).topic, '',
+  '大纲只有说明性标题和正文时，不强制覆盖任意标题')
 assert(!findQuestionRepeat({stem:'选择正确描述。',options:[{text:'香蕉'},{text:'桃子'}]},indexQuestionHistory([{stem:'选择正确描述。',options:[{text:'苹果'},{text:'梨子'}]}])))
 const long={stem:'设某复杂函数满足下列连续性与可导性条件，需要从给定的关系式中求出指定参数n=10的值，并且说明相关推导中使用的定理以及适用条件。'}
 assert(findQuestionRepeat({...long,stem:long.stem.replace('10','11')},indexQuestionHistory([long])),'仅换参数的高度相似题被拦截')
@@ -40,7 +53,7 @@ const oldPlan=generationPlan({subject,references,history:historical})
 assert.equal(oldPlan.typeCounts.fill,30);assert(findQuestionRepeat(old,oldPlan.index),'超过近期窗口的原题仍可精确去重')
 assert.equal(oldPlan.recent.length,20)
 
-function context({coverage=false,matched=true,duplicateFirst=false,onFit,forceWrongType=false}={}) {
+function context({coverage=false,matched=true,inScope=true,duplicateFirst=false,onFit,forceWrongType=false}={}) {
   let writers=0,solvers=0,fits=0
   const calls=[]
   const pages=referencePages.map((p,i)=>i===0&&coverage?{...p,text:p.text+'\n# 函数极限\n# 矩阵秩'}:p)
@@ -49,7 +62,10 @@ function context({coverage=false,matched=true,duplicateFirst=false,onFit,forceWr
       const system=options.system,prompt=options.messages[0].content[0].text
       calls.push({system,prompt})
       let result
-      if(system.includes('范围与难度评审员')) {fits++;await onFit?.();result={...fitResponse(JSON.parse(prompt).question.type),coverageMatched:matched};if(coverage)assert.equal(JSON.parse(prompt).coverageTarget,'矩阵秩')}
+      if(system.includes('范围与难度评审员') || system.includes('独立的考研范围评审员')) {
+        fits++;await onFit?.();result={...fitResponse(JSON.parse(prompt).question.type),inScope,coverageMatched:matched}
+        if(coverage)assert.equal(JSON.parse(prompt).coverageTarget,'矩阵秩')
+      }
       else if(system.includes('独立解题专家')){solvers++;assert.deepEqual(Object.keys(JSON.parse(prompt)).sort(),['options','stem']);result={...fresh,solvable:true,issues:[]}}
       else if(system.includes('答案比对专家'))result={agree:true,writerValid:true,solverValid:true,issues:[]}
       else {writers++;assert(!prompt.includes('HISTORY SECRET'));result=duplicateFirst&&writers===1?{...old,answer:'B',answerKey:'B',explanation:fresh.explanation}
@@ -72,6 +88,15 @@ assert.equal(run.counts().fits,2)
 run=context({forceWrongType:true})
 await assert.rejects(createVerifiedQuestion({ctx:run.ctx,subject,history:[old],localReferences:referenceSnapshot(subject,run.pages[0],run.pages.slice(1))}),/指定题型/)
 assert.equal(run.counts().solvers,0)
+run=context({ matched: false })
+result=await createVerifiedQuestion({ ctx:run.ctx, subject:numberedSubject, localReferences:proseReferences })
+assert.equal(result.question.coverageTopic,'')
+assert(run.calls[0].prompt.includes('本轮不指定知识点') && run.calls[0].prompt.includes('"targetTopic":null'))
+const scopeCall = run.calls.find(({ system }) => system.includes('独立的考研范围评审员'))
+assert.equal(JSON.parse(scopeCall.prompt).coverageTarget,'')
+assert(result.verification.trail.some((stage) => stage.stage === 'exam-fit' && stage.passed))
+run=context({ matched: false, inScope: false })
+await assert.rejects(createVerifiedQuestion({ ctx:run.ctx, subject:numberedSubject, localReferences:proseReferences }), /未确认题目及解法符合所用范围/)
 
 const root=await mkdtemp(join(tmpdir(),'dq-generation-history-'))
 let service

@@ -227,7 +227,7 @@ check('字符串内未转义的引号被保留', stray.stem === '求 "x+1" 的�
 const cand = normalizeCandidate({
   type: 'single', stem: '题干足够长的问题？', options: [{ key: 'A', text: '1' }, { key: 'B', text: '2' }],
   answer: 'B', answerKey: '', explanation: '解析内容需要足够长以通过结构检查，这里写满二十个字符。', knowledge: ['x'], difficulty: 9,
-}, ['single', 'solution'])
+})
 check('从 answer 推出 answerKey', cand.answerKey === 'B', JSON.stringify(cand))
 check('难度被夹到 5', cand.difficulty === 5)
 check('结构检查通过', structuralProblems(cand, ['single']).length === 0, JSON.stringify(structuralProblems(cand, ['single'])))
