@@ -363,14 +363,16 @@ check('重新作答隐藏答案解析和可能泄题的校验结论', !textOf(re
 check('重新作答时隐藏追问按钮', !textOf(redo).includes('本题追问'))
 const scopeOnly = resolve(components.QuestionPane({ q: {
   id:'scope-only',type:'fill',options:[],difficulty:3,attemptCount:0,
+  answerStatus:'verified',favorite:true,wrongEver:true,
   examAlignment:{status:'difficulty-unverified',scopeBasis:'built-in',scopeLabel:'内置科目范围',sources:[{id:'ref-1',local:true}]},
 } }))
 const scopeOnlyList = resolve(components.ListPane({list:{items:[
   {id:'scope-only',stem:'题干',answerStatus:'verified',difficulty:3,difficultyUnverified:true},
 ]},kind:'all',onOpen(){}}))
 check('难度未校验的题目在详情与列表均显示标记，省去未校验的分数',
-  [scopeOnly,scopeOnlyList].every((pane)=>textOf(pane).includes('未进行真题难度校验')&&!textOf(pane).includes('难度 3/5')))
-check('未按考试大纲校验的题目在详情显示标记', textOf(scopeOnly).includes('未进行考试大纲校验'))
+  [scopeOnly,scopeOnlyList].every((pane)=>textOf(pane).includes('× 真题难度校验')&&!textOf(pane).includes('难度 3/5')))
+check('详情显示大纲、独立校验、收藏和错题本的符号标签',
+  ['× 考试大纲校验', '✓ 独立校验', '☆ 收藏', '◨ 错题本'].every((label) => textOf(scopeOnly).includes(label)))
 check('本地依据只显示实际范围，不伪造大纲年份或核验时间',
   textOf(scopeOnly).includes('范围校验依据 · 内置科目范围') && !/undefined|核验时间/.test(textOf(scopeOnly)))
 let fallbackMode, skipped = false
@@ -584,6 +586,12 @@ for (const [answerState, localRedo] of [['locked', false], ['revealed', false], 
   const visible = answerState === 'revealed' && !localRedo
   check(`本次答案展示=${visible} 时追问按钮同步展示`, textOf(pane).includes('本题追问') === visible
     && textOf(pane).includes('VISIBLE EXPLANATION') === visible)
+  const focused = resolve(components.QuestionPane({ q: { ...q, stem: '题干', options: [{ key: 'A', text: '选项甲' }, { key: 'B', text: '选项乙' }],
+    knowledge: ['示例知识点'] }, localRedo, focused: true, choice: 'A', onToggleFocus() {} }))
+  const copy = textOf(focused)
+  check(`全屏阅读只展示已揭示的答案（${visible}）并保留作答入口`, copy.includes('题干') && copy.includes('选项甲')
+    && copy.includes('VISIBLE EXPLANATION') === visible && copy.includes('提交答案') === !visible
+    && !/本题追问|示例知识点|累计作答|收藏/.test(copy))
 }
 
 // 科目管理只编辑草稿，完成后才提交。
@@ -919,9 +927,11 @@ check('关闭页面清理更新检查定时器与事件',cleared&&focusListener=
   unload()
 }
 
+let notificationClock = 0
+mockWindow.performance = { now: () => notificationClock }
 for (const action of ['auto', 'close', 'undo']) {
   let phase, bannerEffect, undone = false
-  stateHook = (initial) => [phase ?? initial, (value) => { phase = value }]
+  stateHook = (initial) => initial === 'visible' ? [phase ?? initial, (value) => { phase = value }] : useState(initial)
   effectHook = (fn) => { bannerEffect = fn }
   const banner = () => resolve(components.NotificationBanner({ message: '测试通知',
     tone: action === 'close' ? 'bad' : 'ok', onUndo: action === 'undo' ? () => { undone = true } : undefined }))
@@ -931,7 +941,7 @@ for (const action of ['auto', 'close', 'undo']) {
   const stopDisplay = bannerEffect()
   const [[showTimer, show]] = timers
   const undoButton = nodes.find((node) => node.type === 'button' && textOf(node) === '撤销')
-  check('通知停留三秒，撤销按钮与关闭按钮互斥', show.delay === 3000
+  check('通知停留两秒，撤销按钮与关闭按钮互斥', show.delay === 2000
     && (action === 'undo' ? undoButton && !closeButton : closeButton && !undoButton))
   if (action === 'undo') {
     undoButton.props.onClick()
@@ -945,6 +955,44 @@ for (const action of ['auto', 'close', 'undo']) {
   exit.fn()
   stopExit()
   check('收回动画结束后移除横幅', exit.delay === 180 && banner() === null && timers.size === 0)
+}
+
+{
+  let phase = 'visible', hovering = false, bannerEffect, cleanup
+  const remaining = { current: 2000 }
+  stateHook = (initial) => initial === 'visible' ? [phase, (value) => { phase = value }]
+    : [hovering, (value) => { hovering = value }]
+  refHook = () => remaining
+  effectHook = (fn) => { bannerEffect = fn }
+  const refresh = () => {
+    cleanup?.()
+    const banner = resolve(components.NotificationBanner({ message: '悬停测试', floating: true }))
+    cleanup = bannerEffect()
+    return banner?.children[0].props
+  }
+  let controls = refresh()
+  notificationClock += 900
+  controls.onMouseEnter()
+  controls = refresh()
+  notificationClock += 8000
+  check('鼠标停在通知内时暂停，不会自动收回', timers.size === 0 && phase === 'visible')
+  controls.onMouseLeave()
+  controls = refresh()
+  check('移出后仅等待第一次悬停前的剩余时间', [...timers.values()][0].delay === 1100)
+  notificationClock += 600
+  controls.onMouseEnter()
+  controls = refresh()
+  notificationClock += 5000
+  controls.onMouseLeave()
+  refresh()
+  const [expiry] = timers.values()
+  check('反复移入移出只累计鼠标在外部的时间', expiry.delay === 500)
+  notificationClock += 500
+  expiry.fn()
+  controls = refresh()
+  check('累计两秒后开始收回，退出动画不会再暂停', controls.className.includes('is-leaving') && !controls.onMouseEnter
+    && [...timers.values()][0].delay === 180)
+  cleanup?.()
 }
 
 console.log(failures === 0 ? '全部通过' : `${failures} 项失败`)

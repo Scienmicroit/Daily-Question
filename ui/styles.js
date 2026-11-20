@@ -78,12 +78,20 @@ export const CSS = `
 .kd-memory-settings label { margin-top:12px; }
 .kd-memory-settings input { accent-color:var(--kd-brand-primary); }
 .kd-memory-subject-card > h2 { font-size:17px; overflow-wrap:anywhere; }
-.kd-memory-panel { border-top:1px solid var(--kd-border-l1); margin-top:12px; padding-top:12px; }
-.kd-memory-panel h3 { margin:0; font-size:14px; }
-.kd-memory-topic { padding:12px 0; border-top:1px solid var(--kd-border-l1); }
-.kd-memory-topic summary { cursor:pointer; overflow-wrap:anywhere; }
-.kd-memory-topic summary > span { margin-inline-start:12px; }
-.kd-memory-topic textarea { box-sizing:border-box; min-height:84px; margin-bottom:8px; }
+.kd-memory-panel { border:1px solid var(--kd-border-l1); border-radius:12px; margin-top:16px; padding:clamp(12px,2vw,18px); }
+.kd-memory-analysis-panel { background:color-mix(in srgb,var(--kd-brand-primary) 4%,var(--kd-surface)); }
+.kd-memory-panel h3 { margin:0; font-size:15px; }
+.kd-memory-panel .kd-stats-section-head .kd-actions { margin-top:0; }
+.kd-memory-topic { border-top:1px solid var(--kd-border-l1); }
+.kd-memory-topic summary { padding:8px 0; cursor:pointer; overflow-wrap:anywhere; }
+.kd-memory-topic-title { display:inline-flex; align-items:baseline; flex-wrap:wrap; gap:4px 10px; }
+.kd-memory-topic-status { padding:1px 7px; border-radius:6px; background:var(--kd-bg-layer-2);
+  color:var(--kd-label-secondary); font-size:12px; }
+.kd-memory-topic form { padding-bottom:12px; }
+.kd-textarea.kd-memory-note-input { min-height:92px; border:1px solid var(--kd-border-l2); border-radius:9px;
+  background:var(--kd-bg-layer-2); padding:10px 12px; }
+.kd-textarea.kd-memory-note-input:focus { border-color:var(--kd-brand-primary);
+  outline:2px solid var(--kd-brand-primary); outline-offset:1px; }
 .kd-memory-analysis { overflow-wrap:anywhere; }
 .kd-memory-filter { margin-bottom:12px; }
 .kd-header { padding:20px 28px 12px; background:var(--kd-surface); border-bottom:1px solid var(--kd-border-l1);
@@ -191,6 +199,24 @@ export const CSS = `
 .kd-card { border:1px solid var(--kd-border-l1); border-radius:14px;
   background:var(--kd-bg-layer-1); padding:28px; box-shadow:0 4px 24px rgb(20 45 35 / 3%); }
 .kd-card + .kd-card { margin-top:14px; }
+.kd-question-tools { display:flex; align-items:flex-start; gap:12px; }
+.kd-question-tools .kd-chips { min-width:0; align-self:center; }
+.kd-iconbtn.kd-question-focus-toggle { flex:none; margin-inline-start:auto; width:36px; height:36px;
+  border:1px solid var(--kd-border-l2); border-radius:9px; background:var(--kd-bg-base); }
+.kd-page.is-question-focus { position:fixed; inset:0; z-index:2147483647; width:100%; height:100%;
+  background:var(--kd-bg-layer-1); }
+.is-question-focus :is(.kd-header,.kd-nav,.kd-mobilebar,.kd-main-toolbar,.kd-thread) { display:none; }
+.is-question-focus .kd-main-scroll { padding:0 clamp(16px,5vw,72px) 40px; }
+.is-question-focus .kd-main-inner { max-width:1200px; margin:0 auto; }
+.is-question-focus .kd-question-card { border:0; padding:0; background:transparent; box-shadow:none; }
+.is-question-focus .kd-question-tools { position:sticky; top:0; z-index:6; padding-block:12px 6px;
+  background:var(--kd-bg-layer-1); }
+.is-question-focus :is(.kd-stem,.kd-option,.kd-answer-copy) { font-size:clamp(20px,2.2vw,26px); }
+.is-question-focus .kd-stem { margin-top:8px; }
+.is-question-focus .kd-option-key { width:32px; height:32px; font-size:15px; }
+.is-question-focus .kd-answer-panel-head { font-size:16px; }
+.is-question-focus .kd-answer-label { font-size:14px; }
+.is-question-focus :is(.kd-code,.kd-table) { font-size:.85em; }
 .kd-meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:12px;
   color:var(--kd-label-secondary); }
 .kd-meta-dot::before { content:'·'; margin-right:8px; }
@@ -216,7 +242,7 @@ export const CSS = `
   border-color:color-mix(in srgb, var(--kd-brand-primary) 34%, transparent);
   background:color-mix(in srgb, var(--kd-brand-primary) 10%, transparent); }
 .kd-stem { margin:24px 0; font-size:16px; line-height:1.85; }
-.kd-stem, .kd-option-key, .kd-option-text, .kd-list-summary, .kd-bank-preview-stem, .kd-answer-copy {
+.kd-stem, .kd-option-text, .kd-list-summary, .kd-bank-preview-stem, .kd-answer-copy {
   font-family:var(--kd-question-font);
 }
 .kd-options { display:flex; flex-direction:column; gap:8px; margin:0 0 4px; }
@@ -286,8 +312,9 @@ export const CSS = `
 .kd-list-row + .kd-list-row { margin-top:8px; }
 .kd-list-row:hover { border-color:var(--kd-border-l2); background:var(--kd-bg-layer-2); }
 .kd-list-body { min-width:0; flex:1 1 auto; }
+.kd-list-heading { display:flex; gap:14px; align-items:flex-start; }
 .kd-list-summary { --kd-preview-line-height:28px; font-size:14px; line-height:var(--kd-preview-line-height); min-width:0;
-  max-height:calc(2 * var(--kd-preview-line-height)); overflow:hidden; }
+  flex:1 1 auto; max-height:calc(2 * var(--kd-preview-line-height)); overflow:hidden; }
 .kd-list-summary .kd-md { line-height:inherit; }
 .kd-list-summary .kd-md > * { display:inline; }
 .kd-list-summary .kd-p, .kd-list-summary .kd-h, .kd-list-summary .kd-mathblock { margin:0; }
@@ -300,7 +327,9 @@ export const CSS = `
 .kd-list-summary.is-truncated { mask-image:linear-gradient(#000,#000),linear-gradient(to right,#000 var(--kd-preview-fade-start),transparent var(--kd-preview-fade-end));
   mask-size:100% var(--kd-preview-fade-top),100% calc(100% - var(--kd-preview-fade-top)); mask-position:top,bottom; mask-repeat:no-repeat; }
 .kd-list-meta { margin-top:7px; display:flex; gap:6px; flex-wrap:wrap; font-size:11px;
-  color:var(--kd-label-secondary); align-items:center; }
+  color:var(--kd-label-secondary); align-items:flex-end; }
+.kd-list-tags, .kd-list-timing { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.kd-list-timing { margin-inline-start:auto; justify-content:flex-end; text-align:right; }
 .kd-empty { padding:56px 24px; text-align:center; color:var(--kd-label-secondary); }
 .kd-empty-icon { width:44px; height:44px; margin:0 auto 14px; border-radius:50%; display:flex;
   align-items:center; justify-content:center; border:1px solid var(--kd-border-l1);
@@ -369,7 +398,7 @@ export const CSS = `
 .kd-md { line-height:1.78; overflow-wrap:anywhere; }
 .kd-md > *:first-child { margin-top:0; }
 .kd-md > *:last-child { margin-bottom:0; }
-.kd-p { margin:8px 0; }
+.kd-p { margin:8px 0; white-space:pre-line; }
 .kd-h { margin:14px 0 8px; line-height:1.4; font-weight:650; }
 .kd-h1 { font-size:17px; } .kd-h2 { font-size:16px; } .kd-h3 { font-size:15px; }
 .kd-h4, .kd-h5, .kd-h6 { font-size:14px; }

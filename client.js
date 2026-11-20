@@ -216,12 +216,20 @@ var DailyQuestionClient = (() => {
 .kd-memory-settings label { margin-top:12px; }
 .kd-memory-settings input { accent-color:var(--kd-brand-primary); }
 .kd-memory-subject-card > h2 { font-size:17px; overflow-wrap:anywhere; }
-.kd-memory-panel { border-top:1px solid var(--kd-border-l1); margin-top:12px; padding-top:12px; }
-.kd-memory-panel h3 { margin:0; font-size:14px; }
-.kd-memory-topic { padding:12px 0; border-top:1px solid var(--kd-border-l1); }
-.kd-memory-topic summary { cursor:pointer; overflow-wrap:anywhere; }
-.kd-memory-topic summary > span { margin-inline-start:12px; }
-.kd-memory-topic textarea { box-sizing:border-box; min-height:84px; margin-bottom:8px; }
+.kd-memory-panel { border:1px solid var(--kd-border-l1); border-radius:12px; margin-top:16px; padding:clamp(12px,2vw,18px); }
+.kd-memory-analysis-panel { background:color-mix(in srgb,var(--kd-brand-primary) 4%,var(--kd-surface)); }
+.kd-memory-panel h3 { margin:0; font-size:15px; }
+.kd-memory-panel .kd-stats-section-head .kd-actions { margin-top:0; }
+.kd-memory-topic { border-top:1px solid var(--kd-border-l1); }
+.kd-memory-topic summary { padding:8px 0; cursor:pointer; overflow-wrap:anywhere; }
+.kd-memory-topic-title { display:inline-flex; align-items:baseline; flex-wrap:wrap; gap:4px 10px; }
+.kd-memory-topic-status { padding:1px 7px; border-radius:6px; background:var(--kd-bg-layer-2);
+  color:var(--kd-label-secondary); font-size:12px; }
+.kd-memory-topic form { padding-bottom:12px; }
+.kd-textarea.kd-memory-note-input { min-height:92px; border:1px solid var(--kd-border-l2); border-radius:9px;
+  background:var(--kd-bg-layer-2); padding:10px 12px; }
+.kd-textarea.kd-memory-note-input:focus { border-color:var(--kd-brand-primary);
+  outline:2px solid var(--kd-brand-primary); outline-offset:1px; }
 .kd-memory-analysis { overflow-wrap:anywhere; }
 .kd-memory-filter { margin-bottom:12px; }
 .kd-header { padding:20px 28px 12px; background:var(--kd-surface); border-bottom:1px solid var(--kd-border-l1);
@@ -329,6 +337,24 @@ var DailyQuestionClient = (() => {
 .kd-card { border:1px solid var(--kd-border-l1); border-radius:14px;
   background:var(--kd-bg-layer-1); padding:28px; box-shadow:0 4px 24px rgb(20 45 35 / 3%); }
 .kd-card + .kd-card { margin-top:14px; }
+.kd-question-tools { display:flex; align-items:flex-start; gap:12px; }
+.kd-question-tools .kd-chips { min-width:0; align-self:center; }
+.kd-iconbtn.kd-question-focus-toggle { flex:none; margin-inline-start:auto; width:36px; height:36px;
+  border:1px solid var(--kd-border-l2); border-radius:9px; background:var(--kd-bg-base); }
+.kd-page.is-question-focus { position:fixed; inset:0; z-index:2147483647; width:100%; height:100%;
+  background:var(--kd-bg-layer-1); }
+.is-question-focus :is(.kd-header,.kd-nav,.kd-mobilebar,.kd-main-toolbar,.kd-thread) { display:none; }
+.is-question-focus .kd-main-scroll { padding:0 clamp(16px,5vw,72px) 40px; }
+.is-question-focus .kd-main-inner { max-width:1200px; margin:0 auto; }
+.is-question-focus .kd-question-card { border:0; padding:0; background:transparent; box-shadow:none; }
+.is-question-focus .kd-question-tools { position:sticky; top:0; z-index:6; padding-block:12px 6px;
+  background:var(--kd-bg-layer-1); }
+.is-question-focus :is(.kd-stem,.kd-option,.kd-answer-copy) { font-size:clamp(20px,2.2vw,26px); }
+.is-question-focus .kd-stem { margin-top:8px; }
+.is-question-focus .kd-option-key { width:32px; height:32px; font-size:15px; }
+.is-question-focus .kd-answer-panel-head { font-size:16px; }
+.is-question-focus .kd-answer-label { font-size:14px; }
+.is-question-focus :is(.kd-code,.kd-table) { font-size:.85em; }
 .kd-meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:12px;
   color:var(--kd-label-secondary); }
 .kd-meta-dot::before { content:'·'; margin-right:8px; }
@@ -354,7 +380,7 @@ var DailyQuestionClient = (() => {
   border-color:color-mix(in srgb, var(--kd-brand-primary) 34%, transparent);
   background:color-mix(in srgb, var(--kd-brand-primary) 10%, transparent); }
 .kd-stem { margin:24px 0; font-size:16px; line-height:1.85; }
-.kd-stem, .kd-option-key, .kd-option-text, .kd-list-summary, .kd-bank-preview-stem, .kd-answer-copy {
+.kd-stem, .kd-option-text, .kd-list-summary, .kd-bank-preview-stem, .kd-answer-copy {
   font-family:var(--kd-question-font);
 }
 .kd-options { display:flex; flex-direction:column; gap:8px; margin:0 0 4px; }
@@ -424,8 +450,9 @@ var DailyQuestionClient = (() => {
 .kd-list-row + .kd-list-row { margin-top:8px; }
 .kd-list-row:hover { border-color:var(--kd-border-l2); background:var(--kd-bg-layer-2); }
 .kd-list-body { min-width:0; flex:1 1 auto; }
+.kd-list-heading { display:flex; gap:14px; align-items:flex-start; }
 .kd-list-summary { --kd-preview-line-height:28px; font-size:14px; line-height:var(--kd-preview-line-height); min-width:0;
-  max-height:calc(2 * var(--kd-preview-line-height)); overflow:hidden; }
+  flex:1 1 auto; max-height:calc(2 * var(--kd-preview-line-height)); overflow:hidden; }
 .kd-list-summary .kd-md { line-height:inherit; }
 .kd-list-summary .kd-md > * { display:inline; }
 .kd-list-summary .kd-p, .kd-list-summary .kd-h, .kd-list-summary .kd-mathblock { margin:0; }
@@ -438,7 +465,9 @@ var DailyQuestionClient = (() => {
 .kd-list-summary.is-truncated { mask-image:linear-gradient(#000,#000),linear-gradient(to right,#000 var(--kd-preview-fade-start),transparent var(--kd-preview-fade-end));
   mask-size:100% var(--kd-preview-fade-top),100% calc(100% - var(--kd-preview-fade-top)); mask-position:top,bottom; mask-repeat:no-repeat; }
 .kd-list-meta { margin-top:7px; display:flex; gap:6px; flex-wrap:wrap; font-size:11px;
-  color:var(--kd-label-secondary); align-items:center; }
+  color:var(--kd-label-secondary); align-items:flex-end; }
+.kd-list-tags, .kd-list-timing { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.kd-list-timing { margin-inline-start:auto; justify-content:flex-end; text-align:right; }
 .kd-empty { padding:56px 24px; text-align:center; color:var(--kd-label-secondary); }
 .kd-empty-icon { width:44px; height:44px; margin:0 auto 14px; border-radius:50%; display:flex;
   align-items:center; justify-content:center; border:1px solid var(--kd-border-l1);
@@ -507,7 +536,7 @@ var DailyQuestionClient = (() => {
 .kd-md { line-height:1.78; overflow-wrap:anywhere; }
 .kd-md > *:first-child { margin-top:0; }
 .kd-md > *:last-child { margin-bottom:0; }
-.kd-p { margin:8px 0; }
+.kd-p { margin:8px 0; white-space:pre-line; }
 .kd-h { margin:14px 0 8px; line-height:1.4; font-weight:650; }
 .kd-h1 { font-size:17px; } .kd-h2 { font-size:16px; } .kd-h3 { font-size:15px; }
 .kd-h4, .kd-h5, .kd-h6 { font-size:14px; }
@@ -1412,6 +1441,8 @@ ${lines[index]}`;
       x: "M6 6l12 12M18 6L6 18",
       chevron: "M9 6l6 6-6 6",
       "chevron-left": "M15 6l-6 6 6 6",
+      expand: "M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5",
+      collapse: "M4 9h5V4m6 0v5h5M4 15h5v5m6 0v-5h5",
       send: "M4 12l16-8-6 8 6 8z",
       book: "M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z",
       subjects: "M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 17h6 M17 14v6",
@@ -1453,8 +1484,8 @@ ${lines[index]}`;
       }, children);
     }
     __name(Btn, "Btn");
-    function Badge({ children, tone = "neutral" }) {
-      return h("span", { className: `kd-badge kd-badge-${tone}` }, children);
+    function Badge({ children, tone = "neutral", title }) {
+      return h("span", { className: `kd-badge kd-badge-${tone}`, title }, children);
     }
     __name(Badge, "Badge");
     function EmptyState({ icon = "spark", title, body, actions }) {
@@ -1488,20 +1519,30 @@ ${lines[index]}`;
     __name(Presence, "Presence");
     function NotificationBanner({ message, tone = "ok", floating = false, onUndo }) {
       const [phase, setPhase] = useState("visible");
+      const [hovering, setHovering] = useState(false);
+      const remaining = useRef(2e3);
       useEffect(() => {
-        if (phase === "hidden") return void 0;
+        if (phase === "hidden" || phase === "visible" && hovering) return void 0;
+        const started = window.performance.now();
         const timeout = window.setTimeout(() => {
           setPhase(phase === "visible" ? "leaving" : "hidden");
-        }, phase === "visible" ? 3e3 : 180);
-        return () => window.clearTimeout(timeout);
-      }, [phase]);
+        }, phase === "visible" ? remaining.current : 180);
+        return () => {
+          window.clearTimeout(timeout);
+          if (phase === "visible") remaining.current = Math.max(0, remaining.current - (window.performance.now() - started));
+        };
+      }, [phase, hovering]);
       if (phase === "hidden") return null;
       return h(
         "div",
         { className: "kd-notification-slot" + (floating ? " is-floating" : "") },
         h(
           "div",
-          { className: `kd-notification kd-notification-${tone}${phase === "leaving" ? " is-leaving" : ""}` },
+          {
+            className: `kd-notification kd-notification-${tone}${phase === "leaving" ? " is-leaving" : ""}`,
+            onMouseEnter: phase === "visible" ? () => setHovering(true) : void 0,
+            onMouseLeave: phase === "visible" ? () => setHovering(false) : void 0
+          },
           h("span", { role: tone === "bad" ? "alert" : "status" }, message),
           onUndo ? h(Btn, { small: true, disabled: phase === "leaving", onClick: /* @__PURE__ */ __name(() => {
             setPhase("leaving");
@@ -1901,10 +1942,10 @@ ${sourceUrl}` : ""}` : ""
       );
     }
     __name(AttemptHistory, "AttemptHistory");
-    function AnswerBlock({ question, onRevise, revising, onRemoveWrong, onInspect }) {
+    function AnswerBlock({ question, focused, onRevise, revising, onRemoveWrong, onInspect }) {
       const answer = question.answer;
       if (!answer) {
-        if (question.answerState !== "revealed") return null;
+        if (focused || question.answerState !== "revealed") return null;
         return h(
           "div",
           { className: "kd-answer" },
@@ -1922,12 +1963,12 @@ ${sourceUrl}` : ""}` : ""
             "div",
             { className: "kd-answer-panel-head" },
             h("span", null, question.historicalAnswer ? "本次作答的答案与解析" : "答案与解析"),
-            h("span", { className: "kd-tag" }, `版本 ${answer.versionId}`)
+            focused ? null : h("span", { className: "kd-tag" }, `版本 ${answer.versionId}`)
           ),
           h(
             "div",
             { className: "kd-answer-panel-body" },
-            answer.verified ? null : h(
+            focused || answer.verified ? null : h(
               "div",
               { className: "kd-verify", style: { marginTop: 0 } },
               h(Badge, { tone: "warn" }, answer.basis === "imported" ? T.unverified : T.missing),
@@ -1945,7 +1986,7 @@ ${sourceUrl}` : ""}` : ""
               h("div", { className: "kd-answer-label" }, T.explanation),
               h(Markdown, { text: answer.explanation || "（题库未提供解析）" })
             ),
-            h(
+            focused ? null : h(
               "div",
               { className: "kd-answer-block" },
               h(AttemptHistory, { attempts: question.attempts || [], onInspect }),
@@ -1960,7 +2001,7 @@ ${sourceUrl}` : ""}` : ""
                 }, "移出错题本")
               ) : null
             ),
-            h(
+            focused ? null : h(
               "div",
               { className: "kd-verify" },
               h(
@@ -1969,7 +2010,11 @@ ${sourceUrl}` : ""}` : ""
                 h(
                   "span",
                   null,
-                  h(Badge, { tone: answer.verified ? "ok" : "warn" }, answer.verified ? T.verified : T.unverified),
+                  h(
+                    Badge,
+                    { tone: answer.verified ? "ok" : "warn", title: answer.verified ? T.verified : T.unverified },
+                    answer.verified ? "✓ 独立校验" : "× 独立校验"
+                  ),
                   ` 首次展示 ${answer.firstShownAt ? formatDateTime(answer.firstShownAt) : "—"}`,
                   answer.superseded ? ` · 已有 ${answer.superseded} 个历史版本` : ""
                 ),
@@ -2019,7 +2064,9 @@ ${sourceUrl}` : ""}` : ""
       onCancel,
       onSkip,
       onInspectAttempt,
-      onNextReview
+      onNextReview,
+      focused,
+      onToggleFocus
     }) {
       if (!q) return null;
       const revealed = !localRedo && q.answerState === "revealed" && q.attemptCount > 0;
@@ -2029,35 +2076,54 @@ ${sourceUrl}` : ""}` : ""
       const answerKey = q.answer?.answerKey || "";
       const selected = revealed ? last?.choice || "" : choice;
       const difficultyUnverified = q.examAlignment?.status === "difficulty-unverified";
-      const meta = [q.subjectName, q.typeLabel];
+      const focusLabel = focused ? "退出全屏阅读" : "全屏阅读";
       return h(
         "div",
         null,
         h(
           "div",
-          { className: "kd-card" },
+          { className: "kd-card kd-question-card" },
           h(
             "div",
-            { className: "kd-chips" },
-            h("span", { className: "kd-tag kd-tag-brand" }, q.typeLabel),
-            h("span", { className: "kd-tag" }, q.subjectName),
-            difficultyUnverified ? h(Badge, { tone: "warn" }, "未进行真题难度校验") : null,
-            ["built-in", "custom", "subject-only"].includes(q.examAlignment?.scopeBasis) ? h(Badge, { tone: "warn" }, "未进行考试大纲校验") : null,
-            q.answerStatus === "verified" ? h(Badge, { tone: "ok" }, T.verified) : h(Badge, { tone: "warn" }, q.answerStatus === "missing" ? T.missing : T.unverified),
-            q.repeated ? h(Badge, { tone: "warn" }, "本题此前出过") : null,
-            q.favorite ? h(Badge, { tone: "brand" }, "已收藏") : null,
-            q.wrongEver ? h(Badge, { tone: "bad" }, "在错题本") : null,
-            !difficultyUnverified ? h("span", { className: "kd-tag", title: q.examAlignment ? "独立评审参考历年真题给出的难度" : "原始难度标签，尚无真题对照评审" }, `难度 ${q.difficulty}/5`) : null,
-            h("span", { className: "kd-tag" }, formatDate(q.assignedDate)),
-            h("span", { className: "kd-tag" }, `累计作答 ${q.attemptCount} 次`),
-            h("span", { className: "kd-tag" }, q.source?.kind === "bank" ? q.source.label : "在线出题")
+            { className: "kd-question-tools" },
+            focused ? null : h(
+              "div",
+              { className: "kd-chips" },
+              h("span", { className: "kd-tag kd-tag-brand" }, q.typeLabel),
+              h("span", { className: "kd-tag" }, q.subjectName),
+              difficultyUnverified ? h(Badge, { tone: "warn", title: "未进行真题难度校验" }, "× 真题难度校验") : null,
+              ["built-in", "custom", "subject-only"].includes(q.examAlignment?.scopeBasis) ? h(Badge, { tone: "warn", title: "未进行考试大纲校验" }, "× 考试大纲校验") : null,
+              q.answerStatus === "verified" ? h(Badge, { tone: "ok", title: T.verified }, "✓ 独立校验") : h(
+                Badge,
+                { tone: "warn", title: q.answerStatus === "missing" ? void 0 : T.unverified },
+                q.answerStatus === "missing" ? T.missing : "× 独立校验"
+              ),
+              q.repeated ? h(Badge, { tone: "warn" }, "本题此前出过") : null,
+              q.favorite ? h(Badge, { tone: "brand", title: "已收藏" }, "☆ 收藏") : null,
+              q.wrongEver ? h(Badge, { tone: "bad", title: "位于错题本" }, "◨ 错题本") : null,
+              !difficultyUnverified ? h("span", { className: "kd-tag", title: q.examAlignment ? "独立评审参考历年真题给出的难度" : "原始难度标签，尚无真题对照评审" }, `难度 ${q.difficulty}/5`) : null,
+              h("span", { className: "kd-tag" }, formatDate(q.assignedDate)),
+              h("span", { className: "kd-tag" }, `累计作答 ${q.attemptCount} 次`),
+              h("span", { className: "kd-tag" }, q.source?.kind === "bank" ? q.source.label : "在线出题")
+            ),
+            onToggleFocus ? h(
+              "button",
+              {
+                type: "button",
+                className: "kd-iconbtn kd-question-focus-toggle",
+                "aria-label": focusLabel,
+                title: focused ? "退出全屏阅读（Esc）" : focusLabel,
+                onClick: onToggleFocus
+              },
+              h(Icon, { name: focused ? "collapse" : "expand", size: 18 })
+            ) : null
           ),
-          q.knowledge?.length ? h(
+          !focused && q.knowledge?.length ? h(
             "div",
             { className: "kd-meta", style: { marginTop: "10px" } },
             h("span", null, `${T.knowledge}：${q.knowledge.join("、")}`)
           ) : null,
-          q.examAlignment ? h(
+          !focused && q.examAlignment ? h(
             "details",
             { className: "kd-verify" },
             h("summary", null, `${q.examAlignment.scopeBasis === "subject-only" ? "出题依据" : "范围校验依据"} · ${q.examAlignment.scopeLabel || "大纲 " + q.examAlignment.outlineYear}${difficultyUnverified ? "" : " · 独立真题对照"}`),
@@ -2109,8 +2175,8 @@ ${sourceUrl}` : ""}` : ""
               h("div", { className: "kd-option-text" }, h(Markdown, { text: option.text }))
             );
           })) : null,
-          revealed ? h(ResultBanner, { attempt: last }) : null,
-          h(
+          revealed && !focused ? h(ResultBanner, { attempt: last }) : null,
+          !focused || !revealed ? h(
             "div",
             { className: "kd-actions" },
             !revealed && canSelect ? h(
@@ -2124,27 +2190,27 @@ ${sourceUrl}` : ""}` : ""
               isChoice ? h(Btn, { key: "skip", disabled: busy === "reveal", onClick: onSkip }, "跳过本题") : h(Btn, { key: "giveup", variant: "danger", disabled: busy === "reveal", onClick: /* @__PURE__ */ __name(() => onReveal("giveup"), "onClick") }, T.giveup)
             ] : null,
             revealed && last?.result === "pending" ? h(Btn, { key: "wait", variant: "ghost", disabled: true }, "待判定：请在下方向答案区域做判定") : null,
-            h(
+            !focused ? h(
               Btn,
               { onClick: onFavorite, disabled: favoritePending },
               h(Icon, { name: "star" }),
               q.favorite ? T.unfavorite : T.favorite
-            ),
+            ) : null,
             revealed ? h(Btn, { variant: "ghost", onClick: onRedo, disabled: busy === "reveal" }, h(Icon, { name: "refresh", size: 13 }), T.redo) : null,
             revealed ? h(Btn, { variant: "ghost", onClick: onToggleThread }, h(Icon, { name: "book" }), threadOpen ? "收起追问" : T.followup) : null
-          ),
-          revealed ? h(AnswerBlock, { question: q, onRevise, revising, onRemoveWrong, onInspect: onInspectAttempt }) : null,
-          revealed && last && last.result !== "pending" && onNextReview ? h(Btn, { variant: "primary", disabled: Boolean(busy), onClick: onNextReview }, "下一道复习") : null,
-          revising && onCancel ? h(Btn, { variant: "ghost", onClick: onCancel }, "取消修订") : null,
+          ) : null,
+          revealed ? h(AnswerBlock, { question: q, focused, onRevise, revising, onRemoveWrong, onInspect: onInspectAttempt }) : null,
+          !focused && revealed && last && last.result !== "pending" && onNextReview ? h(Btn, { variant: "primary", disabled: Boolean(busy), onClick: onNextReview }, "下一道复习") : null,
+          !focused && revising && onCancel ? h(Btn, { variant: "ghost", onClick: onCancel }, "取消修订") : null,
           revealed && last?.result === "pending" ? h(
             "div",
             { className: "kd-actions", style: { marginTop: "12px" } },
-            h("span", { className: "kd-meta" }, "这道题由你自己判定（系统不会替你把“作答完毕”当成答对）："),
+            h("span", { className: "kd-meta" }, focused ? "请判定本次作答：" : "这道题由你自己判定（系统不会替你把“作答完毕”当成答对）："),
             h(Btn, { variant: "primary", disabled: busy === "judge", onClick: /* @__PURE__ */ __name(() => onJudge("correct"), "onClick") }, T.correct),
             h(Btn, { variant: "danger", disabled: busy === "judge", onClick: /* @__PURE__ */ __name(() => onJudge("wrong"), "onClick") }, T.wrong)
           ) : null
         ),
-        q.publishVerification ? h(
+        !focused && q.publishVerification ? h(
           "div",
           { className: "kd-verify", style: { marginTop: "12px" } },
           h(
@@ -2288,21 +2354,37 @@ ${sourceUrl}` : ""}` : ""
           h(
             "div",
             { className: "kd-list-body" },
-            h(QuestionPreview, { text: item.stem || item.summary || "(无题干)" }),
+            h(
+              "div",
+              { className: "kd-list-heading" },
+              h(QuestionPreview, { text: item.stem || item.summary || "(无题干)" }),
+              !managing ? h("span", { className: "kd-list-open", "aria-hidden": true }, "查看题目", h(Icon, { name: "chevron" })) : null
+            ),
             h(
               "div",
               { className: "kd-list-meta" },
-              h(Badge, null, item.typeLabel),
-              h("span", null, formatDate(item.assignedDate)),
-              item.reviewDue ? h("span", null, `复习日期 ${formatDate(item.reviewDue)}`) : null,
-              h("span", null, `作答 ${item.attemptCount} 次`),
-              item.favorite ? h(Badge, { tone: "brand" }, "收藏") : null,
-              item.wrongEver ? h(Badge, { tone: "bad" }, item.mastered ? "错题 · 已掌握" : "错题") : null,
-              item.answerStatus !== "verified" ? h(Badge, { tone: "warn" }, T.unverified) : null,
-              item.difficultyUnverified ? h(Badge, { tone: "warn" }, "未进行真题难度校验") : h("span", null, `难度 ${item.difficulty}/5`)
+              h(
+                "div",
+                { className: "kd-list-tags" },
+                h(Badge, null, item.typeLabel),
+                item.favorite ? h(Badge, { tone: "brand", title: "已收藏" }, "☆ 收藏") : null,
+                item.wrongEver ? h(Badge, { tone: "bad", title: "位于错题本" }, item.mastered ? "◨ 错题本 · 已掌握" : "◨ 错题本") : null,
+                item.answerStatus !== "verified" ? h(
+                  Badge,
+                  { tone: "warn", title: item.answerStatus === "missing" ? void 0 : T.unverified },
+                  item.answerStatus === "missing" ? T.missing : "× 独立校验"
+                ) : null,
+                item.difficultyUnverified ? h(Badge, { tone: "warn", title: "未进行真题难度校验" }, "× 真题难度校验") : h("span", null, `难度 ${item.difficulty}/5`)
+              ),
+              h(
+                "div",
+                { className: "kd-list-timing" },
+                h("span", null, formatDate(item.assignedDate)),
+                item.reviewDue ? h("span", null, `复习日期 ${formatDate(item.reviewDue)}`) : null,
+                h("span", null, `作答 ${item.attemptCount} 次`)
+              )
             )
-          ),
-          !managing ? h("span", { className: "kd-list-open", "aria-hidden": true }, "查看题目", h(Icon, { name: "chevron" })) : null
+          )
         ))
       );
     }
@@ -3856,6 +3938,15 @@ ${sourceUrl}` : ""}` : ""
       const [pending, setPending] = useState("");
       const [status, setStatus] = useState("");
       const [analysisError, setAnalysisError] = useState("");
+      const [topicDisplay, setTopicDisplay] = useState(() => ({ expanded: false, overrides: /* @__PURE__ */ new Map() }));
+      const setAllTopics = /* @__PURE__ */ __name((expanded) => setTopicDisplay({ expanded, overrides: /* @__PURE__ */ new Map() }), "setAllTopics");
+      const onTopicToggle = /* @__PURE__ */ __name((topic, open) => setTopicDisplay((current) => {
+        if ((current.overrides.get(topic) ?? current.expanded) === open) return current;
+        const overrides = new Map(current.overrides);
+        if (open === current.expanded) overrides.delete(topic);
+        else overrides.set(topic, open);
+        return { ...current, overrides };
+      }), "onTopicToggle");
       useEffect(() => {
         let active = true;
         rpc("getStudyMemory", { subjectId: subject.id }).then((result) => {
@@ -3916,7 +4007,7 @@ ${sourceUrl}` : ""}` : ""
         null,
         h(
           "section",
-          { className: "kd-memory-panel" },
+          { className: "kd-memory-panel kd-memory-analysis-panel", "aria-label": "AI 薄弱点分析" },
           h(
             "div",
             { className: "kd-stats-section-head" },
@@ -3950,15 +4041,35 @@ ${sourceUrl}` : ""}` : ""
         ),
         h(
           "section",
-          { className: "kd-memory-panel" },
-          h("h3", null, "知识点与错因笔记"),
+          { className: "kd-memory-panel", "aria-label": "知识点与错因笔记" },
+          h(
+            "div",
+            { className: "kd-stats-section-head" },
+            h("h3", null, "知识点与错因笔记"),
+            rows.length ? h(
+              "div",
+              { className: "kd-row kd-memory-topic-controls", role: "group", "aria-label": `${subject.name}知识点` },
+              h(Btn, { onClick: /* @__PURE__ */ __name(() => setAllTopics(true), "onClick") }, "全部展开"),
+              h(Btn, { onClick: /* @__PURE__ */ __name(() => setAllTopics(false), "onClick") }, "全部收起")
+            ) : null
+          ),
           h("p", { className: "kd-meta" }, "每道题只统计最近一次已判定作答。展开知识点可记录 Markdown 笔记；清空并保存可删除。"),
           error ? h("p", { role: "alert", className: "kd-error-text" }, error) : null,
           status ? h("p", { role: "status", className: "kd-meta" }, status) : null,
           rows.length ? rows.map((row) => h(
             "details",
-            { className: "kd-memory-topic", key: row.topic },
-            h("summary", null, h("strong", null, row.topic), h("span", { className: "kd-meta" }, labels[row.status], row.note ? " · 有笔记" : "")),
+            {
+              className: "kd-memory-topic",
+              key: row.topic,
+              open: topicDisplay.overrides.get(row.topic) ?? topicDisplay.expanded,
+              onToggle: /* @__PURE__ */ __name((event) => onTopicToggle(row.topic, event.currentTarget.open), "onToggle")
+            },
+            h("summary", null, h(
+              "span",
+              { className: "kd-memory-topic-title" },
+              h("strong", null, row.topic),
+              h("span", { className: "kd-memory-topic-status" }, labels[row.status], row.note ? " · 有笔记" : "")
+            )),
             h("p", { className: "kd-meta" }, evidence(row)),
             h(
               "form",
@@ -3971,14 +4082,19 @@ ${sourceUrl}` : ""}` : ""
                   setStatus("已保存错因笔记");
                 });
               }, "onSubmit") },
-              h("textarea", {
-                name: "note",
-                className: "kd-textarea",
-                "aria-label": `${row.topic}的错因笔记`,
-                placeholder: "例如：忘记先核对分段点的左右极限",
-                defaultValue: row.note,
-                maxLength: 1e3
-              }),
+              h(
+                "label",
+                { className: "kd-field" },
+                h("span", { className: "kd-field-label" }, "错因笔记（支持 Markdown）"),
+                h("textarea", {
+                  name: "note",
+                  className: "kd-textarea kd-memory-note-input",
+                  "aria-label": `${row.topic}的错因笔记`,
+                  placeholder: "例如：忘记先核对分段点的左右极限",
+                  defaultValue: row.note,
+                  maxLength: 1e3
+                })
+              ),
               h(
                 "div",
                 { className: "kd-actions" },
@@ -4186,12 +4302,60 @@ ${sourceUrl}` : ""}` : ""
       const [favoritePending, setFavoritePending] = useState(null);
       const statsTrigger = useRef(null);
       const subjectsDirty = useRef(false);
+      const [focusedQuestionId, setFocusedQuestionId] = useState(null);
+      const pageRef = useRef(null);
+      const fullScreenRequest = useRef(null);
+      const questionFocused = Boolean(focusedQuestionId && view === "detail" && question?.id === focusedQuestionId && !modal && !studyPage);
       currentView.current = { subjectId, kind, view, page: list?.page || 1, loading: busy === "list", filters };
       const skipToday = Boolean(boot?.dailyPlans?.[boot.settings.subjects[0]]?.todaySkipped);
       useEffect(() => {
         if (view === "list" && list && mainScroll.current) mainScroll.current.scrollTop = listScroll.current;
         if (view === "detail" && mainScroll.current) mainScroll.current.scrollTop = 0;
       }, [view, list]);
+      const closeQuestionFocus = useCallback(() => {
+        fullScreenRequest.current = null;
+        setFocusedQuestionId(null);
+        if (pageRef.current && window.document?.fullscreenElement === pageRef.current) {
+          window.document.exitFullscreen?.().catch(() => {
+          });
+        }
+      }, []);
+      useEffect(() => {
+        if (focusedQuestionId && !questionFocused) closeQuestionFocus();
+        if (!questionFocused) return void 0;
+        const document = window.document;
+        let wasFullScreen = document.fullscreenElement === pageRef.current;
+        const onFullscreenChange = /* @__PURE__ */ __name(() => {
+          const isFullScreen = document.fullscreenElement === pageRef.current;
+          if (wasFullScreen && !isFullScreen) closeQuestionFocus();
+          wasFullScreen = isFullScreen;
+        }, "onFullscreenChange");
+        const onKeyDown = /* @__PURE__ */ __name((event) => {
+          if (event.key === "Escape") closeQuestionFocus();
+        }, "onKeyDown");
+        document.addEventListener("fullscreenchange", onFullscreenChange);
+        window.addEventListener("keydown", onKeyDown);
+        return () => {
+          document.removeEventListener("fullscreenchange", onFullscreenChange);
+          window.removeEventListener("keydown", onKeyDown);
+        };
+      }, [focusedQuestionId, questionFocused, closeQuestionFocus]);
+      const toggleQuestionFocus = /* @__PURE__ */ __name(() => {
+        if (questionFocused) {
+          closeQuestionFocus();
+          return;
+        }
+        setFocusedQuestionId(question.id);
+        const page = pageRef.current;
+        const document = window.document;
+        if (!page?.requestFullscreen || document?.fullscreenElement) return;
+        const request = {};
+        fullScreenRequest.current = request;
+        page.requestFullscreen().then(() => {
+          if (fullScreenRequest.current === null && document.fullscreenElement === page) return document.exitFullscreen();
+        }).catch(() => {
+        });
+      }, "toggleQuestionFocus");
       const notify = useCallback((message, tone = "ok", onUndo) => {
         setToast((previous) => ({ id: (previous?.id || 0) + 1, message, tone, onUndo }));
       }, []);
@@ -4996,6 +5160,8 @@ ${sourceUrl}` : ""}` : ""
         if (view === "detail" && question) {
           return h(QuestionPane, {
             q: question,
+            focused: questionFocused,
+            onToggleFocus: toggleQuestionFocus,
             busy,
             choice,
             localRedo,
@@ -5058,7 +5224,7 @@ ${sourceUrl}` : ""}` : ""
           if (boot?.settings.subjects.includes(subjectId)) loadToday(subjectId);
         } else loadList(subjectId, value);
       }, "pickTab");
-      const showThread = subjectVisible && view === "detail" && question && threadOpen && !localRedo && question.answerState === "revealed" && question.attemptCount > 0;
+      const showThread = !questionFocused && subjectVisible && view === "detail" && question && threadOpen && !localRedo && question.answerState === "revealed" && question.attemptCount > 0;
       const finishSettingsNavigation = /* @__PURE__ */ __name((destination) => {
         subjectsDirty.current = false;
         setModal(destination === "close" ? null : { kind: destination });
@@ -5157,7 +5323,7 @@ ${sourceUrl}` : ""}` : ""
       }, "openRelated");
       return h(
         "div",
-        { className: "kd-page" },
+        { ref: pageRef, className: questionFocused ? "kd-page is-question-focus" : "kd-page" },
         styleState.injected ? null : h("style", null, CSS),
         h(
           "div",

@@ -87,6 +87,11 @@ export function createPage(React, { window, rpc, components, styleState }) {
     const [favoritePending, setFavoritePending] = useState(null)
     const statsTrigger = useRef(null)
     const subjectsDirty = useRef(false)
+    const [focusedQuestionId, setFocusedQuestionId] = useState(null)
+    const pageRef = useRef(null)
+    const fullScreenRequest = useRef(null)
+    const questionFocused = Boolean(focusedQuestionId && view === 'detail' && question?.id === focusedQuestionId
+      && !modal && !studyPage)
     currentView.current = { subjectId, kind, view, page:list?.page||1, loading:busy==='list', filters }
     const skipToday = Boolean(boot?.dailyPlans?.[boot.settings.subjects[0]]?.todaySkipped)
 
@@ -94,6 +99,46 @@ export function createPage(React, { window, rpc, components, styleState }) {
       if (view === 'list' && list && mainScroll.current) mainScroll.current.scrollTop = listScroll.current
       if (view === 'detail' && mainScroll.current) mainScroll.current.scrollTop = 0
     }, [view, list])
+
+    const closeQuestionFocus = useCallback(() => {
+      fullScreenRequest.current = null
+      setFocusedQuestionId(null)
+      if (pageRef.current && window.document?.fullscreenElement === pageRef.current) {
+        window.document.exitFullscreen?.().catch(() => {})
+      }
+    }, [])
+
+    useEffect(() => {
+      if (focusedQuestionId && !questionFocused) closeQuestionFocus()
+      if (!questionFocused) return undefined
+      const document = window.document
+      let wasFullScreen = document.fullscreenElement === pageRef.current
+      const onFullscreenChange = () => {
+        const isFullScreen = document.fullscreenElement === pageRef.current
+        if (wasFullScreen && !isFullScreen) closeQuestionFocus()
+        wasFullScreen = isFullScreen
+      }
+      const onKeyDown = (event) => { if (event.key === 'Escape') closeQuestionFocus() }
+      document.addEventListener('fullscreenchange', onFullscreenChange)
+      window.addEventListener('keydown', onKeyDown)
+      return () => {
+        document.removeEventListener('fullscreenchange', onFullscreenChange)
+        window.removeEventListener('keydown', onKeyDown)
+      }
+    }, [focusedQuestionId, questionFocused, closeQuestionFocus])
+
+    const toggleQuestionFocus = () => {
+      if (questionFocused) { closeQuestionFocus(); return }
+      setFocusedQuestionId(question.id)
+      const page = pageRef.current
+      const document = window.document
+      if (!page?.requestFullscreen || document?.fullscreenElement) return
+      const request = {}
+      fullScreenRequest.current = request
+      page.requestFullscreen().then(() => {
+        if (fullScreenRequest.current === null && document.fullscreenElement === page) return document.exitFullscreen()
+      }).catch(() => {})
+    }
 
     const notify = useCallback((message, tone = 'ok', onUndo) => {
       setToast((previous) => ({ id: (previous?.id || 0) + 1, message, tone, onUndo }))
@@ -811,6 +856,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
       if (view === 'detail' && question) {
         return h(QuestionPane, {
           q: question,
+          focused: questionFocused,
+          onToggleFocus: toggleQuestionFocus,
           busy,
           choice,
           localRedo,
@@ -875,7 +922,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
       }
       else loadList(subjectId, value)
     }
-    const showThread = subjectVisible && view === 'detail' && question && threadOpen && !localRedo
+    const showThread = !questionFocused && subjectVisible && view === 'detail' && question && threadOpen && !localRedo
       && question.answerState === 'revealed' && question.attemptCount > 0
     const finishSettingsNavigation = (destination) => {
       subjectsDirty.current = false
@@ -945,7 +992,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
       if (sid !== subjectId) rpc('saveSettings', { activeSubject: sid }).catch(() => {})
       loadList(sid, tab, 1, { topic })
     }
-    return h('div', { className: 'kd-page' },
+    return h('div', { ref: pageRef, className: questionFocused ? 'kd-page is-question-focus' : 'kd-page' },
       styleState.injected ? null : h('style', null, CSS),
       h('div', { className: 'kd-practice-screen', inert: Boolean(studyPage) || settingsOpen || undefined },
       h('div', { className: 'kd-header' },

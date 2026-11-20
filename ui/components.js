@@ -14,6 +14,8 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     x: 'M6 6l12 12M18 6L6 18',
     chevron: 'M9 6l6 6-6 6',
     'chevron-left': 'M15 6l-6 6 6 6',
+    expand: 'M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5',
+    collapse: 'M4 9h5V4m6 0v5h5M4 15h5v5m6 0v-5h5',
     send: 'M4 12l16-8-6 8 6 8z',
     book: 'M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z',
     subjects: 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 17h6 M17 14v6',
@@ -50,8 +52,8 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     }, children)
   }
 
-  function Badge({ children, tone = 'neutral' }) {
-    return h('span', { className: `kd-badge kd-badge-${tone}` }, children)
+  function Badge({ children, tone = 'neutral', title }) {
+    return h('span', { className: `kd-badge kd-badge-${tone}`, title }, children)
   }
 
   /** 统一的空状态：图标 + 标题 + 说明 + 操作。 */
@@ -77,16 +79,24 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
 
   function NotificationBanner({ message, tone = 'ok', floating = false, onUndo }) {
     const [phase, setPhase] = useState('visible')
+    const [hovering, setHovering] = useState(false)
+    const remaining = useRef(2000)
     useEffect(() => {
-      if (phase === 'hidden') return undefined
+      if (phase === 'hidden' || (phase === 'visible' && hovering)) return undefined
+      const started = window.performance.now()
       const timeout = window.setTimeout(() => {
         setPhase(phase === 'visible' ? 'leaving' : 'hidden')
-      }, phase === 'visible' ? 3000 : 180)
-      return () => window.clearTimeout(timeout)
-    }, [phase])
+      }, phase === 'visible' ? remaining.current : 180)
+      return () => {
+        window.clearTimeout(timeout)
+        if (phase === 'visible') remaining.current = Math.max(0, remaining.current - (window.performance.now() - started))
+      }
+    }, [phase, hovering])
     if (phase === 'hidden') return null
     return h('div', { className: 'kd-notification-slot' + (floating ? ' is-floating' : '') },
-      h('div', { className: `kd-notification kd-notification-${tone}${phase === 'leaving' ? ' is-leaving' : ''}` },
+      h('div', { className: `kd-notification kd-notification-${tone}${phase === 'leaving' ? ' is-leaving' : ''}`,
+        onMouseEnter: phase === 'visible' ? () => setHovering(true) : undefined,
+        onMouseLeave: phase === 'visible' ? () => setHovering(false) : undefined },
         h('span', { role: tone === 'bad' ? 'alert' : 'status' }, message),
         onUndo ? h(Btn, { small: true, disabled: phase === 'leaving', onClick: () => {
           setPhase('leaving')
@@ -365,10 +375,10 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         onInspect ? h(Btn, { small: true, variant: 'ghost', onClick: () => onInspect(attempt.id) }, '查看当时答案') : null)))
   }
 
-  function AnswerBlock({ question, onRevise, revising, onRemoveWrong, onInspect }) {
+  function AnswerBlock({ question, focused, onRevise, revising, onRemoveWrong, onInspect }) {
     const answer = question.answer
     if (!answer) {
-      if (question.answerState !== 'revealed') return null
+      if (focused || question.answerState !== 'revealed') return null
       return h('div', { className: 'kd-answer' },
         h('div', { className: 'kd-verify' }, question.answerVersionUnknown
           ? '这条旧作答无法确认当时的答案版本。' : '这次作答没有可用的参考答案与解析。'),
@@ -378,9 +388,9 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       h('div', { className: 'kd-answer-panel' },
         h('div', { className: 'kd-answer-panel-head' },
           h('span', null, question.historicalAnswer ? '本次作答的答案与解析' : '答案与解析'),
-          h('span', { className: 'kd-tag' }, `版本 ${answer.versionId}`)),
+          focused ? null : h('span', { className: 'kd-tag' }, `版本 ${answer.versionId}`)),
         h('div', { className: 'kd-answer-panel-body' },
-          answer.verified
+          focused || answer.verified
             ? null
             : h('div', { className: 'kd-verify', style: { marginTop: 0 } },
               h(Badge, { tone: 'warn' }, answer.basis === 'imported' ? T.unverified : T.missing),
@@ -391,7 +401,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           h('div', { className: 'kd-answer-block kd-answer-copy' },
             h('div', { className: 'kd-answer-label' }, T.explanation),
             h(Markdown, { text: answer.explanation || '（题库未提供解析）' })),
-          h('div', { className: 'kd-answer-block' },
+          focused ? null : h('div', { className: 'kd-answer-block' },
             h(AttemptHistory, { attempts: question.attempts || [], onInspect }),
             question.wrongEver
               ? h('div', { className: 'kd-actions', style: { marginTop: '10px' } },
@@ -402,10 +412,11 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
                   onClick: onRemoveWrong,
                 }, '移出错题本'))
               : null),
-          h('div', { className: 'kd-verify' },
+          focused ? null : h('div', { className: 'kd-verify' },
             h('div', { className: 'kd-row-between' },
               h('span', null,
-                h(Badge, { tone: answer.verified ? 'ok' : 'warn' }, answer.verified ? T.verified : T.unverified),
+                h(Badge, { tone: answer.verified ? 'ok' : 'warn', title: answer.verified ? T.verified : T.unverified },
+                  answer.verified ? '✓ 独立校验' : '× 独立校验'),
                 ` 首次展示 ${answer.firstShownAt ? formatDateTime(answer.firstShownAt) : '—'}`,
                 answer.superseded ? ` · 已有 ${answer.superseded} 个历史版本` : ''),
               h(Btn, {
@@ -434,7 +445,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
   function QuestionPane({
     q, busy, choice, onSelect, onReveal, onJudge, onFavorite, onRedo, localRedo,
     onRevise, revising, onToggleThread, threadOpen, onRemoveWrong, favoritePending,
-    onCancel, onSkip, onInspectAttempt, onNextReview,
+    onCancel, onSkip, onInspectAttempt, onNextReview, focused, onToggleFocus,
   }) {
     if (!q) return null
     const revealed = !localRedo && q.answerState === 'revealed' && q.attemptCount > 0
@@ -444,31 +455,36 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     const answerKey = q.answer?.answerKey || ''
     const selected = revealed ? (last?.choice || '') : choice
     const difficultyUnverified = q.examAlignment?.status === 'difficulty-unverified'
-    const meta = [q.subjectName, q.typeLabel]
+    const focusLabel = focused ? '退出全屏阅读' : '全屏阅读'
     return h('div', null,
-      h('div', { className: 'kd-card' },
-        h('div', { className: 'kd-chips' },
+      h('div', { className: 'kd-card kd-question-card' },
+        h('div', { className: 'kd-question-tools' },
+        focused ? null : h('div', { className: 'kd-chips' },
           h('span', { className: 'kd-tag kd-tag-brand' }, q.typeLabel),
           h('span', { className: 'kd-tag' }, q.subjectName),
-          difficultyUnverified ? h(Badge, { tone: 'warn' }, '未进行真题难度校验') : null,
+          difficultyUnverified ? h(Badge, { tone: 'warn', title: '未进行真题难度校验' }, '× 真题难度校验') : null,
           ['built-in','custom','subject-only'].includes(q.examAlignment?.scopeBasis)
-            ? h(Badge, { tone: 'warn' }, '未进行考试大纲校验') : null,
+            ? h(Badge, { tone: 'warn', title: '未进行考试大纲校验' }, '× 考试大纲校验') : null,
           q.answerStatus === 'verified'
-            ? h(Badge, { tone: 'ok' }, T.verified)
-            : h(Badge, { tone: 'warn' }, q.answerStatus === 'missing' ? T.missing : T.unverified),
+            ? h(Badge, { tone: 'ok', title: T.verified }, '✓ 独立校验')
+            : h(Badge, { tone: 'warn', title: q.answerStatus === 'missing' ? undefined : T.unverified },
+              q.answerStatus === 'missing' ? T.missing : '× 独立校验'),
           q.repeated ? h(Badge, { tone: 'warn' }, '本题此前出过') : null,
-          q.favorite ? h(Badge, { tone: 'brand' }, '已收藏') : null,
-          q.wrongEver ? h(Badge, { tone: 'bad' }, '在错题本') : null,
+          q.favorite ? h(Badge, { tone: 'brand', title: '已收藏' }, '☆ 收藏') : null,
+          q.wrongEver ? h(Badge, { tone: 'bad', title: '位于错题本' }, '◨ 错题本') : null,
           !difficultyUnverified
             ? h('span', { className: 'kd-tag', title: q.examAlignment ? '独立评审参考历年真题给出的难度' : '原始难度标签，尚无真题对照评审' }, `难度 ${q.difficulty}/5`) : null,
           h('span', { className: 'kd-tag' }, formatDate(q.assignedDate)),
           h('span', { className: 'kd-tag' }, `累计作答 ${q.attemptCount} 次`),
           h('span', { className: 'kd-tag' }, q.source?.kind === 'bank' ? q.source.label : '在线出题')),
-        q.knowledge?.length
+        onToggleFocus ? h('button', { type: 'button', className: 'kd-iconbtn kd-question-focus-toggle',
+          'aria-label': focusLabel, title: focused ? '退出全屏阅读（Esc）' : focusLabel, onClick: onToggleFocus },
+        h(Icon, { name: focused ? 'collapse' : 'expand', size: 18 })) : null),
+        !focused && q.knowledge?.length
           ? h('div', { className: 'kd-meta', style: { marginTop: '10px' } },
             h('span', null, `${T.knowledge}：${q.knowledge.join('、')}`))
           : null,
-        q.examAlignment ? h('details', { className: 'kd-verify' },
+        !focused && q.examAlignment ? h('details', { className: 'kd-verify' },
           h('summary', null, `${q.examAlignment.scopeBasis === 'subject-only' ? '出题依据' : '范围校验依据'} · ${q.examAlignment.scopeLabel || '大纲 '+q.examAlignment.outlineYear}${difficultyUnverified ? '' : ' · 独立真题对照'}`),
           h('div', null, q.examAlignment.note
             ?.replace('未通过真题难度校验。', '未进行真题难度校验。')
@@ -505,8 +521,8 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
             h('div', { className: 'kd-option-text' }, h(Markdown, { text: option.text })))
           }))
           : null,
-        revealed ? h(ResultBanner, { attempt: last }) : null,
-        h('div', { className: 'kd-actions' },
+        revealed && !focused ? h(ResultBanner, { attempt: last }) : null,
+        !focused || !revealed ? h('div', { className: 'kd-actions' },
           !revealed && canSelect
             ? h(Btn, { variant: 'primary', disabled: busy === 'reveal' || !choice, onClick: () => onReveal('submit') },
               busy === 'reveal' ? h('span', { className: 'kd-spinner' }) : null, T.submit)
@@ -522,23 +538,23 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           revealed && last?.result === 'pending'
             ? h(Btn, { key: 'wait', variant: 'ghost', disabled: true }, '待判定：请在下方向答案区域做判定')
             : null,
-          h(Btn, { onClick: onFavorite, disabled: favoritePending },
-            h(Icon, { name: 'star' }), q.favorite ? T.unfavorite : T.favorite),
+          !focused ? h(Btn, { onClick: onFavorite, disabled: favoritePending },
+            h(Icon, { name: 'star' }), q.favorite ? T.unfavorite : T.favorite) : null,
           revealed
             ? h(Btn, { variant: 'ghost', onClick: onRedo, disabled: busy === 'reveal' }, h(Icon, { name: 'refresh', size: 13 }), T.redo)
             : null,
-          revealed ? h(Btn, { variant: 'ghost', onClick: onToggleThread }, h(Icon, { name: 'book' }), threadOpen ? '收起追问' : T.followup) : null),
-        revealed ? h(AnswerBlock, { question: q, onRevise, revising, onRemoveWrong, onInspect: onInspectAttempt }) : null,
-        revealed && last && last.result !== 'pending' && onNextReview
+          revealed ? h(Btn, { variant: 'ghost', onClick: onToggleThread }, h(Icon, { name: 'book' }), threadOpen ? '收起追问' : T.followup) : null) : null,
+        revealed ? h(AnswerBlock, { question: q, focused, onRevise, revising, onRemoveWrong, onInspect: onInspectAttempt }) : null,
+        !focused && revealed && last && last.result !== 'pending' && onNextReview
           ? h(Btn, { variant: 'primary', disabled: Boolean(busy), onClick: onNextReview }, '下一道复习') : null,
-        revising && onCancel ? h(Btn,{variant:'ghost',onClick:onCancel},'取消修订') : null,
+        !focused && revising && onCancel ? h(Btn,{variant:'ghost',onClick:onCancel},'取消修订') : null,
         revealed && last?.result === 'pending'
           ? h('div', { className: 'kd-actions', style: { marginTop: '12px' } },
-            h('span', { className: 'kd-meta' }, '这道题由你自己判定（系统不会替你把“作答完毕”当成答对）：'),
+            h('span', { className: 'kd-meta' }, focused ? '请判定本次作答：' : '这道题由你自己判定（系统不会替你把“作答完毕”当成答对）：'),
             h(Btn, { variant: 'primary', disabled: busy === 'judge', onClick: () => onJudge('correct') }, T.correct),
             h(Btn, { variant: 'danger', disabled: busy === 'judge', onClick: () => onJudge('wrong') }, T.wrong))
           : null),
-      q.publishVerification
+      !focused && q.publishVerification
         ? h('div', { className: 'kd-verify', style: { marginTop: '12px' } },
           h(Badge, { tone: q.publishVerification.status === 'passed' ? 'ok' : 'warn' },
             q.publishVerification.status === 'passed' ? '试题发布前已通过独立校验' : '试题发布状态：待核验'),
@@ -652,17 +668,21 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       managing ? h('input', { type: 'checkbox', checked: selected.includes(item.id), disabled: busy,
         'aria-label': '选择题目：' + (item.summary || item.id), onChange: () => onToggle(item.id) }) : null,
       h('div', { className: 'kd-list-body' },
-        h(QuestionPreview, { text: item.stem || item.summary || '(无题干)' }),
+        h('div', { className: 'kd-list-heading' },
+          h(QuestionPreview, { text: item.stem || item.summary || '(无题干)' }),
+          !managing ? h('span', { className: 'kd-list-open', 'aria-hidden': true }, '查看题目', h(Icon, { name: 'chevron' })) : null),
         h('div', { className: 'kd-list-meta' },
-          h(Badge, null, item.typeLabel),
-          h('span', null, formatDate(item.assignedDate)),
-          item.reviewDue ? h('span', null, `复习日期 ${formatDate(item.reviewDue)}`) : null,
-          h('span', null, `作答 ${item.attemptCount} 次`),
-          item.favorite ? h(Badge, { tone: 'brand' }, '收藏') : null,
-          item.wrongEver ? h(Badge, { tone: 'bad' }, item.mastered ? '错题 · 已掌握' : '错题') : null,
-          item.answerStatus !== 'verified' ? h(Badge, { tone: 'warn' }, T.unverified) : null,
-          item.difficultyUnverified ? h(Badge, { tone: 'warn' }, '未进行真题难度校验') : h('span', null, `难度 ${item.difficulty}/5`))),
-      !managing ? h('span', { className: 'kd-list-open', 'aria-hidden': true }, '查看题目', h(Icon, { name: 'chevron' })) : null)))
+          h('div', { className: 'kd-list-tags' },
+            h(Badge, null, item.typeLabel),
+            item.favorite ? h(Badge, { tone: 'brand', title: '已收藏' }, '☆ 收藏') : null,
+            item.wrongEver ? h(Badge, { tone: 'bad', title: '位于错题本' }, item.mastered ? '◨ 错题本 · 已掌握' : '◨ 错题本') : null,
+            item.answerStatus !== 'verified' ? h(Badge, { tone: 'warn', title: item.answerStatus === 'missing' ? undefined : T.unverified },
+              item.answerStatus === 'missing' ? T.missing : '× 独立校验') : null,
+            item.difficultyUnverified ? h(Badge, { tone: 'warn', title: '未进行真题难度校验' }, '× 真题难度校验') : h('span', null, `难度 ${item.difficulty}/5`)),
+          h('div', { className: 'kd-list-timing' },
+            h('span', null, formatDate(item.assignedDate)),
+            item.reviewDue ? h('span', null, `复习日期 ${formatDate(item.reviewDue)}`) : null,
+            h('span', null, `作答 ${item.attemptCount} 次`)))))))
   }
 
   /* ============================== 追问侧栏 ============================== */

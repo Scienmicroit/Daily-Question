@@ -205,6 +205,15 @@ check('合法转义被吃掉后还原为 LaTeX 命令',
 const jsonNewline = '{"stem": "第一行\\n第二行"}'
 check('字符串内的换行保持为换行', parseJsonLoose(jsonNewline).stem === '第一行\n第二行', JSON.stringify(parseJsonLoose(jsonNewline).stem))
 
+const romanStem = '判断下列说法。\nI. 第一条；\nII. 第二条；\nIII. 第三条；\nIV. 第四条。'
+check('罗马数字条目前的换行不被当成 LaTeX', parseJsonLoose(JSON.stringify({ stem: romanStem })).stem === romanStem)
+const mixedJson = '{"stem": "第一行\\ninside text；\\nI. $a \\ni 0$；\\nII. $$\\frac{1}{2}$$；\\nIII. \\\\(\\theta\\\\)；\\nIV. \\\\[\\nabla f\\\\]"}'
+const mixedStem = parseJsonLoose(mixedJson).stem
+check('只在四种公式定界符内修复 LaTeX，不吞掉普通换行', mixedStem ===
+  '第一行\ninside text；\nI. $a \\ni 0$；\nII. $$\\frac{1}{2}$$；\nIII. \\(\\theta\\)；\nIV. \\[\\nabla f\\]')
+const codeWithMathLikeText = '示例：\n```text\n$第一行\ninside$\n```\n字面美元符号 \\$第一行\ninside；然后 $x \\neq 0$'
+check('围栏代码及转义美元符号不触发公式修复', parseJsonLoose(JSON.stringify({ stem: codeWithMathLikeText })).stem === codeWithMathLikeText)
+
 const jsonRealNewline = '{"stem": "第一行\nStep two"}'
 check('裸换行 + 英文保持为换行', parseJsonLoose(jsonRealNewline).stem.includes('\nStep'), JSON.stringify(parseJsonLoose(jsonRealNewline).stem))
 

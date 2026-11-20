@@ -17,6 +17,15 @@ export function createStudyMemoryPage(React, { window, rpc, Btn, Icon }) {
     const [pending, setPending] = useState('')
     const [status, setStatus] = useState('')
     const [analysisError, setAnalysisError] = useState('')
+    const [topicDisplay, setTopicDisplay] = useState(() => ({ expanded: false, overrides: new Map() }))
+    const setAllTopics = (expanded) => setTopicDisplay({ expanded, overrides: new Map() })
+    const onTopicToggle = (topic, open) => setTopicDisplay((current) => {
+      if ((current.overrides.get(topic) ?? current.expanded) === open) return current
+      const overrides = new Map(current.overrides)
+      if (open === current.expanded) overrides.delete(topic)
+      else overrides.set(topic, open)
+      return { ...current, overrides }
+    })
     useEffect(() => {
       let active = true
       rpc('getStudyMemory', { subjectId: subject.id }).then((result) => {
@@ -57,7 +66,7 @@ export function createStudyMemoryPage(React, { window, rpc, Btn, Icon }) {
       window.setTimeout(() => window.URL.revokeObjectURL(url), 1000)
     }
     return h(React.Fragment, null,
-      h('section', { className: 'kd-memory-panel' },
+      h('section', { className: 'kd-memory-panel kd-memory-analysis-panel', 'aria-label': 'AI 薄弱点分析' },
         h('div', { className: 'kd-stats-section-head' },
           h('h3', null, 'AI 薄弱点分析'),
           h('div', { className: 'kd-actions' },
@@ -73,13 +82,20 @@ export function createStudyMemoryPage(React, { window, rpc, Btn, Icon }) {
           h('ul', null, analysis.topics.map((item) => h('li', { key: item.topic },
             h('strong', null, item.topic), `（分析时 ${item.distinctQuestions} 道，${item.latestWrong} 道错）`,
             h('p', null, item.suggestion))))) : null),
-      h('section', { className: 'kd-memory-panel' },
-        h('h3', null, '知识点与错因笔记'),
+      h('section', { className: 'kd-memory-panel', 'aria-label': '知识点与错因笔记' },
+        h('div', { className: 'kd-stats-section-head' },
+          h('h3', null, '知识点与错因笔记'),
+          rows.length ? h('div', { className: 'kd-row kd-memory-topic-controls', role: 'group', 'aria-label': `${subject.name}知识点` },
+            h(Btn, { onClick: () => setAllTopics(true) }, '全部展开'),
+            h(Btn, { onClick: () => setAllTopics(false) }, '全部收起')) : null),
         h('p', { className: 'kd-meta' }, '每道题只统计最近一次已判定作答。展开知识点可记录 Markdown 笔记；清空并保存可删除。'),
         error ? h('p', { role: 'alert', className: 'kd-error-text' }, error) : null,
         status ? h('p', { role: 'status', className: 'kd-meta' }, status) : null,
-        rows.length ? rows.map((row) => h('details', { className: 'kd-memory-topic', key: row.topic },
-          h('summary', null, h('strong', null, row.topic), h('span', { className: 'kd-meta' }, labels[row.status], row.note ? ' · 有笔记' : '')),
+        rows.length ? rows.map((row) => h('details', { className: 'kd-memory-topic', key: row.topic,
+            open: topicDisplay.overrides.get(row.topic) ?? topicDisplay.expanded,
+            onToggle: (event) => onTopicToggle(row.topic, event.currentTarget.open) },
+          h('summary', null, h('span', { className: 'kd-memory-topic-title' }, h('strong', null, row.topic),
+            h('span', { className: 'kd-memory-topic-status' }, labels[row.status], row.note ? ' · 有笔记' : ''))),
           h('p', { className: 'kd-meta' }, evidence(row)),
           h('form', { onSubmit: (event) => {
             event.preventDefault()
@@ -90,8 +106,10 @@ export function createStudyMemoryPage(React, { window, rpc, Btn, Icon }) {
               setStatus('已保存错因笔记')
             })
           } },
-          h('textarea', { name: 'note', className: 'kd-textarea', 'aria-label': `${row.topic}的错因笔记`,
-            placeholder: '例如：忘记先核对分段点的左右极限', defaultValue: row.note, maxLength: 1000 }),
+          h('label', { className: 'kd-field' },
+            h('span', { className: 'kd-field-label' }, '错因笔记（支持 Markdown）'),
+            h('textarea', { name: 'note', className: 'kd-textarea kd-memory-note-input', 'aria-label': `${row.topic}的错因笔记`,
+              placeholder: '例如：忘记先核对分段点的左右极限', defaultValue: row.note, maxLength: 1000 })),
           h('div', { className: 'kd-actions' },
             h(Btn, { type: 'submit', disabled: Boolean(pending) }, '保存笔记'),
             row.wrongBook ? h(Btn, { onClick: () => onRelated(subject.id, 'wrong', row.topic) }, '查看相关错题') : null,
@@ -137,9 +155,9 @@ export function createStudyMemoryPage(React, { window, rpc, Btn, Icon }) {
           error ? h('p', { role: 'alert', className: 'kd-error-text' }, error) : null,
           !preferences && error ? h(Btn, { onClick: () => { setError(''); setRetry(retry + 1) } }, '重试') : null),
         preferences?.enabled ? (enabledSubjects.length ? enabledSubjects.map((subject) =>
-          h('article', { className: 'kd-stats-card kd-memory-subject-card', key: subject.id, 'aria-label': subject.name },
-            h('h2', null, subject.name),
-            h(SubjectMemory, { subject, onRelated })))
+            h('article', { className: 'kd-stats-card kd-memory-subject-card', key: subject.id, 'aria-label': subject.name },
+              h('h2', null, subject.name),
+              h(SubjectMemory, { subject, onRelated })))
           : h('p', { className: 'kd-meta' }, '还没有启用科目。请先在科目管理里启用要查看的科目。')) : null)))
   }
 }
