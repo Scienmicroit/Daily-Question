@@ -1,3 +1,36 @@
+import { refractor } from 'refractor'
+
+const CODE_FENCE = /^\s{0,3}(```+|~~~+)\s*([^\s`]*)\s*$/
+const QUOTE_PREFIX = /^\s{0,3}>\s?/
+
+function codeFenceEnd(marker) {
+  return new RegExp(`^\\s{0,3}${marker[0]}{${marker.length},}\\s*$`)
+}
+
+function markdownLines(source) {
+  let closingFence
+  const lines = []
+  for (const line of String(source || '').replace(/\r\n?/g, '\n').split('\n')) {
+    if (closingFence) {
+      if (closingFence.test(line)) closingFence = undefined
+      lines.push(line)
+    } else if (QUOTE_PREFIX.test(line)) {
+      lines.push(line)
+    } else {
+      const fence = CODE_FENCE.exec(line)
+      if (fence) {
+        closingFence = codeFenceEnd(fence[1])
+        lines.push(line)
+        continue
+      }
+      // 只还原正文中的字面换行，保留代码中的字符串转义和 LaTeX 命令。
+      const normalized = line.replace(/\\r\\n/g, '\n').replace(/\\[nr](?!\w)/g, '\n').replace(/\\t(?!\w)/g, ' ')
+      lines.push(...normalized.split('\n'))
+    }
+  }
+  return lines
+}
+
 export function createMarkdown(React, { window = globalThis.window } = {}) {
   const { createElement: h, useState, useEffect, useMemo } = React
   let uid = 0
@@ -338,7 +371,7 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
   function isBlockStart(line) {
     return isFence(line)
       || /^\s{0,3}#{1,6}\s+/.test(line)
-      || /^\s{0,3}>\s?/.test(line)
+      || QUOTE_PREFIX.test(line)
       || /^\s{0,3}(-{3,}|\*{3,}|_{3,})\s*$/.test(line)
       || /^\s{0,3}([-*+]|\d{1,3}[.)])\s+/.test(line)
       || /^\s{0,3}\|/.test(line)
@@ -361,37 +394,44 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
     return text.split('|').map((cell) => cell.trim())
   }
 
+  function codeTokens(nodes) {
+    return nodes.map((node, index) => node.type === 'text' ? node.value
+      : h('span', { key: index, className: node.properties.className.join(' ') }, codeTokens(node.children)))
+  }
+
+  function highlightCode(body, language) {
+    const lang = language.toLowerCase()
+    if (!lang || !refractor.registered(lang)) return body
+    try {
+      return codeTokens(refractor.highlight(body, lang).children)
+    } catch {
+      return body
+    }
+  }
+
   function renderBlocks(source) {
-    // 模型偶尔把换行写成字面量 `\n`（JSON 里多转义了一层），这里先还原成真换行，
-    // 否则会渲染成一串多余的字母 n，段落结构也会塌成一行。
-    // 用 (?!\w) 保证不会误伤 \nabla / \neq / \theta / \times 这类命令。
-    const normalized = String(source || '')
-      .replace(/\\r\\n/g, '\n')
-      .replace(/\\n(?!\w)/g, '\n')
-      .replace(/\\r(?!\w)/g, '\n')
-      .replace(/\\t(?!\w)/g, ' ')
-      .replace(/\r\n?/g, '\n')
-    const lines = normalized.split('\n')
+    const lines = markdownLines(source)
     const out = []
     let index = 0
     while (index < lines.length) {
       const line = lines[index]
       if (!line.trim()) { index += 1; continue }
 
-      const fence = /^\s{0,3}(```+|~~~+)\s*([^\s`]*)\s*$/.exec(line)
+      const fence = CODE_FENCE.exec(line)
       if (fence) {
         const marker = fence[1]
         const lang = fence[2] || ''
+        const closingFence = codeFenceEnd(marker)
         const body = []
         index += 1
-        while (index < lines.length && !new RegExp(`^\\s{0,3}${marker[0]}{${marker.length},}\\s*$`).test(lines[index])) {
+        while (index < lines.length && !closingFence.test(lines[index])) {
           body.push(lines[index])
           index += 1
         }
         index += 1
         out.push(h('div', { className: 'kd-code-wrap', key: nextKey('code') },
           lang ? h('div', { className: 'kd-code-lang' }, lang) : null,
-          h('pre', { className: 'kd-code' }, h('code', null, body.join('\n')))))
+          h('pre', { className: 'kd-code' }, h('code', null, highlightCode(body.join('\n'), lang)))))
         continue
       }
 
@@ -422,10 +462,10 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
         continue
       }
 
-      if (/^\s{0,3}>\s?/.test(line)) {
+      if (QUOTE_PREFIX.test(line)) {
         const body = []
-        while (index < lines.length && /^\s{0,3}>\s?/.test(lines[index])) {
-          body.push(lines[index].replace(/^\s{0,3}>\s?/, ''))
+        while (index < lines.length && QUOTE_PREFIX.test(lines[index])) {
+          body.push(lines[index].replace(QUOTE_PREFIX, ''))
           index += 1
         }
         out.push(h('blockquote', { className: 'kd-quote', key: nextKey('q') }, renderBlocks(body.join('\n'))))

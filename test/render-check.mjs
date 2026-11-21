@@ -97,6 +97,24 @@ check('引用与代码块', types.includes('blockquote') && types.includes('pre'
 check('粗体斜体与行内代码', types.includes('strong') && types.includes('em') && types.includes('code'), types.join(','))
 check('链接', types.includes('a'), types.join(','))
 
+const codeText = 'int F(int n) {\n  puts("<script>\\n\\t");\n  return n + 1;\n}'
+for (const [language, requiredTokens] of [['C', ['keyword', 'function', 'string', 'operator', 'number']],
+  ['python', ['builtin', 'string', 'operator', 'number']], ['unknown-lang', []], ['', []]]) {
+  const blocks = renderBlocks(['```' + language, codeText, '```'].join('\n'))
+  let code
+  const tokens = new Set()
+  walk(blocks, (node) => {
+    if (node.type === 'code') code = node
+    if (node.type === 'span') node.props.className?.split(' ').forEach((token) => tokens.add(token))
+  })
+  check(`代码围栏按语言着色并保留原文（${language || '无语言'}）`,
+    textOf(code) === codeText && (requiredTokens.length ? requiredTokens.every((token) => tokens.has(token)) : tokens.size === 0))
+}
+const quotedCode = renderBlocks(['> ~~~c', '>   puts("<b>\\n");', '> ~~~'].join('\r\n'))
+let quotedCodeNode
+walk(quotedCode, (node) => { if (node.type === 'code') quotedCodeNode = node })
+check('引用中的代码保留缩进、反斜杠和 HTML 字面文本', textOf(quotedCodeNode) === '  puts("<b>\\n");')
+
 for (const url of ['javascript:alert%281%29', 'JaVaScRiPt:alert%281%29', 'java\tscript:alert%281%29',
   'data:text/html;base64,PHNjcmlwdD4=', 'file:///private.txt', 'vbscript:evil', '//example.com/page', '/\\example.com/page']) {
   const nodes = inlineNodes(`[危险链接](${url})`)
@@ -208,6 +226,17 @@ components = createClient(react, { window: mockWindow, fetch: async (_, options)
   const result = rpcResponder ? await rpcResponder(payload) : rpcResult
   return { ok: true, json: async () => ({ ok: true, result }) }
 } })
+for (const [navigator, expectedPlatform] of [
+  [{ userAgentData: { platform: 'Windows' }, platform: 'Win32' }, 'windows'],
+  [{ userAgentData: { platform: 'macOS' }, platform: 'MacIntel' }, 'macos'],
+  [{ platform: 'MacIntel' }, 'macos'],
+  [{ platform: 'Win32' }, 'windows'],
+  [{ platform: 'Linux x86_64' }, undefined],
+  [undefined, undefined],
+]) {
+  const { Page } = createClient(react, { window: { navigator } })
+  check(`代码字体平台识别（${navigator?.platform || '未知平台'}）`, Page().props['data-code-platform'] === expectedPlatform)
+}
 const rect = (left, top, width, height = 18) => ({ left, top, width, height, right: left + width, bottom: top + height })
 function fadeFixture(textRects, svgRects = [], lineHeight = 28) {
   let index = 0, selected

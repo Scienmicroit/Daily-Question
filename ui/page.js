@@ -8,6 +8,9 @@ const SETTINGS_SECTIONS = new Set(['subjects', 'banks', 'syllabuses', 'past-pape
 
 export function createPage(React, { window, rpc, components, styleState }) {
   const { createElement: h, useState, useEffect, useRef, useMemo, useCallback } = React
+  const navigator = window?.navigator
+  const platform = navigator?.userAgentData?.platform || navigator?.platform || ''
+  const codePlatform = /^win/i.test(platform) ? 'windows' : /^mac/i.test(platform) ? 'macos' : undefined
   const {
     Icon, Btn, EmptyState, Presence, NotificationBanner, CountdownLines, ExamStrip, SubjectNav, TabBar, MobileBar, QuestionPane,
     ListPane, ThreadPane, SettingsModal, AboutPanel, SubjectsModal, BanksModal, SyllabusesModal, PastPapersModal, BackupModal,
@@ -992,7 +995,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
       if (sid !== subjectId) rpc('saveSettings', { activeSubject: sid }).catch(() => {})
       loadList(sid, tab, 1, { topic })
     }
-    return h('div', { ref: pageRef, className: questionFocused ? 'kd-page is-question-focus' : 'kd-page' },
+    return h('div', { ref: pageRef, className: questionFocused ? 'kd-page is-question-focus' : 'kd-page',
+      'data-code-platform': codePlatform },
       styleState.injected ? null : h('style', null, CSS),
       h('div', { className: 'kd-practice-screen', inert: Boolean(studyPage) || settingsOpen || undefined },
       h('div', { className: 'kd-header' },

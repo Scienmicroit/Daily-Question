@@ -157,6 +157,7 @@ var DailyQuestionClient = (() => {
   --kd-state-warn-primary:#95702b;
   --kd-state-idle-primary:#85918b;
   --kd-question-font:"Times New Roman", SimSun, "宋体", "Songti SC", "Noto Serif CJK SC", serif;
+  --kd-code-font:ui-monospace,monospace;
   --kd-motion-out:cubic-bezier(.2,.75,.25,1);
   --kd-motion-in:cubic-bezier(.45,0,.8,.45);
   --kd-glass:color-mix(in srgb,var(--kd-surface) 88%,transparent);
@@ -166,6 +167,8 @@ var DailyQuestionClient = (() => {
   isolation:isolate; height:100%; min-height:0; display:flex; flex-direction:column; position:relative;
   background:color-mix(in srgb, var(--kd-brand-primary) 2%, var(--kd-surface)); color: var(--kd-label-primary);
   font-size:14px; line-height:1.65; -webkit-font-smoothing:antialiased; box-sizing:border-box; }
+.kd-page[data-code-platform="windows"] { --kd-code-font:Consolas,ui-monospace,monospace; }
+.kd-page[data-code-platform="macos"] { --kd-code-font:"SF Mono",SFMono-Regular,ui-monospace,Menlo,monospace; }
 .kd-page *, .kd-page *::before, .kd-page *::after { box-sizing:border-box; }
 .kd-page :where(button,input,select,textarea) { font-family:inherit; }
 .kd-page :focus-visible { outline:2px solid var(--kd-brand-primary); outline-offset:2px; }
@@ -546,19 +549,24 @@ var DailyQuestionClient = (() => {
   color:var(--kd-label-secondary); }
 .kd-hr { border:0; border-top:1px solid var(--kd-border-l1); margin:14px 0; }
 .kd-link { color:var(--kd-brand-primary); text-decoration:underline; text-underline-offset:2px; }
-.kd-inline-code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.9em;
+.kd-inline-code, .kd-code-lang, .kd-code { font-family:var(--kd-code-font); }
+.kd-inline-code { font-size:.9em;
   padding:1px 5px; border-radius:5px; background:var(--kd-bg-layer-2);
   border:1px solid var(--kd-border-l1); }
 .kd-code-wrap { margin:10px 0; border-radius:10px; overflow:hidden; border:1px solid var(--kd-border-l1);
   background:var(--kd-bg-layer-2); }
 .kd-code-lang { padding:3px 10px; font-size:11px; color:var(--kd-label-secondary);
   border-bottom:1px solid var(--kd-border-l1); }
-.kd-code { margin:0; padding:10px 12px; overflow:auto; font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+.kd-code { margin:0; padding:10px 12px; overflow:auto;
   font-size:12.5px; line-height:1.6; white-space:pre; tab-size:2; }
 .kd-code code { font:inherit; }
-:is(.kd-stem, .kd-option-text, .kd-list-summary, .kd-bank-preview-stem, .kd-answer-copy) :is(.kd-inline-code, .kd-code) {
-  font-family:inherit;
-}
+.kd-code .token:is(.comment,.prolog,.doctype) { color:var(--kd-label-secondary); }
+.kd-code .token:is(.keyword,.atrule,.important) { color:light-dark(#7a259e,#d8a4f1); }
+.kd-code .token:is(.function,.class-name,.builtin) { color:light-dark(#184ea5,#8fbcff); }
+.kd-code .token:is(.string,.char,.attr-value,.inserted) { color:light-dark(#08714f,#80d7ab); }
+.kd-code .token:is(.number,.boolean,.constant,.symbol,.property) { color:light-dark(#006678,#72cede); }
+.kd-code .token:is(.operator,.tag,.deleted) { color:light-dark(#a03131,#ff9c9c); }
+.kd-code .token:is(.attr-name,.selector,.regex) { color:light-dark(#805000,#eec582); }
 .kd-table-wrap { overflow:auto; margin:10px 0; }
 .kd-table { border-collapse:collapse; font-size:13px; min-width:0; }
 .kd-table th, .kd-table td { border:1px solid var(--kd-border-l1); padding:5px 10px; text-align:left; }
@@ -762,9 +770,8713 @@ var DailyQuestionClient = (() => {
 
 `;
 
+  // node_modules/refractor/lang/clike.js
+  clike.displayName = "clike";
+  clike.aliases = [];
+  function clike(Prism2) {
+    Prism2.languages.clike = {
+      comment: [
+        {
+          pattern: /(^|[^\\])\/\*[\s\S]*?(?:\*\/|$)/,
+          lookbehind: true,
+          greedy: true
+        },
+        {
+          pattern: /(^|[^\\:])\/\/.*/,
+          lookbehind: true,
+          greedy: true
+        }
+      ],
+      string: {
+        pattern: /(["'])(?:\\(?:\r\n|[\s\S])|(?!\1)[^\\\r\n])*\1/,
+        greedy: true
+      },
+      "class-name": {
+        pattern: /(\b(?:class|extends|implements|instanceof|interface|new|trait)\s+|\bcatch\s+\()[\w.\\]+/i,
+        lookbehind: true,
+        inside: {
+          punctuation: /[.\\]/
+        }
+      },
+      keyword: /\b(?:break|catch|continue|do|else|finally|for|function|if|in|instanceof|new|null|return|throw|try|while)\b/,
+      boolean: /\b(?:false|true)\b/,
+      function: /\b\w+(?=\()/,
+      number: /\b0x[\da-f]+\b|(?:\b\d+(?:\.\d*)?|\B\.\d+)(?:e[+-]?\d+)?/i,
+      operator: /[<>]=?|[!=]=?=?|--?|\+\+?|&&?|\|\|?|[?*/~^%]/,
+      punctuation: /[{}[\];(),.:]/
+    };
+  }
+  __name(clike, "clike");
+
+  // node_modules/refractor/lang/c.js
+  c.displayName = "c";
+  c.aliases = [];
+  function c(Prism2) {
+    Prism2.register(clike);
+    Prism2.languages.c = Prism2.languages.extend("clike", {
+      comment: {
+        pattern: /\/\/(?:[^\r\n\\]|\\(?:\r\n?|\n|(?![\r\n])))*|\/\*[\s\S]*?(?:\*\/|$)/,
+        greedy: true
+      },
+      string: {
+        // https://en.cppreference.com/w/c/language/string_literal
+        pattern: /"(?:\\(?:\r\n|[\s\S])|[^"\\\r\n])*"/,
+        greedy: true
+      },
+      "class-name": {
+        pattern: /(\b(?:enum|struct)\s+(?:__attribute__\s*\(\([\s\S]*?\)\)\s*)?)\w+|\b[a-z]\w*_t\b/,
+        lookbehind: true
+      },
+      keyword: /\b(?:_Alignas|_Alignof|_Atomic|_Bool|_Complex|_Generic|_Imaginary|_Noreturn|_Static_assert|_Thread_local|__attribute__|asm|auto|break|case|char|const|continue|default|do|double|else|enum|extern|float|for|goto|if|inline|int|long|register|return|short|signed|sizeof|static|struct|switch|typedef|typeof|union|unsigned|void|volatile|while)\b/,
+      function: /\b[a-z_]\w*(?=\s*\()/i,
+      number: /(?:\b0x(?:[\da-f]+(?:\.[\da-f]*)?|\.[\da-f]+)(?:p[+-]?\d+)?|(?:\b\d+(?:\.\d*)?|\B\.\d+)(?:e[+-]?\d+)?)[ful]{0,4}/i,
+      operator: />>=?|<<=?|->|([-+&|:])\1|[?:~]|[-+*/%&|^!=<>]=?/
+    });
+    Prism2.languages.insertBefore("c", "string", {
+      char: {
+        // https://en.cppreference.com/w/c/language/character_constant
+        pattern: /'(?:\\(?:\r\n|[\s\S])|[^'\\\r\n]){0,32}'/,
+        greedy: true
+      }
+    });
+    Prism2.languages.insertBefore("c", "string", {
+      macro: {
+        // allow for multiline macro definitions
+        // spaces after the # character compile fine with gcc
+        pattern: /(^[\t ]*)#\s*[a-z](?:[^\r\n\\/]|\/(?!\*)|\/\*(?:[^*]|\*(?!\/))*\*\/|\\(?:\r\n|[\s\S]))*/im,
+        lookbehind: true,
+        greedy: true,
+        alias: "property",
+        inside: {
+          string: [
+            {
+              // highlight the path of the include statement as a string
+              pattern: /^(#\s*include\s*)<[^>]+>/,
+              lookbehind: true
+            },
+            Prism2.languages.c["string"]
+          ],
+          char: Prism2.languages.c["char"],
+          comment: Prism2.languages.c["comment"],
+          "macro-name": [
+            {
+              pattern: /(^#\s*define\s+)\w+\b(?!\()/i,
+              lookbehind: true
+            },
+            {
+              pattern: /(^#\s*define\s+)\w+\b(?=\()/i,
+              lookbehind: true,
+              alias: "function"
+            }
+          ],
+          // highlight macro directives as keywords
+          directive: {
+            pattern: /^(#\s*)[a-z]+/,
+            lookbehind: true,
+            alias: "keyword"
+          },
+          "directive-hash": /^#/,
+          punctuation: /##|\\(?=[\r\n])/,
+          expression: {
+            pattern: /\S[\s\S]*/,
+            inside: Prism2.languages.c
+          }
+        }
+      }
+    });
+    Prism2.languages.insertBefore("c", "function", {
+      // highlight predefined macros as constants
+      constant: /\b(?:EOF|NULL|SEEK_CUR|SEEK_END|SEEK_SET|__DATE__|__FILE__|__LINE__|__TIMESTAMP__|__TIME__|__func__|stderr|stdin|stdout)\b/
+    });
+    delete Prism2.languages.c["boolean"];
+  }
+  __name(c, "c");
+
+  // node_modules/refractor/lang/cpp.js
+  cpp.displayName = "cpp";
+  cpp.aliases = [];
+  function cpp(Prism2) {
+    Prism2.register(c);
+    (function(Prism3) {
+      var keyword = /\b(?:alignas|alignof|asm|auto|bool|break|case|catch|char|char16_t|char32_t|char8_t|class|co_await|co_return|co_yield|compl|concept|const|const_cast|consteval|constexpr|constinit|continue|decltype|default|delete|do|double|dynamic_cast|else|enum|explicit|export|extern|final|float|for|friend|goto|if|import|inline|int|int16_t|int32_t|int64_t|int8_t|long|module|mutable|namespace|new|noexcept|nullptr|operator|override|private|protected|public|register|reinterpret_cast|requires|return|short|signed|sizeof|static|static_assert|static_cast|struct|switch|template|this|thread_local|throw|try|typedef|typeid|typename|uint16_t|uint32_t|uint64_t|uint8_t|union|unsigned|using|virtual|void|volatile|wchar_t|while)\b/;
+      var modName = /\b(?!<keyword>)\w+(?:\s*\.\s*\w+)*\b/.source.replace(
+        /<keyword>/g,
+        function() {
+          return keyword.source;
+        }
+      );
+      Prism3.languages.cpp = Prism3.languages.extend("c", {
+        "class-name": [
+          {
+            pattern: RegExp(
+              /(\b(?:class|concept|enum|struct|typename)\s+)(?!<keyword>)\w+/.source.replace(
+                /<keyword>/g,
+                function() {
+                  return keyword.source;
+                }
+              )
+            ),
+            lookbehind: true
+          },
+          // This is intended to capture the class name of method implementations like:
+          //   void foo::bar() const {}
+          // However! The `foo` in the above example could also be a namespace, so we only capture the class name if
+          // it starts with an uppercase letter. This approximation should give decent results.
+          /\b[A-Z]\w*(?=\s*::\s*\w+\s*\()/,
+          // This will capture the class name before destructors like:
+          //   Foo::~Foo() {}
+          /\b[A-Z_]\w*(?=\s*::\s*~\w+\s*\()/i,
+          // This also intends to capture the class name of method implementations but here the class has template
+          // parameters, so it can't be a namespace (until C++ adds generic namespaces).
+          /\b\w+(?=\s*<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>\s*::\s*\w+\s*\()/
+        ],
+        keyword,
+        number: {
+          pattern: /(?:\b0b[01']+|\b0x(?:[\da-f']+(?:\.[\da-f']*)?|\.[\da-f']+)(?:p[+-]?[\d']+)?|(?:\b[\d']+(?:\.[\d']*)?|\B\.[\d']+)(?:e[+-]?[\d']+)?)[ful]{0,4}/i,
+          greedy: true
+        },
+        operator: />>=?|<<=?|->|--|\+\+|&&|\|\||[?:~]|<=>|[-+*/%&|^!=<>]=?|\b(?:and|and_eq|bitand|bitor|not|not_eq|or|or_eq|xor|xor_eq)\b/,
+        boolean: /\b(?:false|true)\b/
+      });
+      Prism3.languages.insertBefore("cpp", "string", {
+        module: {
+          // https://en.cppreference.com/w/cpp/language/modules
+          pattern: RegExp(
+            /(\b(?:import|module)\s+)/.source + "(?:" + // header-name
+            /"(?:\\(?:\r\n|[\s\S])|[^"\\\r\n])*"|<[^<>\r\n]*>/.source + "|" + // module name or partition or both
+            /<mod-name>(?:\s*:\s*<mod-name>)?|:\s*<mod-name>/.source.replace(
+              /<mod-name>/g,
+              function() {
+                return modName;
+              }
+            ) + ")"
+          ),
+          lookbehind: true,
+          greedy: true,
+          inside: {
+            string: /^[<"][\s\S]+/,
+            operator: /:/,
+            punctuation: /\./
+          }
+        },
+        "raw-string": {
+          pattern: /R"([^()\\ ]{0,16})\([\s\S]*?\)\1"/,
+          alias: "string",
+          greedy: true
+        }
+      });
+      Prism3.languages.insertBefore("cpp", "keyword", {
+        "generic-function": {
+          pattern: /\b(?!operator\b)[a-z_]\w*\s*<(?:[^<>]|<[^<>]*>)*>(?=\s*\()/i,
+          inside: {
+            function: /^\w+/,
+            generic: {
+              pattern: /<[\s\S]+/,
+              alias: "class-name",
+              inside: Prism3.languages.cpp
+            }
+          }
+        }
+      });
+      Prism3.languages.insertBefore("cpp", "operator", {
+        "double-colon": {
+          pattern: /::/,
+          alias: "punctuation"
+        }
+      });
+      Prism3.languages.insertBefore("cpp", "class-name", {
+        // the base clause is an optional list of parent classes
+        // https://en.cppreference.com/w/cpp/language/class
+        "base-clause": {
+          pattern: /(\b(?:class|struct)\s+\w+\s*:\s*)[^;{}"'\s]+(?:\s+[^;{}"'\s]+)*(?=\s*[;{])/,
+          lookbehind: true,
+          greedy: true,
+          inside: Prism3.languages.extend("cpp", {})
+        }
+      });
+      Prism3.languages.insertBefore(
+        "inside",
+        "double-colon",
+        {
+          // All untokenized words that are not namespaces should be class names
+          "class-name": /\b[a-z_]\w*\b(?!\s*::)/i
+        },
+        Prism3.languages.cpp["base-clause"]
+      );
+    })(Prism2);
+  }
+  __name(cpp, "cpp");
+
+  // node_modules/refractor/lang/arduino.js
+  arduino.displayName = "arduino";
+  arduino.aliases = ["ino"];
+  function arduino(Prism2) {
+    Prism2.register(cpp);
+    Prism2.languages.arduino = Prism2.languages.extend("cpp", {
+      keyword: /\b(?:String|array|bool|boolean|break|byte|case|catch|continue|default|do|double|else|finally|for|function|goto|if|in|instanceof|int|integer|long|loop|new|null|return|setup|string|switch|throw|try|void|while|word)\b/,
+      constant: /\b(?:ANALOG_MESSAGE|DEFAULT|DIGITAL_MESSAGE|EXTERNAL|FIRMATA_STRING|HIGH|INPUT|INPUT_PULLUP|INTERNAL|INTERNAL1V1|INTERNAL2V56|LED_BUILTIN|LOW|OUTPUT|REPORT_ANALOG|REPORT_DIGITAL|SET_PIN_MODE|SYSEX_START|SYSTEM_RESET)\b/,
+      builtin: /\b(?:Audio|BSSID|Bridge|Client|Console|EEPROM|Esplora|EsploraTFT|Ethernet|EthernetClient|EthernetServer|EthernetUDP|File|FileIO|FileSystem|Firmata|GPRS|GSM|GSMBand|GSMClient|GSMModem|GSMPIN|GSMScanner|GSMServer|GSMVoiceCall|GSM_SMS|HttpClient|IPAddress|IRread|Keyboard|KeyboardController|LiquidCrystal|LiquidCrystal_I2C|Mailbox|Mouse|MouseController|PImage|Process|RSSI|RobotControl|RobotMotor|SD|SPI|SSID|Scheduler|Serial|Server|Servo|SoftwareSerial|Stepper|Stream|TFT|Task|USBHost|WiFi|WiFiClient|WiFiServer|WiFiUDP|Wire|YunClient|YunServer|abs|addParameter|analogRead|analogReadResolution|analogReference|analogWrite|analogWriteResolution|answerCall|attach|attachGPRS|attachInterrupt|attached|autoscroll|available|background|beep|begin|beginPacket|beginSD|beginSMS|beginSpeaker|beginTFT|beginTransmission|beginWrite|bit|bitClear|bitRead|bitSet|bitWrite|blink|blinkVersion|buffer|changePIN|checkPIN|checkPUK|checkReg|circle|cityNameRead|cityNameWrite|clear|clearScreen|click|close|compassRead|config|connect|connected|constrain|cos|countryNameRead|countryNameWrite|createChar|cursor|debugPrint|delay|delayMicroseconds|detach|detachInterrupt|digitalRead|digitalWrite|disconnect|display|displayLogos|drawBMP|drawCompass|encryptionType|end|endPacket|endSMS|endTransmission|endWrite|exists|exitValue|fill|find|findUntil|flush|gatewayIP|get|getAsynchronously|getBand|getButton|getCurrentCarrier|getIMEI|getKey|getModifiers|getOemKey|getPINUsed|getResult|getSignalStrength|getSocket|getVoiceCallStatus|getXChange|getYChange|hangCall|height|highByte|home|image|interrupts|isActionDone|isDirectory|isListening|isPIN|isPressed|isValid|keyPressed|keyReleased|keyboardRead|knobRead|leftToRight|line|lineFollowConfig|listen|listenOnLocalhost|loadImage|localIP|lowByte|macAddress|maintain|map|max|messageAvailable|micros|millis|min|mkdir|motorsStop|motorsWrite|mouseDragged|mouseMoved|mousePressed|mouseReleased|move|noAutoscroll|noBlink|noBuffer|noCursor|noDisplay|noFill|noInterrupts|noListenOnLocalhost|noStroke|noTone|onReceive|onRequest|open|openNextFile|overflow|parseCommand|parseFloat|parseInt|parsePacket|pauseMode|peek|pinMode|playFile|playMelody|point|pointTo|position|pow|prepare|press|print|printFirmwareVersion|printVersion|println|process|processInput|pulseIn|put|random|randomSeed|read|readAccelerometer|readBlue|readButton|readBytes|readBytesUntil|readGreen|readJoystickButton|readJoystickSwitch|readJoystickX|readJoystickY|readLightSensor|readMessage|readMicrophone|readNetworks|readRed|readSlider|readString|readStringUntil|readTemperature|ready|rect|release|releaseAll|remoteIP|remoteNumber|remotePort|remove|requestFrom|retrieveCallingNumber|rewindDirectory|rightToLeft|rmdir|robotNameRead|robotNameWrite|run|runAsynchronously|runShellCommand|runShellCommandAsynchronously|running|scanNetworks|scrollDisplayLeft|scrollDisplayRight|seek|sendAnalog|sendDigitalPortPair|sendDigitalPorts|sendString|sendSysex|serialEvent|setBand|setBitOrder|setClockDivider|setCursor|setDNS|setDataMode|setFirmwareVersion|setMode|setPINUsed|setSpeed|setTextSize|setTimeout|shiftIn|shiftOut|shutdown|sin|size|sqrt|startLoop|step|stop|stroke|subnetMask|switchPIN|tan|tempoWrite|text|tone|transfer|tuneWrite|turn|updateIR|userNameRead|userNameWrite|voiceCall|waitContinue|width|write|writeBlue|writeGreen|writeJSON|writeMessage|writeMicroseconds|writeRGB|writeRed|yield)\b/
+    });
+    Prism2.languages.ino = Prism2.languages.arduino;
+  }
+  __name(arduino, "arduino");
+
+  // node_modules/refractor/lang/bash.js
+  bash.displayName = "bash";
+  bash.aliases = ["sh", "shell"];
+  function bash(Prism2) {
+    ;
+    (function(Prism3) {
+      var envVars = "\\b(?:BASH|BASHOPTS|BASH_ALIASES|BASH_ARGC|BASH_ARGV|BASH_CMDS|BASH_COMPLETION_COMPAT_DIR|BASH_LINENO|BASH_REMATCH|BASH_SOURCE|BASH_VERSINFO|BASH_VERSION|COLORTERM|COLUMNS|COMP_WORDBREAKS|DBUS_SESSION_BUS_ADDRESS|DEFAULTS_PATH|DESKTOP_SESSION|DIRSTACK|DISPLAY|EUID|GDMSESSION|GDM_LANG|GNOME_KEYRING_CONTROL|GNOME_KEYRING_PID|GPG_AGENT_INFO|GROUPS|HISTCONTROL|HISTFILE|HISTFILESIZE|HISTSIZE|HOME|HOSTNAME|HOSTTYPE|IFS|INSTANCE|JOB|LANG|LANGUAGE|LC_ADDRESS|LC_ALL|LC_IDENTIFICATION|LC_MEASUREMENT|LC_MONETARY|LC_NAME|LC_NUMERIC|LC_PAPER|LC_TELEPHONE|LC_TIME|LESSCLOSE|LESSOPEN|LINES|LOGNAME|LS_COLORS|MACHTYPE|MAILCHECK|MANDATORY_PATH|NO_AT_BRIDGE|OLDPWD|OPTERR|OPTIND|ORBIT_SOCKETDIR|OSTYPE|PAPERSIZE|PATH|PIPESTATUS|PPID|PS1|PS2|PS3|PS4|PWD|RANDOM|REPLY|SECONDS|SELINUX_INIT|SESSION|SESSIONTYPE|SESSION_MANAGER|SHELL|SHELLOPTS|SHLVL|SSH_AUTH_SOCK|TERM|UID|UPSTART_EVENTS|UPSTART_INSTANCE|UPSTART_JOB|UPSTART_SESSION|USER|WINDOWID|XAUTHORITY|XDG_CONFIG_DIRS|XDG_CURRENT_DESKTOP|XDG_DATA_DIRS|XDG_GREETER_DATA_DIR|XDG_MENU_PREFIX|XDG_RUNTIME_DIR|XDG_SEAT|XDG_SEAT_PATH|XDG_SESSION_DESKTOP|XDG_SESSION_ID|XDG_SESSION_PATH|XDG_SESSION_TYPE|XDG_VTNR|XMODIFIERS)\\b";
+      var commandAfterHeredoc = {
+        pattern: /(^(["']?)\w+\2)[ \t]+\S.*/,
+        lookbehind: true,
+        alias: "punctuation",
+        // this looks reasonably well in all themes
+        inside: null
+        // see below
+      };
+      var insideString = {
+        bash: commandAfterHeredoc,
+        environment: {
+          pattern: RegExp("\\$" + envVars),
+          alias: "constant"
+        },
+        variable: [
+          // [0]: Arithmetic Environment
+          {
+            pattern: /\$?\(\([\s\S]+?\)\)/,
+            greedy: true,
+            inside: {
+              // If there is a $ sign at the beginning highlight $(( and )) as variable
+              variable: [
+                {
+                  pattern: /(^\$\(\([\s\S]+)\)\)/,
+                  lookbehind: true
+                },
+                /^\$\(\(/
+              ],
+              number: /\b0x[\dA-Fa-f]+\b|(?:\b\d+(?:\.\d*)?|\B\.\d+)(?:[Ee]-?\d+)?/,
+              // Operators according to https://www.gnu.org/software/bash/manual/bashref.html#Shell-Arithmetic
+              operator: /--|\+\+|\*\*=?|<<=?|>>=?|&&|\|\||[=!+\-*/%<>^&|]=?|[?~:]/,
+              // If there is no $ sign at the beginning highlight (( and )) as punctuation
+              punctuation: /\(\(?|\)\)?|,|;/
+            }
+          },
+          // [1]: Command Substitution
+          {
+            pattern: /\$\((?:\([^)]+\)|[^()])+\)|`[^`]+`/,
+            greedy: true,
+            inside: {
+              variable: /^\$\(|^`|\)$|`$/
+            }
+          },
+          // [2]: Brace expansion
+          {
+            pattern: /\$\{[^}]+\}/,
+            greedy: true,
+            inside: {
+              operator: /:[-=?+]?|[!\/]|##?|%%?|\^\^?|,,?/,
+              punctuation: /[\[\]]/,
+              environment: {
+                pattern: RegExp("(\\{)" + envVars),
+                lookbehind: true,
+                alias: "constant"
+              }
+            }
+          },
+          /\$(?:\w+|[#?*!@$])/
+        ],
+        // Escape sequences from echo and printf's manuals, and escaped quotes.
+        entity: /\\(?:[abceEfnrtv\\"]|O?[0-7]{1,3}|U[0-9a-fA-F]{8}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{1,2})/
+      };
+      Prism3.languages.bash = {
+        shebang: {
+          pattern: /^#!\s*\/.*/,
+          alias: "important"
+        },
+        comment: {
+          pattern: /(^|[^"{\\$])#.*/,
+          lookbehind: true
+        },
+        "function-name": [
+          // a) function foo {
+          // b) foo() {
+          // c) function foo() {
+          // but not “foo {”
+          {
+            // a) and c)
+            pattern: /(\bfunction\s+)[\w-]+(?=(?:\s*\(?:\s*\))?\s*\{)/,
+            lookbehind: true,
+            alias: "function"
+          },
+          {
+            // b)
+            pattern: /\b[\w-]+(?=\s*\(\s*\)\s*\{)/,
+            alias: "function"
+          }
+        ],
+        // Highlight variable names as variables in for and select beginnings.
+        "for-or-select": {
+          pattern: /(\b(?:for|select)\s+)\w+(?=\s+in\s)/,
+          alias: "variable",
+          lookbehind: true
+        },
+        // Highlight variable names as variables in the left-hand part
+        // of assignments (“=” and “+=”).
+        "assign-left": {
+          pattern: /(^|[\s;|&]|[<>]\()\w+(?:\.\w+)*(?=\+?=)/,
+          inside: {
+            environment: {
+              pattern: RegExp("(^|[\\s;|&]|[<>]\\()" + envVars),
+              lookbehind: true,
+              alias: "constant"
+            }
+          },
+          alias: "variable",
+          lookbehind: true
+        },
+        // Highlight parameter names as variables
+        parameter: {
+          pattern: /(^|\s)-{1,2}(?:\w+:[+-]?)?\w+(?:\.\w+)*(?=[=\s]|$)/,
+          alias: "variable",
+          lookbehind: true
+        },
+        string: [
+          // Support for Here-documents https://en.wikipedia.org/wiki/Here_document
+          {
+            pattern: /((?:^|[^<])<<-?\s*)(\w+)\s[\s\S]*?(?:\r?\n|\r)\2/,
+            lookbehind: true,
+            greedy: true,
+            inside: insideString
+          },
+          // Here-document with quotes around the tag
+          // → No expansion (so no “inside”).
+          {
+            pattern: /((?:^|[^<])<<-?\s*)(["'])(\w+)\2\s[\s\S]*?(?:\r?\n|\r)\3/,
+            lookbehind: true,
+            greedy: true,
+            inside: {
+              bash: commandAfterHeredoc
+            }
+          },
+          // “Normal” string
+          {
+            // https://www.gnu.org/software/bash/manual/html_node/Double-Quotes.html
+            pattern: /(^|[^\\](?:\\\\)*)"(?:\\[\s\S]|\$\([^)]+\)|\$(?!\()|`[^`]+`|[^"\\`$])*"/,
+            lookbehind: true,
+            greedy: true,
+            inside: insideString
+          },
+          {
+            // https://www.gnu.org/software/bash/manual/html_node/Single-Quotes.html
+            pattern: /(^|[^$\\])'[^']*'/,
+            lookbehind: true,
+            greedy: true
+          },
+          {
+            // https://www.gnu.org/software/bash/manual/html_node/ANSI_002dC-Quoting.html
+            pattern: /\$'(?:[^'\\]|\\[\s\S])*'/,
+            greedy: true,
+            inside: {
+              entity: insideString.entity
+            }
+          }
+        ],
+        environment: {
+          pattern: RegExp("\\$?" + envVars),
+          alias: "constant"
+        },
+        variable: insideString.variable,
+        function: {
+          pattern: /(^|[\s;|&]|[<>]\()(?:add|apropos|apt|apt-cache|apt-get|aptitude|aspell|automysqlbackup|awk|basename|bash|bc|bconsole|bg|bzip2|cal|cargo|cat|cfdisk|chgrp|chkconfig|chmod|chown|chroot|cksum|clear|cmp|column|comm|composer|cp|cron|crontab|csplit|curl|cut|date|dc|dd|ddrescue|debootstrap|df|diff|diff3|dig|dir|dircolors|dirname|dirs|dmesg|docker|docker-compose|du|egrep|eject|env|ethtool|expand|expect|expr|fdformat|fdisk|fg|fgrep|file|find|fmt|fold|format|free|fsck|ftp|fuser|gawk|git|gparted|grep|groupadd|groupdel|groupmod|groups|grub-mkconfig|gzip|halt|head|hg|history|host|hostname|htop|iconv|id|ifconfig|ifdown|ifup|import|install|ip|java|jobs|join|kill|killall|less|link|ln|locate|logname|logrotate|look|lpc|lpr|lprint|lprintd|lprintq|lprm|ls|lsof|lynx|make|man|mc|mdadm|mkconfig|mkdir|mke2fs|mkfifo|mkfs|mkisofs|mknod|mkswap|mmv|more|most|mount|mtools|mtr|mutt|mv|nano|nc|netstat|nice|nl|node|nohup|notify-send|npm|nslookup|op|open|parted|passwd|paste|pathchk|ping|pkill|pnpm|podman|podman-compose|popd|pr|printcap|printenv|ps|pushd|pv|quota|quotacheck|quotactl|ram|rar|rcp|reboot|remsync|rename|renice|rev|rm|rmdir|rpm|rsync|scp|screen|sdiff|sed|sendmail|seq|service|sftp|sh|shellcheck|shuf|shutdown|sleep|slocate|sort|split|ssh|stat|strace|su|sudo|sum|suspend|swapon|sync|sysctl|tac|tail|tar|tee|time|timeout|top|touch|tr|traceroute|tsort|tty|umount|uname|unexpand|uniq|units|unrar|unshar|unzip|update-grub|uptime|useradd|userdel|usermod|users|uudecode|uuencode|v|vcpkg|vdir|vi|vim|virsh|vmstat|wait|watch|wc|wget|whereis|which|who|whoami|write|xargs|xdg-open|yarn|yes|zenity|zip|zsh|zypper)(?=$|[)\s;|&])/,
+          lookbehind: true
+        },
+        keyword: {
+          pattern: /(^|[\s;|&]|[<>]\()(?:case|do|done|elif|else|esac|fi|for|function|if|in|select|then|until|while)(?=$|[)\s;|&])/,
+          lookbehind: true
+        },
+        // https://www.gnu.org/software/bash/manual/html_node/Shell-Builtin-Commands.html
+        builtin: {
+          pattern: /(^|[\s;|&]|[<>]\()(?:\.|:|alias|bind|break|builtin|caller|cd|command|continue|declare|echo|enable|eval|exec|exit|export|getopts|hash|help|let|local|logout|mapfile|printf|pwd|read|readarray|readonly|return|set|shift|shopt|source|test|times|trap|type|typeset|ulimit|umask|unalias|unset)(?=$|[)\s;|&])/,
+          lookbehind: true,
+          // Alias added to make those easier to distinguish from strings.
+          alias: "class-name"
+        },
+        boolean: {
+          pattern: /(^|[\s;|&]|[<>]\()(?:false|true)(?=$|[)\s;|&])/,
+          lookbehind: true
+        },
+        "file-descriptor": {
+          pattern: /\B&\d\b/,
+          alias: "important"
+        },
+        operator: {
+          // Lots of redirections here, but not just that.
+          pattern: /\d?<>|>\||\+=|=[=~]?|!=?|<<[<-]?|[&\d]?>>|\d[<>]&?|[<>][&=]?|&[>&]?|\|[&|]?/,
+          inside: {
+            "file-descriptor": {
+              pattern: /^\d/,
+              alias: "important"
+            }
+          }
+        },
+        punctuation: /\$?\(\(?|\)\)?|\.\.|[{}[\];\\]/,
+        number: {
+          pattern: /(^|\s)(?:[1-9]\d*|0)(?:[.,]\d+)?\b/,
+          lookbehind: true
+        }
+      };
+      commandAfterHeredoc.inside = Prism3.languages.bash;
+      var toBeCopied = [
+        "comment",
+        "function-name",
+        "for-or-select",
+        "assign-left",
+        "parameter",
+        "string",
+        "environment",
+        "function",
+        "keyword",
+        "builtin",
+        "boolean",
+        "file-descriptor",
+        "operator",
+        "punctuation",
+        "number"
+      ];
+      var inside = insideString.variable[1].inside;
+      for (var i = 0; i < toBeCopied.length; i++) {
+        inside[toBeCopied[i]] = Prism3.languages.bash[toBeCopied[i]];
+      }
+      Prism3.languages.sh = Prism3.languages.bash;
+      Prism3.languages.shell = Prism3.languages.bash;
+    })(Prism2);
+  }
+  __name(bash, "bash");
+
+  // node_modules/refractor/lang/csharp.js
+  csharp.displayName = "csharp";
+  csharp.aliases = ["cs", "dotnet"];
+  function csharp(Prism2) {
+    Prism2.register(clike);
+    (function(Prism3) {
+      function replace(pattern, replacements) {
+        return pattern.replace(/<<(\d+)>>/g, function(m, index) {
+          return "(?:" + replacements[+index] + ")";
+        });
+      }
+      __name(replace, "replace");
+      function re(pattern, replacements, flags) {
+        return RegExp(replace(pattern, replacements), flags || "");
+      }
+      __name(re, "re");
+      function nested(pattern, depthLog2) {
+        for (var i = 0; i < depthLog2; i++) {
+          pattern = pattern.replace(/<<self>>/g, function() {
+            return "(?:" + pattern + ")";
+          });
+        }
+        return pattern.replace(/<<self>>/g, "[^\\s\\S]");
+      }
+      __name(nested, "nested");
+      var keywordKinds = {
+        // keywords which represent a return or variable type
+        type: "bool byte char decimal double dynamic float int long object sbyte short string uint ulong ushort var void",
+        // keywords which are used to declare a type
+        typeDeclaration: "class enum interface record struct",
+        // contextual keywords
+        // ("var" and "dynamic" are missing because they are used like types)
+        contextual: "add alias and ascending async await by descending from(?=\\s*(?:\\w|$)) get global group into init(?=\\s*;) join let nameof not notnull on or orderby partial remove select set unmanaged value when where with(?=\\s*{)",
+        // all other keywords
+        other: "abstract as base break case catch checked const continue default delegate do else event explicit extern finally fixed for foreach goto if implicit in internal is lock namespace new null operator out override params private protected public readonly ref return sealed sizeof stackalloc static switch this throw try typeof unchecked unsafe using virtual volatile while yield"
+      };
+      function keywordsToPattern(words) {
+        return "\\b(?:" + words.trim().replace(/ /g, "|") + ")\\b";
+      }
+      __name(keywordsToPattern, "keywordsToPattern");
+      var typeDeclarationKeywords = keywordsToPattern(
+        keywordKinds.typeDeclaration
+      );
+      var keywords = RegExp(
+        keywordsToPattern(
+          keywordKinds.type + " " + keywordKinds.typeDeclaration + " " + keywordKinds.contextual + " " + keywordKinds.other
+        )
+      );
+      var nonTypeKeywords = keywordsToPattern(
+        keywordKinds.typeDeclaration + " " + keywordKinds.contextual + " " + keywordKinds.other
+      );
+      var nonContextualKeywords = keywordsToPattern(
+        keywordKinds.type + " " + keywordKinds.typeDeclaration + " " + keywordKinds.other
+      );
+      var generic = nested(/<(?:[^<>;=+\-*/%&|^]|<<self>>)*>/.source, 2);
+      var nestedRound = nested(/\((?:[^()]|<<self>>)*\)/.source, 2);
+      var name = /@?\b[A-Za-z_]\w*\b/.source;
+      var genericName = replace(/<<0>>(?:\s*<<1>>)?/.source, [name, generic]);
+      var identifier = replace(/(?!<<0>>)<<1>>(?:\s*\.\s*<<1>>)*/.source, [
+        nonTypeKeywords,
+        genericName
+      ]);
+      var array = /\[\s*(?:,\s*)*\]/.source;
+      var typeExpressionWithoutTuple = replace(
+        /<<0>>(?:\s*(?:\?\s*)?<<1>>)*(?:\s*\?)?/.source,
+        [identifier, array]
+      );
+      var tupleElement = replace(
+        /[^,()<>[\];=+\-*/%&|^]|<<0>>|<<1>>|<<2>>/.source,
+        [generic, nestedRound, array]
+      );
+      var tuple = replace(/\(<<0>>+(?:,<<0>>+)+\)/.source, [tupleElement]);
+      var typeExpression = replace(
+        /(?:<<0>>|<<1>>)(?:\s*(?:\?\s*)?<<2>>)*(?:\s*\?)?/.source,
+        [tuple, identifier, array]
+      );
+      var typeInside = {
+        keyword: keywords,
+        punctuation: /[<>()?,.:[\]]/
+      };
+      var character = /'(?:[^\r\n'\\]|\\.|\\[Uux][\da-fA-F]{1,8})'/.source;
+      var regularString = /"(?:\\.|[^\\"\r\n])*"/.source;
+      var verbatimString = /@"(?:""|\\[\s\S]|[^\\"])*"(?!")/.source;
+      Prism3.languages.csharp = Prism3.languages.extend("clike", {
+        string: [
+          {
+            pattern: re(/(^|[^$\\])<<0>>/.source, [verbatimString]),
+            lookbehind: true,
+            greedy: true
+          },
+          {
+            pattern: re(/(^|[^@$\\])<<0>>/.source, [regularString]),
+            lookbehind: true,
+            greedy: true
+          }
+        ],
+        "class-name": [
+          {
+            // Using static
+            // using static System.Math;
+            pattern: re(/(\busing\s+static\s+)<<0>>(?=\s*;)/.source, [
+              identifier
+            ]),
+            lookbehind: true,
+            inside: typeInside
+          },
+          {
+            // Using alias (type)
+            // using Project = PC.MyCompany.Project;
+            pattern: re(/(\busing\s+<<0>>\s*=\s*)<<1>>(?=\s*;)/.source, [
+              name,
+              typeExpression
+            ]),
+            lookbehind: true,
+            inside: typeInside
+          },
+          {
+            // Using alias (alias)
+            // using Project = PC.MyCompany.Project;
+            pattern: re(/(\busing\s+)<<0>>(?=\s*=)/.source, [name]),
+            lookbehind: true
+          },
+          {
+            // Type declarations
+            // class Foo<A, B>
+            // interface Foo<out A, B>
+            pattern: re(/(\b<<0>>\s+)<<1>>/.source, [
+              typeDeclarationKeywords,
+              genericName
+            ]),
+            lookbehind: true,
+            inside: typeInside
+          },
+          {
+            // Single catch exception declaration
+            // catch(Foo)
+            // (things like catch(Foo e) is covered by variable declaration)
+            pattern: re(/(\bcatch\s*\(\s*)<<0>>/.source, [identifier]),
+            lookbehind: true,
+            inside: typeInside
+          },
+          {
+            // Name of the type parameter of generic constraints
+            // where Foo : class
+            pattern: re(/(\bwhere\s+)<<0>>/.source, [name]),
+            lookbehind: true
+          },
+          {
+            // Casts and checks via as and is.
+            // as Foo<A>, is Bar<B>
+            // (things like if(a is Foo b) is covered by variable declaration)
+            pattern: re(/(\b(?:is(?:\s+not)?|as)\s+)<<0>>/.source, [
+              typeExpressionWithoutTuple
+            ]),
+            lookbehind: true,
+            inside: typeInside
+          },
+          {
+            // Variable, field and parameter declaration
+            // (Foo bar, Bar baz, Foo[,,] bay, Foo<Bar, FooBar<Bar>> bax)
+            pattern: re(
+              /\b<<0>>(?=\s+(?!<<1>>|with\s*\{)<<2>>(?:\s*[=,;:{)\]]|\s+(?:in|when)\b))/.source,
+              [typeExpression, nonContextualKeywords, name]
+            ),
+            inside: typeInside
+          }
+        ],
+        keyword: keywords,
+        // https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/language-specification/lexical-structure#literals
+        number: /(?:\b0(?:x[\da-f_]*[\da-f]|b[01_]*[01])|(?:\B\.\d+(?:_+\d+)*|\b\d+(?:_+\d+)*(?:\.\d+(?:_+\d+)*)?)(?:e[-+]?\d+(?:_+\d+)*)?)(?:[dflmu]|lu|ul)?\b/i,
+        operator: />>=?|<<=?|[-=]>|([-+&|])\1|~|\?\?=?|[-+*/%&|^!=<>]=?/,
+        punctuation: /\?\.?|::|[{}[\];(),.:]/
+      });
+      Prism3.languages.insertBefore("csharp", "number", {
+        range: {
+          pattern: /\.\./,
+          alias: "operator"
+        }
+      });
+      Prism3.languages.insertBefore("csharp", "punctuation", {
+        "named-parameter": {
+          pattern: re(/([(,]\s*)<<0>>(?=\s*:)/.source, [name]),
+          lookbehind: true,
+          alias: "punctuation"
+        }
+      });
+      Prism3.languages.insertBefore("csharp", "class-name", {
+        namespace: {
+          // namespace Foo.Bar {}
+          // using Foo.Bar;
+          pattern: re(
+            /(\b(?:namespace|using)\s+)<<0>>(?:\s*\.\s*<<0>>)*(?=\s*[;{])/.source,
+            [name]
+          ),
+          lookbehind: true,
+          inside: {
+            punctuation: /\./
+          }
+        },
+        "type-expression": {
+          // default(Foo), typeof(Foo<Bar>), sizeof(int)
+          pattern: re(
+            /(\b(?:default|sizeof|typeof)\s*\(\s*(?!\s))(?:[^()\s]|\s(?!\s)|<<0>>)*(?=\s*\))/.source,
+            [nestedRound]
+          ),
+          lookbehind: true,
+          alias: "class-name",
+          inside: typeInside
+        },
+        "return-type": {
+          // Foo<Bar> ForBar(); Foo IFoo.Bar() => 0
+          // int this[int index] => 0; T IReadOnlyList<T>.this[int index] => this[index];
+          // int Foo => 0; int Foo { get; set } = 0;
+          pattern: re(
+            /<<0>>(?=\s+(?:<<1>>\s*(?:=>|[({]|\.\s*this\s*\[)|this\s*\[))/.source,
+            [typeExpression, identifier]
+          ),
+          inside: typeInside,
+          alias: "class-name"
+        },
+        "constructor-invocation": {
+          // new List<Foo<Bar[]>> { }
+          pattern: re(/(\bnew\s+)<<0>>(?=\s*[[({])/.source, [typeExpression]),
+          lookbehind: true,
+          inside: typeInside,
+          alias: "class-name"
+        },
+        /*'explicit-implementation': {
+        // int IFoo<Foo>.Bar => 0; void IFoo<Foo<Foo>>.Foo<T>();
+        pattern: replace(/\b<<0>>(?=\.<<1>>)/, className, methodOrPropertyDeclaration),
+        inside: classNameInside,
+        alias: 'class-name'
+        },*/
+        "generic-method": {
+          // foo<Bar>()
+          pattern: re(/<<0>>\s*<<1>>(?=\s*\()/.source, [name, generic]),
+          inside: {
+            function: re(/^<<0>>/.source, [name]),
+            generic: {
+              pattern: RegExp(generic),
+              alias: "class-name",
+              inside: typeInside
+            }
+          }
+        },
+        "type-list": {
+          // The list of types inherited or of generic constraints
+          // class Foo<F> : Bar, IList<FooBar>
+          // where F : Bar, IList<int>
+          pattern: re(
+            /\b((?:<<0>>\s+<<1>>|record\s+<<1>>\s*<<5>>|where\s+<<2>>)\s*:\s*)(?:<<3>>|<<4>>|<<1>>\s*<<5>>|<<6>>)(?:\s*,\s*(?:<<3>>|<<4>>|<<6>>))*(?=\s*(?:where|[{;]|=>|$))/.source,
+            [
+              typeDeclarationKeywords,
+              genericName,
+              name,
+              typeExpression,
+              keywords.source,
+              nestedRound,
+              /\bnew\s*\(\s*\)/.source
+            ]
+          ),
+          lookbehind: true,
+          inside: {
+            "record-arguments": {
+              pattern: re(/(^(?!new\s*\()<<0>>\s*)<<1>>/.source, [
+                genericName,
+                nestedRound
+              ]),
+              lookbehind: true,
+              greedy: true,
+              inside: Prism3.languages.csharp
+            },
+            keyword: keywords,
+            "class-name": {
+              pattern: RegExp(typeExpression),
+              greedy: true,
+              inside: typeInside
+            },
+            punctuation: /[,()]/
+          }
+        },
+        preprocessor: {
+          pattern: /(^[\t ]*)#.*/m,
+          lookbehind: true,
+          alias: "property",
+          inside: {
+            // highlight preprocessor directives as keywords
+            directive: {
+              pattern: /(#)\b(?:define|elif|else|endif|endregion|error|if|line|nullable|pragma|region|undef|warning)\b/,
+              lookbehind: true,
+              alias: "keyword"
+            }
+          }
+        }
+      });
+      var regularStringOrCharacter = regularString + "|" + character;
+      var regularStringCharacterOrComment = replace(
+        /\/(?![*/])|\/\/[^\r\n]*[\r\n]|\/\*(?:[^*]|\*(?!\/))*\*\/|<<0>>/.source,
+        [regularStringOrCharacter]
+      );
+      var roundExpression = nested(
+        replace(/[^"'/()]|<<0>>|\(<<self>>*\)/.source, [
+          regularStringCharacterOrComment
+        ]),
+        2
+      );
+      var attrTarget = /\b(?:assembly|event|field|method|module|param|property|return|type)\b/.source;
+      var attr = replace(/<<0>>(?:\s*\(<<1>>*\))?/.source, [
+        identifier,
+        roundExpression
+      ]);
+      Prism3.languages.insertBefore("csharp", "class-name", {
+        attribute: {
+          // Attributes
+          // [Foo], [Foo(1), Bar(2, Prop = "foo")], [return: Foo(1), Bar(2)], [assembly: Foo(Bar)]
+          pattern: re(
+            /((?:^|[^\s\w>)?])\s*\[\s*)(?:<<0>>\s*:\s*)?<<1>>(?:\s*,\s*<<1>>)*(?=\s*\])/.source,
+            [attrTarget, attr]
+          ),
+          lookbehind: true,
+          greedy: true,
+          inside: {
+            target: {
+              pattern: re(/^<<0>>(?=\s*:)/.source, [attrTarget]),
+              alias: "keyword"
+            },
+            "attribute-arguments": {
+              pattern: re(/\(<<0>>*\)/.source, [roundExpression]),
+              inside: Prism3.languages.csharp
+            },
+            "class-name": {
+              pattern: RegExp(identifier),
+              inside: {
+                punctuation: /\./
+              }
+            },
+            punctuation: /[:,]/
+          }
+        }
+      });
+      var formatString = /:[^}\r\n]+/.source;
+      var mInterpolationRound = nested(
+        replace(/[^"'/()]|<<0>>|\(<<self>>*\)/.source, [
+          regularStringCharacterOrComment
+        ]),
+        2
+      );
+      var mInterpolation = replace(/\{(?!\{)(?:(?![}:])<<0>>)*<<1>>?\}/.source, [
+        mInterpolationRound,
+        formatString
+      ]);
+      var sInterpolationRound = nested(
+        replace(
+          /[^"'/()]|\/(?!\*)|\/\*(?:[^*]|\*(?!\/))*\*\/|<<0>>|\(<<self>>*\)/.source,
+          [regularStringOrCharacter]
+        ),
+        2
+      );
+      var sInterpolation = replace(/\{(?!\{)(?:(?![}:])<<0>>)*<<1>>?\}/.source, [
+        sInterpolationRound,
+        formatString
+      ]);
+      function createInterpolationInside(interpolation, interpolationRound) {
+        return {
+          interpolation: {
+            pattern: re(/((?:^|[^{])(?:\{\{)*)<<0>>/.source, [interpolation]),
+            lookbehind: true,
+            inside: {
+              "format-string": {
+                pattern: re(/(^\{(?:(?![}:])<<0>>)*)<<1>>(?=\}$)/.source, [
+                  interpolationRound,
+                  formatString
+                ]),
+                lookbehind: true,
+                inside: {
+                  punctuation: /^:/
+                }
+              },
+              punctuation: /^\{|\}$/,
+              expression: {
+                pattern: /[\s\S]+/,
+                alias: "language-csharp",
+                inside: Prism3.languages.csharp
+              }
+            }
+          },
+          string: /[\s\S]+/
+        };
+      }
+      __name(createInterpolationInside, "createInterpolationInside");
+      Prism3.languages.insertBefore("csharp", "string", {
+        "interpolation-string": [
+          {
+            pattern: re(
+              /(^|[^\\])(?:\$@|@\$)"(?:""|\\[\s\S]|\{\{|<<0>>|[^\\{"])*"/.source,
+              [mInterpolation]
+            ),
+            lookbehind: true,
+            greedy: true,
+            inside: createInterpolationInside(mInterpolation, mInterpolationRound)
+          },
+          {
+            pattern: re(/(^|[^@\\])\$"(?:\\.|\{\{|<<0>>|[^\\"{])*"/.source, [
+              sInterpolation
+            ]),
+            lookbehind: true,
+            greedy: true,
+            inside: createInterpolationInside(sInterpolation, sInterpolationRound)
+          }
+        ],
+        char: {
+          pattern: RegExp(character),
+          greedy: true
+        }
+      });
+      Prism3.languages.dotnet = Prism3.languages.cs = Prism3.languages.csharp;
+    })(Prism2);
+  }
+  __name(csharp, "csharp");
+
+  // node_modules/refractor/lang/markup.js
+  markup.displayName = "markup";
+  markup.aliases = ["atom", "html", "mathml", "rss", "ssml", "svg", "xml"];
+  function markup(Prism2) {
+    Prism2.languages.markup = {
+      comment: {
+        pattern: /<!--(?:(?!<!--)[\s\S])*?-->/,
+        greedy: true
+      },
+      prolog: {
+        pattern: /<\?[\s\S]+?\?>/,
+        greedy: true
+      },
+      doctype: {
+        // https://www.w3.org/TR/xml/#NT-doctypedecl
+        pattern: /<!DOCTYPE(?:[^>"'[\]]|"[^"]*"|'[^']*')+(?:\[(?:[^<"'\]]|"[^"]*"|'[^']*'|<(?!!--)|<!--(?:[^-]|-(?!->))*-->)*\]\s*)?>/i,
+        greedy: true,
+        inside: {
+          "internal-subset": {
+            pattern: /(^[^\[]*\[)[\s\S]+(?=\]>$)/,
+            lookbehind: true,
+            greedy: true,
+            inside: null
+            // see below
+          },
+          string: {
+            pattern: /"[^"]*"|'[^']*'/,
+            greedy: true
+          },
+          punctuation: /^<!|>$|[[\]]/,
+          "doctype-tag": /^DOCTYPE/i,
+          name: /[^\s<>'"]+/
+        }
+      },
+      cdata: {
+        pattern: /<!\[CDATA\[[\s\S]*?\]\]>/i,
+        greedy: true
+      },
+      tag: {
+        pattern: /<\/?(?!\d)[^\s>\/=$<%]+(?:\s(?:\s*[^\s>\/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s'">=]+(?=[\s>]))|(?=[\s/>])))+)?\s*\/?>/,
+        greedy: true,
+        inside: {
+          tag: {
+            pattern: /^<\/?[^\s>\/]+/,
+            inside: {
+              punctuation: /^<\/?/,
+              namespace: /^[^\s>\/:]+:/
+            }
+          },
+          "special-attr": [],
+          "attr-value": {
+            pattern: /=\s*(?:"[^"]*"|'[^']*'|[^\s'">=]+)/,
+            inside: {
+              punctuation: [
+                {
+                  pattern: /^=/,
+                  alias: "attr-equals"
+                },
+                {
+                  pattern: /^(\s*)["']|["']$/,
+                  lookbehind: true
+                }
+              ]
+            }
+          },
+          punctuation: /\/?>/,
+          "attr-name": {
+            pattern: /[^\s>\/]+/,
+            inside: {
+              namespace: /^[^\s>\/:]+:/
+            }
+          }
+        }
+      },
+      entity: [
+        {
+          pattern: /&[\da-z]{1,8};/i,
+          alias: "named-entity"
+        },
+        /&#x?[\da-f]{1,8};/i
+      ]
+    };
+    Prism2.languages.markup["tag"].inside["attr-value"].inside["entity"] = Prism2.languages.markup["entity"];
+    Prism2.languages.markup["doctype"].inside["internal-subset"].inside = Prism2.languages.markup;
+    Prism2.hooks.add("wrap", function(env) {
+      if (env.type === "entity") {
+        env.attributes["title"] = env.content.value.replace(/&amp;/, "&");
+      }
+    });
+    Object.defineProperty(Prism2.languages.markup.tag, "addInlined", {
+      /**
+       * Adds an inlined language to markup.
+       *
+       * An example of an inlined language is CSS with `<style>` tags.
+       *
+       * @param {string} tagName The name of the tag that contains the inlined language. This name will be treated as
+       * case insensitive.
+       * @param {string} lang The language key.
+       * @example
+       * addInlined('style', 'css');
+       */
+      value: /* @__PURE__ */ __name(function addInlined(tagName, lang) {
+        var includedCdataInside = {};
+        includedCdataInside["language-" + lang] = {
+          pattern: /(^<!\[CDATA\[)[\s\S]+?(?=\]\]>$)/i,
+          lookbehind: true,
+          inside: Prism2.languages[lang]
+        };
+        includedCdataInside["cdata"] = /^<!\[CDATA\[|\]\]>$/i;
+        var inside = {
+          "included-cdata": {
+            pattern: /<!\[CDATA\[[\s\S]*?\]\]>/i,
+            inside: includedCdataInside
+          }
+        };
+        inside["language-" + lang] = {
+          pattern: /[\s\S]+/,
+          inside: Prism2.languages[lang]
+        };
+        var def = {};
+        def[tagName] = {
+          pattern: RegExp(
+            /(<__[^>]*>)(?:<!\[CDATA\[(?:[^\]]|\](?!\]>))*\]\]>|(?!<!\[CDATA\[)[\s\S])*?(?=<\/__>)/.source.replace(
+              /__/g,
+              function() {
+                return tagName;
+              }
+            ),
+            "i"
+          ),
+          lookbehind: true,
+          greedy: true,
+          inside
+        };
+        Prism2.languages.insertBefore("markup", "cdata", def);
+      }, "addInlined")
+    });
+    Object.defineProperty(Prism2.languages.markup.tag, "addAttribute", {
+      /**
+       * Adds an pattern to highlight languages embedded in HTML attributes.
+       *
+       * An example of an inlined language is CSS with `style` attributes.
+       *
+       * @param {string} attrName The name of the tag that contains the inlined language. This name will be treated as
+       * case insensitive.
+       * @param {string} lang The language key.
+       * @example
+       * addAttribute('style', 'css');
+       */
+      value: /* @__PURE__ */ __name(function(attrName, lang) {
+        Prism2.languages.markup.tag.inside["special-attr"].push({
+          pattern: RegExp(
+            /(^|["'\s])/.source + "(?:" + attrName + ")" + /\s*=\s*(?:"[^"]*"|'[^']*'|[^\s'">=]+(?=[\s>]))/.source,
+            "i"
+          ),
+          lookbehind: true,
+          inside: {
+            "attr-name": /^[^\s=]+/,
+            "attr-value": {
+              pattern: /=[\s\S]+/,
+              inside: {
+                value: {
+                  pattern: /(^=\s*(["']|(?!["'])))\S[\s\S]*(?=\2$)/,
+                  lookbehind: true,
+                  alias: [lang, "language-" + lang],
+                  inside: Prism2.languages[lang]
+                },
+                punctuation: [
+                  {
+                    pattern: /^=/,
+                    alias: "attr-equals"
+                  },
+                  /"|'/
+                ]
+              }
+            }
+          }
+        });
+      }, "value")
+    });
+    Prism2.languages.html = Prism2.languages.markup;
+    Prism2.languages.mathml = Prism2.languages.markup;
+    Prism2.languages.svg = Prism2.languages.markup;
+    Prism2.languages.xml = Prism2.languages.extend("markup", {});
+    Prism2.languages.ssml = Prism2.languages.xml;
+    Prism2.languages.atom = Prism2.languages.xml;
+    Prism2.languages.rss = Prism2.languages.xml;
+  }
+  __name(markup, "markup");
+
+  // node_modules/refractor/lang/css.js
+  css.displayName = "css";
+  css.aliases = [];
+  function css(Prism2) {
+    ;
+    (function(Prism3) {
+      var string = /(?:"(?:\\(?:\r\n|[\s\S])|[^"\\\r\n])*"|'(?:\\(?:\r\n|[\s\S])|[^'\\\r\n])*')/;
+      Prism3.languages.css = {
+        comment: /\/\*[\s\S]*?\*\//,
+        atrule: {
+          pattern: RegExp(
+            "@[\\w-](?:" + /[^;{\s"']|\s+(?!\s)/.source + "|" + string.source + ")*?" + /(?:;|(?=\s*\{))/.source
+          ),
+          inside: {
+            rule: /^@[\w-]+/,
+            "selector-function-argument": {
+              pattern: /(\bselector\s*\(\s*(?![\s)]))(?:[^()\s]|\s+(?![\s)])|\((?:[^()]|\([^()]*\))*\))+(?=\s*\))/,
+              lookbehind: true,
+              alias: "selector"
+            },
+            keyword: {
+              pattern: /(^|[^\w-])(?:and|not|only|or)(?![\w-])/,
+              lookbehind: true
+            }
+            // See rest below
+          }
+        },
+        url: {
+          // https://drafts.csswg.org/css-values-3/#urls
+          pattern: RegExp(
+            "\\burl\\((?:" + string.source + "|" + /(?:[^\\\r\n()"']|\\[\s\S])*/.source + ")\\)",
+            "i"
+          ),
+          greedy: true,
+          inside: {
+            function: /^url/i,
+            punctuation: /^\(|\)$/,
+            string: {
+              pattern: RegExp("^" + string.source + "$"),
+              alias: "url"
+            }
+          }
+        },
+        selector: {
+          pattern: RegExp(
+            `(^|[{}\\s])[^{}\\s](?:[^{};"'\\s]|\\s+(?![\\s{])|` + string.source + ")*(?=\\s*\\{)"
+          ),
+          lookbehind: true
+        },
+        string: {
+          pattern: string,
+          greedy: true
+        },
+        property: {
+          pattern: /(^|[^-\w\xA0-\uFFFF])(?!\s)[-_a-z\xA0-\uFFFF](?:(?!\s)[-\w\xA0-\uFFFF])*(?=\s*:)/i,
+          lookbehind: true
+        },
+        important: /!important\b/i,
+        function: {
+          pattern: /(^|[^-a-z0-9])[-a-z0-9]+(?=\()/i,
+          lookbehind: true
+        },
+        punctuation: /[(){};:,]/
+      };
+      Prism3.languages.css["atrule"].inside.rest = Prism3.languages.css;
+      var markup2 = Prism3.languages.markup;
+      if (markup2) {
+        markup2.tag.addInlined("style", "css");
+        markup2.tag.addAttribute("style", "css");
+      }
+    })(Prism2);
+  }
+  __name(css, "css");
+
+  // node_modules/refractor/lang/diff.js
+  diff.displayName = "diff";
+  diff.aliases = [];
+  function diff(Prism2) {
+    ;
+    (function(Prism3) {
+      Prism3.languages.diff = {
+        coord: [
+          // Match all kinds of coord lines (prefixed by "+++", "---" or "***").
+          /^(?:\*{3}|-{3}|\+{3}).*$/m,
+          // Match "@@ ... @@" coord lines in unified diff.
+          /^@@.*@@$/m,
+          // Match coord lines in normal diff (starts with a number).
+          /^\d.*$/m
+        ]
+        // deleted, inserted, unchanged, diff
+      };
+      var PREFIXES = {
+        "deleted-sign": "-",
+        "deleted-arrow": "<",
+        "inserted-sign": "+",
+        "inserted-arrow": ">",
+        unchanged: " ",
+        diff: "!"
+      };
+      Object.keys(PREFIXES).forEach(function(name) {
+        var prefix = PREFIXES[name];
+        var alias2 = [];
+        if (!/^\w+$/.test(name)) {
+          alias2.push(/\w+/.exec(name)[0]);
+        }
+        if (name === "diff") {
+          alias2.push("bold");
+        }
+        Prism3.languages.diff[name] = {
+          pattern: RegExp(
+            "^(?:[" + prefix + "].*(?:\r\n?|\n|(?![\\s\\S])))+",
+            "m"
+          ),
+          alias: alias2,
+          inside: {
+            line: {
+              pattern: /(.)(?=[\s\S]).*(?:\r\n?|\n)?/,
+              lookbehind: true
+            },
+            prefix: {
+              pattern: /[\s\S]/,
+              alias: /\w+/.exec(name)[0]
+            }
+          }
+        };
+      });
+      Object.defineProperty(Prism3.languages.diff, "PREFIXES", {
+        value: PREFIXES
+      });
+    })(Prism2);
+  }
+  __name(diff, "diff");
+
+  // node_modules/refractor/lang/go.js
+  go.displayName = "go";
+  go.aliases = [];
+  function go(Prism2) {
+    Prism2.register(clike);
+    Prism2.languages.go = Prism2.languages.extend("clike", {
+      string: {
+        pattern: /(^|[^\\])"(?:\\.|[^"\\\r\n])*"|`[^`]*`/,
+        lookbehind: true,
+        greedy: true
+      },
+      keyword: /\b(?:break|case|chan|const|continue|default|defer|else|fallthrough|for|func|go(?:to)?|if|import|interface|map|package|range|return|select|struct|switch|type|var)\b/,
+      boolean: /\b(?:_|false|iota|nil|true)\b/,
+      number: [
+        // binary and octal integers
+        /\b0(?:b[01_]+|o[0-7_]+)i?\b/i,
+        // hexadecimal integers and floats
+        /\b0x(?:[a-f\d_]+(?:\.[a-f\d_]*)?|\.[a-f\d_]+)(?:p[+-]?\d+(?:_\d+)*)?i?(?!\w)/i,
+        // decimal integers and floats
+        /(?:\b\d[\d_]*(?:\.[\d_]*)?|\B\.\d[\d_]*)(?:e[+-]?[\d_]+)?i?(?!\w)/i
+      ],
+      operator: /[*\/%^!=]=?|\+[=+]?|-[=-]?|\|[=|]?|&(?:=|&|\^=?)?|>(?:>=?|=)?|<(?:<=?|=|-)?|:=|\.\.\./,
+      builtin: /\b(?:append|bool|byte|cap|close|complex|complex(?:64|128)|copy|delete|error|float(?:32|64)|u?int(?:8|16|32|64)?|imag|len|make|new|panic|print(?:ln)?|real|recover|rune|string|uintptr)\b/
+    });
+    Prism2.languages.insertBefore("go", "string", {
+      char: {
+        pattern: /'(?:\\.|[^'\\\r\n]){0,10}'/,
+        greedy: true
+      }
+    });
+    delete Prism2.languages.go["class-name"];
+  }
+  __name(go, "go");
+
+  // node_modules/refractor/lang/ini.js
+  ini.displayName = "ini";
+  ini.aliases = [];
+  function ini(Prism2) {
+    Prism2.languages.ini = {
+      /**
+       * The component mimics the behavior of the Win32 API parser.
+       *
+       * @see {@link https://github.com/PrismJS/prism/issues/2775#issuecomment-787477723}
+       */
+      comment: {
+        pattern: /(^[ \f\t\v]*)[#;][^\n\r]*/m,
+        lookbehind: true
+      },
+      section: {
+        pattern: /(^[ \f\t\v]*)\[[^\n\r\]]*\]?/m,
+        lookbehind: true,
+        inside: {
+          "section-name": {
+            pattern: /(^\[[ \f\t\v]*)[^ \f\t\v\]]+(?:[ \f\t\v]+[^ \f\t\v\]]+)*/,
+            lookbehind: true,
+            alias: "selector"
+          },
+          punctuation: /\[|\]/
+        }
+      },
+      key: {
+        pattern: /(^[ \f\t\v]*)[^ \f\n\r\t\v=]+(?:[ \f\t\v]+[^ \f\n\r\t\v=]+)*(?=[ \f\t\v]*=)/m,
+        lookbehind: true,
+        alias: "attr-name"
+      },
+      value: {
+        pattern: /(=[ \f\t\v]*)[^ \f\n\r\t\v]+(?:[ \f\t\v]+[^ \f\n\r\t\v]+)*/,
+        lookbehind: true,
+        alias: "attr-value",
+        inside: {
+          "inner-value": {
+            pattern: /^("|').+(?=\1$)/,
+            lookbehind: true
+          }
+        }
+      },
+      punctuation: /=/
+    };
+  }
+  __name(ini, "ini");
+
+  // node_modules/refractor/lang/java.js
+  java.displayName = "java";
+  java.aliases = [];
+  function java(Prism2) {
+    Prism2.register(clike);
+    (function(Prism3) {
+      var keywords = /\b(?:abstract|assert|boolean|break|byte|case|catch|char|class|const|continue|default|do|double|else|enum|exports|extends|final|finally|float|for|goto|if|implements|import|instanceof|int|interface|long|module|native|new|non-sealed|null|open|opens|package|permits|private|protected|provides|public|record(?!\s*[(){}[\]<>=%~.:,;?+\-*/&|^])|requires|return|sealed|short|static|strictfp|super|switch|synchronized|this|throw|throws|to|transient|transitive|try|uses|var|void|volatile|while|with|yield)\b/;
+      var classNamePrefix = /(?:[a-z]\w*\s*\.\s*)*(?:[A-Z]\w*\s*\.\s*)*/.source;
+      var className = {
+        pattern: RegExp(
+          /(^|[^\w.])/.source + classNamePrefix + /[A-Z](?:[\d_A-Z]*[a-z]\w*)?\b/.source
+        ),
+        lookbehind: true,
+        inside: {
+          namespace: {
+            pattern: /^[a-z]\w*(?:\s*\.\s*[a-z]\w*)*(?:\s*\.)?/,
+            inside: {
+              punctuation: /\./
+            }
+          },
+          punctuation: /\./
+        }
+      };
+      Prism3.languages.java = Prism3.languages.extend("clike", {
+        string: {
+          pattern: /(^|[^\\])"(?:\\.|[^"\\\r\n])*"/,
+          lookbehind: true,
+          greedy: true
+        },
+        "class-name": [
+          className,
+          {
+            // variables, parameters, and constructor references
+            // this to support class names (or generic parameters) which do not contain a lower case letter (also works for methods)
+            pattern: RegExp(
+              /(^|[^\w.])/.source + classNamePrefix + /[A-Z]\w*(?=\s+\w+\s*[;,=()]|\s*(?:\[[\s,]*\]\s*)?::\s*new\b)/.source
+            ),
+            lookbehind: true,
+            inside: className.inside
+          },
+          {
+            // class names based on keyword
+            // this to support class names (or generic parameters) which do not contain a lower case letter (also works for methods)
+            pattern: RegExp(
+              /(\b(?:class|enum|extends|implements|instanceof|interface|new|record|throws)\s+)/.source + classNamePrefix + /[A-Z]\w*\b/.source
+            ),
+            lookbehind: true,
+            inside: className.inside
+          }
+        ],
+        keyword: keywords,
+        function: [
+          Prism3.languages.clike.function,
+          {
+            pattern: /(::\s*)[a-z_]\w*/,
+            lookbehind: true
+          }
+        ],
+        number: /\b0b[01][01_]*L?\b|\b0x(?:\.[\da-f_p+-]+|[\da-f_]+(?:\.[\da-f_p+-]+)?)\b|(?:\b\d[\d_]*(?:\.[\d_]*)?|\B\.\d[\d_]*)(?:e[+-]?\d[\d_]*)?[dfl]?/i,
+        operator: {
+          pattern: /(^|[^.])(?:<<=?|>>>?=?|->|--|\+\+|&&|\|\||::|[?:~]|[-+*/%&|^!=<>]=?)/m,
+          lookbehind: true
+        },
+        constant: /\b[A-Z][A-Z_\d]+\b/
+      });
+      Prism3.languages.insertBefore("java", "string", {
+        "triple-quoted-string": {
+          // http://openjdk.java.net/jeps/355#Description
+          pattern: /"""[ \t]*[\r\n](?:(?:"|"")?(?:\\.|[^"\\]))*"""/,
+          greedy: true,
+          alias: "string"
+        },
+        char: {
+          pattern: /'(?:\\.|[^'\\\r\n]){1,6}'/,
+          greedy: true
+        }
+      });
+      Prism3.languages.insertBefore("java", "class-name", {
+        annotation: {
+          pattern: /(^|[^.])@\w+(?:\s*\.\s*\w+)*/,
+          lookbehind: true,
+          alias: "punctuation"
+        },
+        generics: {
+          pattern: /<(?:[\w\s,.?]|&(?!&)|<(?:[\w\s,.?]|&(?!&)|<(?:[\w\s,.?]|&(?!&)|<(?:[\w\s,.?]|&(?!&))*>)*>)*>)*>/,
+          inside: {
+            "class-name": className,
+            keyword: keywords,
+            punctuation: /[<>(),.:]/,
+            operator: /[?&|]/
+          }
+        },
+        import: [
+          {
+            pattern: RegExp(
+              /(\bimport\s+)/.source + classNamePrefix + /(?:[A-Z]\w*|\*)(?=\s*;)/.source
+            ),
+            lookbehind: true,
+            inside: {
+              namespace: className.inside.namespace,
+              punctuation: /\./,
+              operator: /\*/,
+              "class-name": /\w+/
+            }
+          },
+          {
+            pattern: RegExp(
+              /(\bimport\s+static\s+)/.source + classNamePrefix + /(?:\w+|\*)(?=\s*;)/.source
+            ),
+            lookbehind: true,
+            alias: "static",
+            inside: {
+              namespace: className.inside.namespace,
+              static: /\b\w+$/,
+              punctuation: /\./,
+              operator: /\*/,
+              "class-name": /\w+/
+            }
+          }
+        ],
+        namespace: {
+          pattern: RegExp(
+            /(\b(?:exports|import(?:\s+static)?|module|open|opens|package|provides|requires|to|transitive|uses|with)\s+)(?!<keyword>)[a-z]\w*(?:\.[a-z]\w*)*\.?/.source.replace(
+              /<keyword>/g,
+              function() {
+                return keywords.source;
+              }
+            )
+          ),
+          lookbehind: true,
+          inside: {
+            punctuation: /\./
+          }
+        }
+      });
+    })(Prism2);
+  }
+  __name(java, "java");
+
+  // node_modules/refractor/lang/regex.js
+  regex.displayName = "regex";
+  regex.aliases = [];
+  function regex(Prism2) {
+    ;
+    (function(Prism3) {
+      var specialEscape = {
+        pattern: /\\[\\(){}[\]^$+*?|.]/,
+        alias: "escape"
+      };
+      var escape = /\\(?:x[\da-fA-F]{2}|u[\da-fA-F]{4}|u\{[\da-fA-F]+\}|0[0-7]{0,2}|[123][0-7]{2}|c[a-zA-Z]|.)/;
+      var charSet = {
+        pattern: /\.|\\[wsd]|\\p\{[^{}]+\}/i,
+        alias: "class-name"
+      };
+      var charSetWithoutDot = {
+        pattern: /\\[wsd]|\\p\{[^{}]+\}/i,
+        alias: "class-name"
+      };
+      var rangeChar = "(?:[^\\\\-]|" + escape.source + ")";
+      var range = RegExp(rangeChar + "-" + rangeChar);
+      var groupName = {
+        pattern: /(<|')[^<>']+(?=[>']$)/,
+        lookbehind: true,
+        alias: "variable"
+      };
+      Prism3.languages.regex = {
+        "char-class": {
+          pattern: /((?:^|[^\\])(?:\\\\)*)\[(?:[^\\\]]|\\[\s\S])*\]/,
+          lookbehind: true,
+          inside: {
+            "char-class-negation": {
+              pattern: /(^\[)\^/,
+              lookbehind: true,
+              alias: "operator"
+            },
+            "char-class-punctuation": {
+              pattern: /^\[|\]$/,
+              alias: "punctuation"
+            },
+            range: {
+              pattern: range,
+              inside: {
+                escape,
+                "range-punctuation": {
+                  pattern: /-/,
+                  alias: "operator"
+                }
+              }
+            },
+            "special-escape": specialEscape,
+            "char-set": charSetWithoutDot,
+            escape
+          }
+        },
+        "special-escape": specialEscape,
+        "char-set": charSet,
+        backreference: [
+          {
+            // a backreference which is not an octal escape
+            pattern: /\\(?![123][0-7]{2})[1-9]/,
+            alias: "keyword"
+          },
+          {
+            pattern: /\\k<[^<>']+>/,
+            alias: "keyword",
+            inside: {
+              "group-name": groupName
+            }
+          }
+        ],
+        anchor: {
+          pattern: /[$^]|\\[ABbGZz]/,
+          alias: "function"
+        },
+        escape,
+        group: [
+          {
+            // https://docs.oracle.com/javase/10/docs/api/java/util/regex/Pattern.html
+            // https://docs.microsoft.com/en-us/dotnet/standard/base-types/regular-expression-language-quick-reference?view=netframework-4.7.2#grouping-constructs
+            // (), (?<name>), (?'name'), (?>), (?:), (?=), (?!), (?<=), (?<!), (?is-m), (?i-m:)
+            pattern: /\((?:\?(?:<[^<>']+>|'[^<>']+'|[>:]|<?[=!]|[idmnsuxU]+(?:-[idmnsuxU]+)?:?))?/,
+            alias: "punctuation",
+            inside: {
+              "group-name": groupName
+            }
+          },
+          {
+            pattern: /\)/,
+            alias: "punctuation"
+          }
+        ],
+        quantifier: {
+          pattern: /(?:[+*?]|\{\d+(?:,\d*)?\})[?+]?/,
+          alias: "number"
+        },
+        alternation: {
+          pattern: /\|/,
+          alias: "keyword"
+        }
+      };
+    })(Prism2);
+  }
+  __name(regex, "regex");
+
+  // node_modules/refractor/lang/javascript.js
+  javascript.displayName = "javascript";
+  javascript.aliases = ["js"];
+  function javascript(Prism2) {
+    Prism2.register(clike);
+    Prism2.languages.javascript = Prism2.languages.extend("clike", {
+      "class-name": [
+        Prism2.languages.clike["class-name"],
+        {
+          pattern: /(^|[^$\w\xA0-\uFFFF])(?!\s)[_$A-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\.(?:constructor|prototype))/,
+          lookbehind: true
+        }
+      ],
+      keyword: [
+        {
+          pattern: /((?:^|\})\s*)catch\b/,
+          lookbehind: true
+        },
+        {
+          pattern: /(^|[^.]|\.\.\.\s*)\b(?:as|assert(?=\s*\{)|async(?=\s*(?:function\b|\(|[$\w\xA0-\uFFFF]|$))|await|break|case|class|const|continue|debugger|default|delete|do|else|enum|export|extends|finally(?=\s*(?:\{|$))|for|from(?=\s*(?:['"]|$))|function|(?:get|set)(?=\s*(?:[#\[$\w\xA0-\uFFFF]|$))|if|implements|import|in|instanceof|interface|let|new|null|of|package|private|protected|public|return|static|super|switch|this|throw|try|typeof|undefined|var|void|while|with|yield)\b/,
+          lookbehind: true
+        }
+      ],
+      // Allow for all non-ASCII characters (See http://stackoverflow.com/a/2008444)
+      function: /#?(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\s*(?:\.\s*(?:apply|bind|call)\s*)?\()/,
+      number: {
+        pattern: RegExp(
+          /(^|[^\w$])/.source + "(?:" + // constant
+          (/NaN|Infinity/.source + "|" + // binary integer
+          /0[bB][01]+(?:_[01]+)*n?/.source + "|" + // octal integer
+          /0[oO][0-7]+(?:_[0-7]+)*n?/.source + "|" + // hexadecimal integer
+          /0[xX][\dA-Fa-f]+(?:_[\dA-Fa-f]+)*n?/.source + "|" + // decimal bigint
+          /\d+(?:_\d+)*n/.source + "|" + // decimal number (integer or float) but no bigint
+          /(?:\d+(?:_\d+)*(?:\.(?:\d+(?:_\d+)*)?)?|\.\d+(?:_\d+)*)(?:[Ee][+-]?\d+(?:_\d+)*)?/.source) + ")" + /(?![\w$])/.source
+        ),
+        lookbehind: true
+      },
+      operator: /--|\+\+|\*\*=?|=>|&&=?|\|\|=?|[!=]==|<<=?|>>>?=?|[-+*/%&|^!=<>]=?|\.{3}|\?\?=?|\?\.?|[~:]/
+    });
+    Prism2.languages.javascript["class-name"][0].pattern = /(\b(?:class|extends|implements|instanceof|interface|new)\s+)[\w.\\]+/;
+    Prism2.languages.insertBefore("javascript", "keyword", {
+      regex: {
+        pattern: RegExp(
+          // lookbehind
+          // eslint-disable-next-line regexp/no-dupe-characters-character-class
+          /((?:^|[^$\w\xA0-\uFFFF."'\])\s]|\b(?:return|yield))\s*)/.source + // Regex pattern:
+          // There are 2 regex patterns here. The RegExp set notation proposal added support for nested character
+          // classes if the `v` flag is present. Unfortunately, nested CCs are both context-free and incompatible
+          // with the only syntax, so we have to define 2 different regex patterns.
+          /\//.source + "(?:" + /(?:\[(?:[^\]\\\r\n]|\\.)*\]|\\.|[^/\\\[\r\n])+\/[dgimyus]{0,7}/.source + "|" + // `v` flag syntax. This supports 3 levels of nested character classes.
+          /(?:\[(?:[^[\]\\\r\n]|\\.|\[(?:[^[\]\\\r\n]|\\.|\[(?:[^[\]\\\r\n]|\\.)*\])*\])*\]|\\.|[^/\\\[\r\n])+\/[dgimyus]{0,7}v[dgimyus]{0,7}/.source + ")" + // lookahead
+          /(?=(?:\s|\/\*(?:[^*]|\*(?!\/))*\*\/)*(?:$|[\r\n,.;:})\]]|\/\/))/.source
+        ),
+        lookbehind: true,
+        greedy: true,
+        inside: {
+          "regex-source": {
+            pattern: /^(\/)[\s\S]+(?=\/[a-z]*$)/,
+            lookbehind: true,
+            alias: "language-regex",
+            inside: Prism2.languages.regex
+          },
+          "regex-delimiter": /^\/|\/$/,
+          "regex-flags": /^[a-z]+$/
+        }
+      },
+      // This must be declared before keyword because we use "function" inside the look-forward
+      "function-variable": {
+        pattern: /#?(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\s*[=:]\s*(?:async\s*)?(?:\bfunction\b|(?:\((?:[^()]|\([^()]*\))*\)|(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*)\s*=>))/,
+        alias: "function"
+      },
+      parameter: [
+        {
+          pattern: /(function(?:\s+(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*)?\s*\(\s*)(?!\s)(?:[^()\s]|\s+(?![\s)])|\([^()]*\))+(?=\s*\))/,
+          lookbehind: true,
+          inside: Prism2.languages.javascript
+        },
+        {
+          pattern: /(^|[^$\w\xA0-\uFFFF])(?!\s)[_$a-z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\s*=>)/i,
+          lookbehind: true,
+          inside: Prism2.languages.javascript
+        },
+        {
+          pattern: /(\(\s*)(?!\s)(?:[^()\s]|\s+(?![\s)])|\([^()]*\))+(?=\s*\)\s*=>)/,
+          lookbehind: true,
+          inside: Prism2.languages.javascript
+        },
+        {
+          pattern: /((?:\b|\s|^)(?!(?:as|async|await|break|case|catch|class|const|continue|debugger|default|delete|do|else|enum|export|extends|finally|for|from|function|get|if|implements|import|in|instanceof|interface|let|new|null|of|package|private|protected|public|return|set|static|super|switch|this|throw|try|typeof|undefined|var|void|while|with|yield)(?![$\w\xA0-\uFFFF]))(?:(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*\s*)\(\s*|\]\s*\(\s*)(?!\s)(?:[^()\s]|\s+(?![\s)])|\([^()]*\))+(?=\s*\)\s*\{)/,
+          lookbehind: true,
+          inside: Prism2.languages.javascript
+        }
+      ],
+      constant: /\b[A-Z](?:[A-Z_]|\dx?)*\b/
+    });
+    Prism2.languages.insertBefore("javascript", "string", {
+      hashbang: {
+        pattern: /^#!.*/,
+        greedy: true,
+        alias: "comment"
+      },
+      "template-string": {
+        pattern: /`(?:\\[\s\S]|\$\{(?:[^{}]|\{(?:[^{}]|\{[^}]*\})*\})+\}|(?!\$\{)[^\\`])*`/,
+        greedy: true,
+        inside: {
+          "template-punctuation": {
+            pattern: /^`|`$/,
+            alias: "string"
+          },
+          interpolation: {
+            pattern: /((?:^|[^\\])(?:\\{2})*)\$\{(?:[^{}]|\{(?:[^{}]|\{[^}]*\})*\})+\}/,
+            lookbehind: true,
+            inside: {
+              "interpolation-punctuation": {
+                pattern: /^\$\{|\}$/,
+                alias: "punctuation"
+              },
+              rest: Prism2.languages.javascript
+            }
+          },
+          string: /[\s\S]+/
+        }
+      },
+      "string-property": {
+        pattern: /((?:^|[,{])[ \t]*)(["'])(?:\\(?:\r\n|[\s\S])|(?!\2)[^\\\r\n])*\2(?=\s*:)/m,
+        lookbehind: true,
+        greedy: true,
+        alias: "property"
+      }
+    });
+    Prism2.languages.insertBefore("javascript", "operator", {
+      "literal-property": {
+        pattern: /((?:^|[,{])[ \t]*)(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\s*:)/m,
+        lookbehind: true,
+        alias: "property"
+      }
+    });
+    if (Prism2.languages.markup) {
+      Prism2.languages.markup.tag.addInlined("script", "javascript");
+      Prism2.languages.markup.tag.addAttribute(
+        /on(?:abort|blur|change|click|composition(?:end|start|update)|dblclick|error|focus(?:in|out)?|key(?:down|up)|load|mouse(?:down|enter|leave|move|out|over|up)|reset|resize|scroll|select|slotchange|submit|unload|wheel)/.source,
+        "javascript"
+      );
+    }
+    Prism2.languages.js = Prism2.languages.javascript;
+  }
+  __name(javascript, "javascript");
+
+  // node_modules/refractor/lang/json.js
+  json.displayName = "json";
+  json.aliases = ["webmanifest"];
+  function json(Prism2) {
+    Prism2.languages.json = {
+      property: {
+        pattern: /(^|[^\\])"(?:\\.|[^\\"\r\n])*"(?=\s*:)/,
+        lookbehind: true,
+        greedy: true
+      },
+      string: {
+        pattern: /(^|[^\\])"(?:\\.|[^\\"\r\n])*"(?!\s*:)/,
+        lookbehind: true,
+        greedy: true
+      },
+      comment: {
+        pattern: /\/\/.*|\/\*[\s\S]*?(?:\*\/|$)/,
+        greedy: true
+      },
+      number: /-?\b\d+(?:\.\d+)?(?:e[+-]?\d+)?\b/i,
+      punctuation: /[{}[\],]/,
+      operator: /:/,
+      boolean: /\b(?:false|true)\b/,
+      null: {
+        pattern: /\bnull\b/,
+        alias: "keyword"
+      }
+    };
+    Prism2.languages.webmanifest = Prism2.languages.json;
+  }
+  __name(json, "json");
+
+  // node_modules/refractor/lang/kotlin.js
+  kotlin.displayName = "kotlin";
+  kotlin.aliases = ["kt", "kts"];
+  function kotlin(Prism2) {
+    Prism2.register(clike);
+    (function(Prism3) {
+      Prism3.languages.kotlin = Prism3.languages.extend("clike", {
+        keyword: {
+          // The lookbehind prevents wrong highlighting of e.g. kotlin.properties.get
+          pattern: /(^|[^.])\b(?:abstract|actual|annotation|as|break|by|catch|class|companion|const|constructor|continue|crossinline|data|do|dynamic|else|enum|expect|external|final|finally|for|fun|get|if|import|in|infix|init|inline|inner|interface|internal|is|lateinit|noinline|null|object|open|operator|out|override|package|private|protected|public|reified|return|sealed|set|super|suspend|tailrec|this|throw|to|try|typealias|val|var|vararg|when|where|while)\b/,
+          lookbehind: true
+        },
+        function: [
+          {
+            pattern: /(?:`[^\r\n`]+`|\b\w+)(?=\s*\()/,
+            greedy: true
+          },
+          {
+            pattern: /(\.)(?:`[^\r\n`]+`|\w+)(?=\s*\{)/,
+            lookbehind: true,
+            greedy: true
+          }
+        ],
+        number: /\b(?:0[xX][\da-fA-F]+(?:_[\da-fA-F]+)*|0[bB][01]+(?:_[01]+)*|\d+(?:_\d+)*(?:\.\d+(?:_\d+)*)?(?:[eE][+-]?\d+(?:_\d+)*)?[fFL]?)\b/,
+        operator: /\+[+=]?|-[-=>]?|==?=?|!(?:!|==?)?|[\/*%<>]=?|[?:]:?|\.\.|&&|\|\||\b(?:and|inv|or|shl|shr|ushr|xor)\b/
+      });
+      delete Prism3.languages.kotlin["class-name"];
+      var interpolationInside = {
+        "interpolation-punctuation": {
+          pattern: /^\$\{?|\}$/,
+          alias: "punctuation"
+        },
+        expression: {
+          pattern: /[\s\S]+/,
+          inside: Prism3.languages.kotlin
+        }
+      };
+      Prism3.languages.insertBefore("kotlin", "string", {
+        // https://kotlinlang.org/spec/expressions.html#string-interpolation-expressions
+        "string-literal": [
+          {
+            pattern: /"""(?:[^$]|\$(?:(?!\{)|\{[^{}]*\}))*?"""/,
+            alias: "multiline",
+            inside: {
+              interpolation: {
+                pattern: /\$(?:[a-z_]\w*|\{[^{}]*\})/i,
+                inside: interpolationInside
+              },
+              string: /[\s\S]+/
+            }
+          },
+          {
+            pattern: /"(?:[^"\\\r\n$]|\\.|\$(?:(?!\{)|\{[^{}]*\}))*"/,
+            alias: "singleline",
+            inside: {
+              interpolation: {
+                pattern: /((?:^|[^\\])(?:\\{2})*)\$(?:[a-z_]\w*|\{[^{}]*\})/i,
+                lookbehind: true,
+                inside: interpolationInside
+              },
+              string: /[\s\S]+/
+            }
+          }
+        ],
+        char: {
+          // https://kotlinlang.org/spec/expressions.html#character-literals
+          pattern: /'(?:[^'\\\r\n]|\\(?:.|u[a-fA-F0-9]{0,4}))'/,
+          greedy: true
+        }
+      });
+      delete Prism3.languages.kotlin["string"];
+      Prism3.languages.insertBefore("kotlin", "keyword", {
+        annotation: {
+          pattern: /\B@(?:\w+:)?(?:[A-Z]\w*|\[[^\]]+\])/,
+          alias: "builtin"
+        }
+      });
+      Prism3.languages.insertBefore("kotlin", "function", {
+        label: {
+          pattern: /\b\w+@|@\w+\b/,
+          alias: "symbol"
+        }
+      });
+      Prism3.languages.kt = Prism3.languages.kotlin;
+      Prism3.languages.kts = Prism3.languages.kotlin;
+    })(Prism2);
+  }
+  __name(kotlin, "kotlin");
+
+  // node_modules/refractor/lang/less.js
+  less.displayName = "less";
+  less.aliases = [];
+  function less(Prism2) {
+    Prism2.register(css);
+    Prism2.languages.less = Prism2.languages.extend("css", {
+      comment: [
+        /\/\*[\s\S]*?\*\//,
+        {
+          pattern: /(^|[^\\])\/\/.*/,
+          lookbehind: true
+        }
+      ],
+      atrule: {
+        pattern: /@[\w-](?:\((?:[^(){}]|\([^(){}]*\))*\)|[^(){};\s]|\s+(?!\s))*?(?=\s*\{)/,
+        inside: {
+          punctuation: /[:()]/
+        }
+      },
+      // selectors and mixins are considered the same
+      selector: {
+        pattern: /(?:@\{[\w-]+\}|[^{};\s@])(?:@\{[\w-]+\}|\((?:[^(){}]|\([^(){}]*\))*\)|[^(){};@\s]|\s+(?!\s))*?(?=\s*\{)/,
+        inside: {
+          // mixin parameters
+          variable: /@+[\w-]+/
+        }
+      },
+      property: /(?:@\{[\w-]+\}|[\w-])+(?:\+_?)?(?=\s*:)/,
+      operator: /[+\-*\/]/
+    });
+    Prism2.languages.insertBefore("less", "property", {
+      variable: [
+        // Variable declaration (the colon must be consumed!)
+        {
+          pattern: /@[\w-]+\s*:/,
+          inside: {
+            punctuation: /:/
+          }
+        },
+        // Variable usage
+        /@@?[\w-]+/
+      ],
+      "mixin-usage": {
+        pattern: /([{;]\s*)[.#](?!\d)[\w-].*?(?=[(;])/,
+        lookbehind: true,
+        alias: "function"
+      }
+    });
+  }
+  __name(less, "less");
+
+  // node_modules/refractor/lang/lua.js
+  lua.displayName = "lua";
+  lua.aliases = [];
+  function lua(Prism2) {
+    Prism2.languages.lua = {
+      comment: /^#!.+|--(?:\[(=*)\[[\s\S]*?\]\1\]|.*)/m,
+      // \z may be used to skip the following space
+      string: {
+        pattern: /(["'])(?:(?!\1)[^\\\r\n]|\\z(?:\r\n|\s)|\\(?:\r\n|[^z]))*\1|\[(=*)\[[\s\S]*?\]\2\]/,
+        greedy: true
+      },
+      number: /\b0x[a-f\d]+(?:\.[a-f\d]*)?(?:p[+-]?\d+)?\b|\b\d+(?:\.\B|(?:\.\d*)?(?:e[+-]?\d+)?\b)|\B\.\d+(?:e[+-]?\d+)?\b/i,
+      keyword: /\b(?:and|break|do|else|elseif|end|false|for|function|goto|if|in|local|nil|not|or|repeat|return|then|true|until|while)\b/,
+      function: /(?!\d)\w+(?=\s*(?:[({]))/,
+      operator: [
+        /[-+*%^&|#]|\/\/?|<[<=]?|>[>=]?|[=~]=?/,
+        {
+          // Match ".." but don't break "..."
+          pattern: /(^|[^.])\.\.(?!\.)/,
+          lookbehind: true
+        }
+      ],
+      punctuation: /[\[\](){},;]|\.+|:+/
+    };
+  }
+  __name(lua, "lua");
+
+  // node_modules/refractor/lang/makefile.js
+  makefile.displayName = "makefile";
+  makefile.aliases = [];
+  function makefile(Prism2) {
+    Prism2.languages.makefile = {
+      comment: {
+        pattern: /(^|[^\\])#(?:\\(?:\r\n|[\s\S])|[^\\\r\n])*/,
+        lookbehind: true
+      },
+      string: {
+        pattern: /(["'])(?:\\(?:\r\n|[\s\S])|(?!\1)[^\\\r\n])*\1/,
+        greedy: true
+      },
+      "builtin-target": {
+        pattern: /\.[A-Z][^:#=\s]+(?=\s*:(?!=))/,
+        alias: "builtin"
+      },
+      target: {
+        pattern: /^(?:[^:=\s]|[ \t]+(?![\s:]))+(?=\s*:(?!=))/m,
+        alias: "symbol",
+        inside: {
+          variable: /\$+(?:(?!\$)[^(){}:#=\s]+|(?=[({]))/
+        }
+      },
+      variable: /\$+(?:(?!\$)[^(){}:#=\s]+|\([@*%<^+?][DF]\)|(?=[({]))/,
+      // Directives
+      keyword: /-include\b|\b(?:define|else|endef|endif|export|ifn?def|ifn?eq|include|override|private|sinclude|undefine|unexport|vpath)\b/,
+      function: {
+        pattern: /(\()(?:abspath|addsuffix|and|basename|call|dir|error|eval|file|filter(?:-out)?|findstring|firstword|flavor|foreach|guile|if|info|join|lastword|load|notdir|or|origin|patsubst|realpath|shell|sort|strip|subst|suffix|value|warning|wildcard|word(?:list|s)?)(?=[ \t])/,
+        lookbehind: true
+      },
+      operator: /(?:::|[?:+!])?=|[|@]/,
+      punctuation: /[:;(){}]/
+    };
+  }
+  __name(makefile, "makefile");
+
+  // node_modules/refractor/lang/yaml.js
+  yaml.displayName = "yaml";
+  yaml.aliases = ["yml"];
+  function yaml(Prism2) {
+    ;
+    (function(Prism3) {
+      var anchorOrAlias = /[*&][^\s[\]{},]+/;
+      var tag = /!(?:<[\w\-%#;/?:@&=+$,.!~*'()[\]]+>|(?:[a-zA-Z\d-]*!)?[\w\-%#;/?:@&=+$.~*'()]+)?/;
+      var properties = "(?:" + tag.source + "(?:[ 	]+" + anchorOrAlias.source + ")?|" + anchorOrAlias.source + "(?:[ 	]+" + tag.source + ")?)";
+      var plainKey = /(?:[^\s\x00-\x08\x0e-\x1f!"#%&'*,\-:>?@[\]`{|}\x7f-\x84\x86-\x9f\ud800-\udfff\ufffe\uffff]|[?:-]<PLAIN>)(?:[ \t]*(?:(?![#:])<PLAIN>|:<PLAIN>))*/.source.replace(
+        /<PLAIN>/g,
+        function() {
+          return /[^\s\x00-\x08\x0e-\x1f,[\]{}\x7f-\x84\x86-\x9f\ud800-\udfff\ufffe\uffff]/.source;
+        }
+      );
+      var string = /"(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'/.source;
+      function createValuePattern(value, flags) {
+        flags = (flags || "").replace(/m/g, "") + "m";
+        var pattern = /([:\-,[{]\s*(?:\s<<prop>>[ \t]+)?)(?:<<value>>)(?=[ \t]*(?:$|,|\]|\}|(?:[\r\n]\s*)?#))/.source.replace(/<<prop>>/g, function() {
+          return properties;
+        }).replace(/<<value>>/g, function() {
+          return value;
+        });
+        return RegExp(pattern, flags);
+      }
+      __name(createValuePattern, "createValuePattern");
+      Prism3.languages.yaml = {
+        scalar: {
+          pattern: RegExp(
+            /([\-:]\s*(?:\s<<prop>>[ \t]+)?[|>])[ \t]*(?:((?:\r?\n|\r)[ \t]+)\S[^\r\n]*(?:\2[^\r\n]+)*)/.source.replace(
+              /<<prop>>/g,
+              function() {
+                return properties;
+              }
+            )
+          ),
+          lookbehind: true,
+          alias: "string"
+        },
+        comment: /#.*/,
+        key: {
+          pattern: RegExp(
+            /((?:^|[:\-,[{\r\n?])[ \t]*(?:<<prop>>[ \t]+)?)<<key>>(?=\s*:\s)/.source.replace(/<<prop>>/g, function() {
+              return properties;
+            }).replace(/<<key>>/g, function() {
+              return "(?:" + plainKey + "|" + string + ")";
+            })
+          ),
+          lookbehind: true,
+          greedy: true,
+          alias: "atrule"
+        },
+        directive: {
+          pattern: /(^[ \t]*)%.+/m,
+          lookbehind: true,
+          alias: "important"
+        },
+        datetime: {
+          pattern: createValuePattern(
+            /\d{4}-\d\d?-\d\d?(?:[tT]|[ \t]+)\d\d?:\d{2}:\d{2}(?:\.\d*)?(?:[ \t]*(?:Z|[-+]\d\d?(?::\d{2})?))?|\d{4}-\d{2}-\d{2}|\d\d?:\d{2}(?::\d{2}(?:\.\d*)?)?/.source
+          ),
+          lookbehind: true,
+          alias: "number"
+        },
+        boolean: {
+          pattern: createValuePattern(/false|true/.source, "i"),
+          lookbehind: true,
+          alias: "important"
+        },
+        null: {
+          pattern: createValuePattern(/null|~/.source, "i"),
+          lookbehind: true,
+          alias: "important"
+        },
+        string: {
+          pattern: createValuePattern(string),
+          lookbehind: true,
+          greedy: true
+        },
+        number: {
+          pattern: createValuePattern(
+            /[+-]?(?:0x[\da-f]+|0o[0-7]+|(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?|\.inf|\.nan)/.source,
+            "i"
+          ),
+          lookbehind: true
+        },
+        tag,
+        important: anchorOrAlias,
+        punctuation: /---|[:[\]{}\-,|>?]|\.\.\./
+      };
+      Prism3.languages.yml = Prism3.languages.yaml;
+    })(Prism2);
+  }
+  __name(yaml, "yaml");
+
+  // node_modules/refractor/lang/markdown.js
+  markdown.displayName = "markdown";
+  markdown.aliases = ["md"];
+  function markdown(Prism2) {
+    Prism2.register(markup);
+    (function(Prism3) {
+      var inner = /(?:\\.|[^\\\n\r]|(?:\n|\r\n?)(?![\r\n]))/.source;
+      function createInline(pattern) {
+        pattern = pattern.replace(/<inner>/g, function() {
+          return inner;
+        });
+        return RegExp(/((?:^|[^\\])(?:\\{2})*)/.source + "(?:" + pattern + ")");
+      }
+      __name(createInline, "createInline");
+      var tableCell = /(?:\\.|``(?:[^`\r\n]|`(?!`))+``|`[^`\r\n]+`|[^\\|\r\n`])+/.source;
+      var tableRow = /\|?__(?:\|__)+\|?(?:(?:\n|\r\n?)|(?![\s\S]))/.source.replace(
+        /__/g,
+        function() {
+          return tableCell;
+        }
+      );
+      var tableLine = /\|?[ \t]*:?-{3,}:?[ \t]*(?:\|[ \t]*:?-{3,}:?[ \t]*)+\|?(?:\n|\r\n?)/.source;
+      Prism3.languages.markdown = Prism3.languages.extend("markup", {});
+      Prism3.languages.insertBefore("markdown", "prolog", {
+        "front-matter-block": {
+          pattern: /(^(?:\s*[\r\n])?)---(?!.)[\s\S]*?[\r\n]---(?!.)/,
+          lookbehind: true,
+          greedy: true,
+          inside: {
+            punctuation: /^---|---$/,
+            "front-matter": {
+              pattern: /\S+(?:\s+\S+)*/,
+              alias: ["yaml", "language-yaml"],
+              inside: Prism3.languages.yaml
+            }
+          }
+        },
+        blockquote: {
+          // > ...
+          pattern: /^>(?:[\t ]*>)*/m,
+          alias: "punctuation"
+        },
+        table: {
+          pattern: RegExp(
+            "^" + tableRow + tableLine + "(?:" + tableRow + ")*",
+            "m"
+          ),
+          inside: {
+            "table-data-rows": {
+              pattern: RegExp(
+                "^(" + tableRow + tableLine + ")(?:" + tableRow + ")*$"
+              ),
+              lookbehind: true,
+              inside: {
+                "table-data": {
+                  pattern: RegExp(tableCell),
+                  inside: Prism3.languages.markdown
+                },
+                punctuation: /\|/
+              }
+            },
+            "table-line": {
+              pattern: RegExp("^(" + tableRow + ")" + tableLine + "$"),
+              lookbehind: true,
+              inside: {
+                punctuation: /\||:?-{3,}:?/
+              }
+            },
+            "table-header-row": {
+              pattern: RegExp("^" + tableRow + "$"),
+              inside: {
+                "table-header": {
+                  pattern: RegExp(tableCell),
+                  alias: "important",
+                  inside: Prism3.languages.markdown
+                },
+                punctuation: /\|/
+              }
+            }
+          }
+        },
+        code: [
+          {
+            // Prefixed by 4 spaces or 1 tab and preceded by an empty line
+            pattern: /((?:^|\n)[ \t]*\n|(?:^|\r\n?)[ \t]*\r\n?)(?: {4}|\t).+(?:(?:\n|\r\n?)(?: {4}|\t).+)*/,
+            lookbehind: true,
+            alias: "keyword"
+          },
+          {
+            // ```optional language
+            // code block
+            // ```
+            pattern: /^```[\s\S]*?^```$/m,
+            greedy: true,
+            inside: {
+              "code-block": {
+                pattern: /^(```.*(?:\n|\r\n?))[\s\S]+?(?=(?:\n|\r\n?)^```$)/m,
+                lookbehind: true
+              },
+              "code-language": {
+                pattern: /^(```).+/,
+                lookbehind: true
+              },
+              punctuation: /```/
+            }
+          }
+        ],
+        title: [
+          {
+            // title 1
+            // =======
+            // title 2
+            // -------
+            pattern: /\S.*(?:\n|\r\n?)(?:==+|--+)(?=[ \t]*$)/m,
+            alias: "important",
+            inside: {
+              punctuation: /==+$|--+$/
+            }
+          },
+          {
+            // # title 1
+            // ###### title 6
+            pattern: /(^\s*)#.+/m,
+            lookbehind: true,
+            alias: "important",
+            inside: {
+              punctuation: /^#+|#+$/
+            }
+          }
+        ],
+        hr: {
+          // ***
+          // ---
+          // * * *
+          // -----------
+          pattern: /(^\s*)([*-])(?:[\t ]*\2){2,}(?=\s*$)/m,
+          lookbehind: true,
+          alias: "punctuation"
+        },
+        list: {
+          // * item
+          // + item
+          // - item
+          // 1. item
+          pattern: /(^\s*)(?:[*+-]|\d+\.)(?=[\t ].)/m,
+          lookbehind: true,
+          alias: "punctuation"
+        },
+        "url-reference": {
+          // [id]: http://example.com "Optional title"
+          // [id]: http://example.com 'Optional title'
+          // [id]: http://example.com (Optional title)
+          // [id]: <http://example.com> "Optional title"
+          pattern: /!?\[[^\]]+\]:[\t ]+(?:\S+|<(?:\\.|[^>\\])+>)(?:[\t ]+(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\((?:\\.|[^)\\])*\)))?/,
+          inside: {
+            variable: {
+              pattern: /^(!?\[)[^\]]+/,
+              lookbehind: true
+            },
+            string: /(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\((?:\\.|[^)\\])*\))$/,
+            punctuation: /^[\[\]!:]|[<>]/
+          },
+          alias: "url"
+        },
+        bold: {
+          // **strong**
+          // __strong__
+          // allow one nested instance of italic text using the same delimiter
+          pattern: createInline(
+            /\b__(?:(?!_)<inner>|_(?:(?!_)<inner>)+_)+__\b|\*\*(?:(?!\*)<inner>|\*(?:(?!\*)<inner>)+\*)+\*\*/.source
+          ),
+          lookbehind: true,
+          greedy: true,
+          inside: {
+            content: {
+              pattern: /(^..)[\s\S]+(?=..$)/,
+              lookbehind: true,
+              inside: {}
+              // see below
+            },
+            punctuation: /\*\*|__/
+          }
+        },
+        italic: {
+          // *em*
+          // _em_
+          // allow one nested instance of bold text using the same delimiter
+          pattern: createInline(
+            /\b_(?:(?!_)<inner>|__(?:(?!_)<inner>)+__)+_\b|\*(?:(?!\*)<inner>|\*\*(?:(?!\*)<inner>)+\*\*)+\*/.source
+          ),
+          lookbehind: true,
+          greedy: true,
+          inside: {
+            content: {
+              pattern: /(^.)[\s\S]+(?=.$)/,
+              lookbehind: true,
+              inside: {}
+              // see below
+            },
+            punctuation: /[*_]/
+          }
+        },
+        strike: {
+          // ~~strike through~~
+          // ~strike~
+          // eslint-disable-next-line regexp/strict
+          pattern: createInline(/(~~?)(?:(?!~)<inner>)+\2/.source),
+          lookbehind: true,
+          greedy: true,
+          inside: {
+            content: {
+              pattern: /(^~~?)[\s\S]+(?=\1$)/,
+              lookbehind: true,
+              inside: {}
+              // see below
+            },
+            punctuation: /~~?/
+          }
+        },
+        "code-snippet": {
+          // `code`
+          // ``code``
+          pattern: /(^|[^\\`])(?:``[^`\r\n]+(?:`[^`\r\n]+)*``(?!`)|`[^`\r\n]+`(?!`))/,
+          lookbehind: true,
+          greedy: true,
+          alias: ["code", "keyword"]
+        },
+        url: {
+          // [example](http://example.com "Optional title")
+          // [example][id]
+          // [example] [id]
+          pattern: createInline(
+            /!?\[(?:(?!\])<inner>)+\](?:\([^\s)]+(?:[\t ]+"(?:\\.|[^"\\])*")?\)|[ \t]?\[(?:(?!\])<inner>)+\])/.source
+          ),
+          lookbehind: true,
+          greedy: true,
+          inside: {
+            operator: /^!/,
+            content: {
+              pattern: /(^\[)[^\]]+(?=\])/,
+              lookbehind: true,
+              inside: {}
+              // see below
+            },
+            variable: {
+              pattern: /(^\][ \t]?\[)[^\]]+(?=\]$)/,
+              lookbehind: true
+            },
+            url: {
+              pattern: /(^\]\()[^\s)]+/,
+              lookbehind: true
+            },
+            string: {
+              pattern: /(^[ \t]+)"(?:\\.|[^"\\])*"(?=\)$)/,
+              lookbehind: true
+            }
+          }
+        }
+      });
+      ["url", "bold", "italic", "strike"].forEach(function(token) {
+        ;
+        ["url", "bold", "italic", "strike", "code-snippet"].forEach(
+          function(inside) {
+            if (token !== inside) {
+              Prism3.languages.markdown[token].inside.content.inside[inside] = Prism3.languages.markdown[inside];
+            }
+          }
+        );
+      });
+      Prism3.hooks.add("after-tokenize", function(env) {
+        if (env.language !== "markdown" && env.language !== "md") {
+          return;
+        }
+        function walkTokens(tokens) {
+          if (!tokens || typeof tokens === "string") {
+            return;
+          }
+          for (var i = 0, l = tokens.length; i < l; i++) {
+            var token = tokens[i];
+            if (token.type !== "code") {
+              walkTokens(token.content);
+              continue;
+            }
+            var codeLang = token.content[1];
+            var codeBlock = token.content[3];
+            if (codeLang && codeBlock && codeLang.type === "code-language" && codeBlock.type === "code-block" && typeof codeLang.content === "string") {
+              var lang = codeLang.content.replace(/\b#/g, "sharp").replace(/\b\+\+/g, "pp");
+              lang = (/[a-z][\w-]*/i.exec(lang) || [""])[0].toLowerCase();
+              var alias2 = "language-" + lang;
+              if (!codeBlock.alias) {
+                codeBlock.alias = [alias2];
+              } else if (typeof codeBlock.alias === "string") {
+                codeBlock.alias = [codeBlock.alias, alias2];
+              } else {
+                codeBlock.alias.push(alias2);
+              }
+            }
+          }
+        }
+        __name(walkTokens, "walkTokens");
+        walkTokens(env.tokens);
+      });
+      Prism3.hooks.add("wrap", function(env) {
+        if (env.type !== "code-block") {
+          return;
+        }
+        var codeLang = "";
+        for (var i = 0, l = env.classes.length; i < l; i++) {
+          var cls = env.classes[i];
+          var match = /language-(.+)/.exec(cls);
+          if (match) {
+            codeLang = match[1];
+            break;
+          }
+        }
+        var grammar = Prism3.languages[codeLang];
+        if (!grammar) {
+          if (codeLang && codeLang !== "none" && Prism3.plugins.autoloader) {
+            var id = "md-" + (/* @__PURE__ */ new Date()).valueOf() + "-" + Math.floor(Math.random() * 1e16);
+            env.attributes["id"] = id;
+            Prism3.plugins.autoloader.loadLanguages(codeLang, function() {
+              var ele = document.getElementById(id);
+              if (ele) {
+                ele.innerHTML = Prism3.highlight(
+                  ele.textContent,
+                  Prism3.languages[codeLang],
+                  codeLang
+                );
+              }
+            });
+          }
+        } else {
+          env.content = Prism3.highlight(env.content.value, grammar, codeLang);
+        }
+      });
+      var tagPattern = RegExp(Prism3.languages.markup.tag.pattern.source, "gi");
+      var KNOWN_ENTITY_NAMES = {
+        amp: "&",
+        lt: "<",
+        gt: ">",
+        quot: '"'
+      };
+      var fromCodePoint = String.fromCodePoint || String.fromCharCode;
+      function textContent(html3) {
+        var text = html3.replace(tagPattern, "");
+        text = text.replace(/&(\w{1,8}|#x?[\da-f]{1,8});/gi, function(m, code) {
+          code = code.toLowerCase();
+          if (code[0] === "#") {
+            var value;
+            if (code[1] === "x") {
+              value = parseInt(code.slice(2), 16);
+            } else {
+              value = Number(code.slice(1));
+            }
+            return fromCodePoint(value);
+          } else {
+            var known = KNOWN_ENTITY_NAMES[code];
+            if (known) {
+              return known;
+            }
+            return m;
+          }
+        });
+        return text;
+      }
+      __name(textContent, "textContent");
+      Prism3.languages.md = Prism3.languages.markdown;
+    })(Prism2);
+  }
+  __name(markdown, "markdown");
+
+  // node_modules/refractor/lang/objectivec.js
+  objectivec.displayName = "objectivec";
+  objectivec.aliases = ["objc"];
+  function objectivec(Prism2) {
+    Prism2.register(c);
+    Prism2.languages.objectivec = Prism2.languages.extend("c", {
+      string: {
+        pattern: /@?"(?:\\(?:\r\n|[\s\S])|[^"\\\r\n])*"/,
+        greedy: true
+      },
+      keyword: /\b(?:asm|auto|break|case|char|const|continue|default|do|double|else|enum|extern|float|for|goto|if|in|inline|int|long|register|return|self|short|signed|sizeof|static|struct|super|switch|typedef|typeof|union|unsigned|void|volatile|while)\b|(?:@interface|@end|@implementation|@protocol|@class|@public|@protected|@private|@property|@try|@catch|@finally|@throw|@synthesize|@dynamic|@selector)\b/,
+      operator: /-[->]?|\+\+?|!=?|<<?=?|>>?=?|==?|&&?|\|\|?|[~^%?*\/@]/
+    });
+    delete Prism2.languages.objectivec["class-name"];
+    Prism2.languages.objc = Prism2.languages.objectivec;
+  }
+  __name(objectivec, "objectivec");
+
+  // node_modules/refractor/lang/perl.js
+  perl.displayName = "perl";
+  perl.aliases = [];
+  function perl(Prism2) {
+    ;
+    (function(Prism3) {
+      var brackets = /(?:\((?:[^()\\]|\\[\s\S])*\)|\{(?:[^{}\\]|\\[\s\S])*\}|\[(?:[^[\]\\]|\\[\s\S])*\]|<(?:[^<>\\]|\\[\s\S])*>)/.source;
+      Prism3.languages.perl = {
+        comment: [
+          {
+            // POD
+            pattern: /(^\s*)=\w[\s\S]*?=cut.*/m,
+            lookbehind: true,
+            greedy: true
+          },
+          {
+            pattern: /(^|[^\\$])#.*/,
+            lookbehind: true,
+            greedy: true
+          }
+        ],
+        // TODO Could be nice to handle Heredoc too.
+        string: [
+          {
+            pattern: RegExp(
+              /\b(?:q|qq|qw|qx)(?![a-zA-Z0-9])\s*/.source + "(?:" + [
+                // q/.../
+                /([^a-zA-Z0-9\s{(\[<])(?:(?!\1)[^\\]|\\[\s\S])*\1/.source,
+                // q a...a
+                // eslint-disable-next-line regexp/strict
+                /([a-zA-Z0-9])(?:(?!\2)[^\\]|\\[\s\S])*\2/.source,
+                // q(...)
+                // q{...}
+                // q[...]
+                // q<...>
+                brackets
+              ].join("|") + ")"
+            ),
+            greedy: true
+          },
+          // "...", `...`
+          {
+            pattern: /("|`)(?:(?!\1)[^\\]|\\[\s\S])*\1/,
+            greedy: true
+          },
+          // '...'
+          // FIXME Multi-line single-quoted strings are not supported as they would break variables containing '
+          {
+            pattern: /'(?:[^'\\\r\n]|\\.)*'/,
+            greedy: true
+          }
+        ],
+        regex: [
+          {
+            pattern: RegExp(
+              /\b(?:m|qr)(?![a-zA-Z0-9])\s*/.source + "(?:" + [
+                // m/.../
+                /([^a-zA-Z0-9\s{(\[<])(?:(?!\1)[^\\]|\\[\s\S])*\1/.source,
+                // m a...a
+                // eslint-disable-next-line regexp/strict
+                /([a-zA-Z0-9])(?:(?!\2)[^\\]|\\[\s\S])*\2/.source,
+                // m(...)
+                // m{...}
+                // m[...]
+                // m<...>
+                brackets
+              ].join("|") + ")" + /[msixpodualngc]*/.source
+            ),
+            greedy: true
+          },
+          // The lookbehinds prevent -s from breaking
+          {
+            pattern: RegExp(
+              /(^|[^-])\b(?:s|tr|y)(?![a-zA-Z0-9])\s*/.source + "(?:" + [
+                // s/.../.../
+                // eslint-disable-next-line regexp/strict
+                /([^a-zA-Z0-9\s{(\[<])(?:(?!\2)[^\\]|\\[\s\S])*\2(?:(?!\2)[^\\]|\\[\s\S])*\2/.source,
+                // s a...a...a
+                // eslint-disable-next-line regexp/strict
+                /([a-zA-Z0-9])(?:(?!\3)[^\\]|\\[\s\S])*\3(?:(?!\3)[^\\]|\\[\s\S])*\3/.source,
+                // s(...)(...)
+                // s{...}{...}
+                // s[...][...]
+                // s<...><...>
+                // s(...)[...]
+                brackets + /\s*/.source + brackets
+              ].join("|") + ")" + /[msixpodualngcer]*/.source
+            ),
+            lookbehind: true,
+            greedy: true
+          },
+          // /.../
+          // The look-ahead tries to prevent two divisions on
+          // the same line from being highlighted as regex.
+          // This does not support multi-line regex.
+          {
+            pattern: /\/(?:[^\/\\\r\n]|\\.)*\/[msixpodualngc]*(?=\s*(?:$|[\r\n,.;})&|\-+*~<>!?^]|(?:and|cmp|eq|ge|gt|le|lt|ne|not|or|x|xor)\b))/,
+            greedy: true
+          }
+        ],
+        // FIXME Not sure about the handling of ::, ', and #
+        variable: [
+          // ${^POSTMATCH}
+          /[&*$@%]\{\^[A-Z]+\}/,
+          // $^V
+          /[&*$@%]\^[A-Z_]/,
+          // ${...}
+          /[&*$@%]#?(?=\{)/,
+          // $foo
+          /[&*$@%]#?(?:(?:::)*'?(?!\d)[\w$]+(?![\w$]))+(?:::)*/,
+          // $1
+          /[&*$@%]\d+/,
+          // $_, @_, %!
+          // The negative lookahead prevents from breaking the %= operator
+          /(?!%=)[$@%][!"#$%&'()*+,\-.\/:;<=>?@[\\\]^_`{|}~]/
+        ],
+        filehandle: {
+          // <>, <FOO>, _
+          pattern: /<(?![<=])\S*?>|\b_\b/,
+          alias: "symbol"
+        },
+        "v-string": {
+          // v1.2, 1.2.3
+          pattern: /v\d+(?:\.\d+)*|\d+(?:\.\d+){2,}/,
+          alias: "string"
+        },
+        function: {
+          pattern: /(\bsub[ \t]+)\w+/,
+          lookbehind: true
+        },
+        keyword: /\b(?:any|break|continue|default|delete|die|do|else|elsif|eval|for|foreach|given|goto|if|last|local|my|next|our|package|print|redo|require|return|say|state|sub|switch|undef|unless|until|use|when|while)\b/,
+        number: /\b(?:0x[\dA-Fa-f](?:_?[\dA-Fa-f])*|0b[01](?:_?[01])*|(?:(?:\d(?:_?\d)*)?\.)?\d(?:_?\d)*(?:[Ee][+-]?\d+)?)\b/,
+        operator: /-[rwxoRWXOezsfdlpSbctugkTBMAC]\b|\+[+=]?|-[-=>]?|\*\*?=?|\/\/?=?|=[=~>]?|~[~=]?|\|\|?=?|&&?=?|<(?:=>?|<=?)?|>>?=?|![~=]?|[%^]=?|\.(?:=|\.\.?)?|[\\?]|\bx(?:=|\b)|\b(?:and|cmp|eq|ge|gt|le|lt|ne|not|or|xor)\b/,
+        punctuation: /[{}[\];(),:]/
+      };
+    })(Prism2);
+  }
+  __name(perl, "perl");
+
+  // node_modules/refractor/lang/markup-templating.js
+  markupTemplating.displayName = "markup-templating";
+  markupTemplating.aliases = [];
+  function markupTemplating(Prism2) {
+    Prism2.register(markup);
+    (function(Prism3) {
+      function getPlaceholder(language, index) {
+        return "___" + language.toUpperCase() + index + "___";
+      }
+      __name(getPlaceholder, "getPlaceholder");
+      Object.defineProperties(Prism3.languages["markup-templating"] = {}, {
+        buildPlaceholders: {
+          /**
+           * Tokenize all inline templating expressions matching `placeholderPattern`.
+           *
+           * If `replaceFilter` is provided, only matches of `placeholderPattern` for which `replaceFilter` returns
+           * `true` will be replaced.
+           *
+           * @param {object} env The environment of the `before-tokenize` hook.
+           * @param {string} language The language id.
+           * @param {RegExp} placeholderPattern The matches of this pattern will be replaced by placeholders.
+           * @param {(match: string) => boolean} [replaceFilter]
+           */
+          value: /* @__PURE__ */ __name(function(env, language, placeholderPattern, replaceFilter) {
+            if (env.language !== language) {
+              return;
+            }
+            var tokenStack = env.tokenStack = [];
+            env.code = env.code.replace(placeholderPattern, function(match) {
+              if (typeof replaceFilter === "function" && !replaceFilter(match)) {
+                return match;
+              }
+              var i = tokenStack.length;
+              var placeholder;
+              while (env.code.indexOf(placeholder = getPlaceholder(language, i)) !== -1) {
+                ++i;
+              }
+              tokenStack[i] = match;
+              return placeholder;
+            });
+            env.grammar = Prism3.languages.markup;
+          }, "value")
+        },
+        tokenizePlaceholders: {
+          /**
+           * Replace placeholders with proper tokens after tokenizing.
+           *
+           * @param {object} env The environment of the `after-tokenize` hook.
+           * @param {string} language The language id.
+           */
+          value: /* @__PURE__ */ __name(function(env, language) {
+            if (env.language !== language || !env.tokenStack) {
+              return;
+            }
+            env.grammar = Prism3.languages[language];
+            var j = 0;
+            var keys = Object.keys(env.tokenStack);
+            function walkTokens(tokens) {
+              for (var i = 0; i < tokens.length; i++) {
+                if (j >= keys.length) {
+                  break;
+                }
+                var token = tokens[i];
+                if (typeof token === "string" || token.content && typeof token.content === "string") {
+                  var k = keys[j];
+                  var t = env.tokenStack[k];
+                  var s2 = typeof token === "string" ? token : token.content;
+                  var placeholder = getPlaceholder(language, k);
+                  var index = s2.indexOf(placeholder);
+                  if (index > -1) {
+                    ++j;
+                    var before = s2.substring(0, index);
+                    var middle = new Prism3.Token(
+                      language,
+                      Prism3.tokenize(t, env.grammar),
+                      "language-" + language,
+                      t
+                    );
+                    var after = s2.substring(index + placeholder.length);
+                    var replacement = [];
+                    if (before) {
+                      replacement.push.apply(replacement, walkTokens([before]));
+                    }
+                    replacement.push(middle);
+                    if (after) {
+                      replacement.push.apply(replacement, walkTokens([after]));
+                    }
+                    if (typeof token === "string") {
+                      tokens.splice.apply(tokens, [i, 1].concat(replacement));
+                    } else {
+                      token.content = replacement;
+                    }
+                  }
+                } else if (token.content) {
+                  walkTokens(token.content);
+                }
+              }
+              return tokens;
+            }
+            __name(walkTokens, "walkTokens");
+            walkTokens(env.tokens);
+          }, "value")
+        }
+      });
+    })(Prism2);
+  }
+  __name(markupTemplating, "markupTemplating");
+
+  // node_modules/refractor/lang/php.js
+  php.displayName = "php";
+  php.aliases = [];
+  function php(Prism2) {
+    Prism2.register(markupTemplating);
+    (function(Prism3) {
+      var comment = /\/\*[\s\S]*?\*\/|\/\/.*|#(?!\[).*/;
+      var constant = [
+        {
+          pattern: /\b(?:false|true)\b/i,
+          alias: "boolean"
+        },
+        {
+          pattern: /(::\s*)\b[a-z_]\w*\b(?!\s*\()/i,
+          greedy: true,
+          lookbehind: true
+        },
+        {
+          pattern: /(\b(?:case|const)\s+)\b[a-z_]\w*(?=\s*[;=])/i,
+          greedy: true,
+          lookbehind: true
+        },
+        /\b(?:null)\b/i,
+        /\b[A-Z_][A-Z0-9_]*\b(?!\s*\()/
+      ];
+      var number2 = /\b0b[01]+(?:_[01]+)*\b|\b0o[0-7]+(?:_[0-7]+)*\b|\b0x[\da-f]+(?:_[\da-f]+)*\b|(?:\b\d+(?:_\d+)*\.?(?:\d+(?:_\d+)*)?|\B\.\d+)(?:e[+-]?\d+)?/i;
+      var operator = /<?=>|\?\?=?|\.{3}|\??->|[!=]=?=?|::|\*\*=?|--|\+\+|&&|\|\||<<|>>|[?~]|[/^|%*&<>.+-]=?/;
+      var punctuation = /[{}\[\](),:;]/;
+      Prism3.languages.php = {
+        delimiter: {
+          pattern: /\?>$|^<\?(?:php(?=\s)|=)?/i,
+          alias: "important"
+        },
+        comment,
+        variable: /\$+(?:\w+\b|(?=\{))/,
+        package: {
+          pattern: /(namespace\s+|use\s+(?:function\s+)?)(?:\\?\b[a-z_]\w*)+\b(?!\\)/i,
+          lookbehind: true,
+          inside: {
+            punctuation: /\\/
+          }
+        },
+        "class-name-definition": {
+          pattern: /(\b(?:class|enum|interface|trait)\s+)\b[a-z_]\w*(?!\\)\b/i,
+          lookbehind: true,
+          alias: "class-name"
+        },
+        "function-definition": {
+          pattern: /(\bfunction\s+)[a-z_]\w*(?=\s*\()/i,
+          lookbehind: true,
+          alias: "function"
+        },
+        keyword: [
+          {
+            pattern: /(\(\s*)\b(?:array|bool|boolean|float|int|integer|object|string)\b(?=\s*\))/i,
+            alias: "type-casting",
+            greedy: true,
+            lookbehind: true
+          },
+          {
+            pattern: /([(,?]\s*)\b(?:array(?!\s*\()|bool|callable|(?:false|null)(?=\s*\|)|float|int|iterable|mixed|object|self|static|string)\b(?=\s*\$)/i,
+            alias: "type-hint",
+            greedy: true,
+            lookbehind: true
+          },
+          {
+            pattern: /(\)\s*:\s*(?:\?\s*)?)\b(?:array(?!\s*\()|bool|callable|(?:false|null)(?=\s*\|)|float|int|iterable|mixed|never|object|self|static|string|void)\b/i,
+            alias: "return-type",
+            greedy: true,
+            lookbehind: true
+          },
+          {
+            pattern: /\b(?:array(?!\s*\()|bool|float|int|iterable|mixed|object|string|void)\b/i,
+            alias: "type-declaration",
+            greedy: true
+          },
+          {
+            pattern: /(\|\s*)(?:false|null)\b|\b(?:false|null)(?=\s*\|)/i,
+            alias: "type-declaration",
+            greedy: true,
+            lookbehind: true
+          },
+          {
+            pattern: /\b(?:parent|self|static)(?=\s*::)/i,
+            alias: "static-context",
+            greedy: true
+          },
+          {
+            // yield from
+            pattern: /(\byield\s+)from\b/i,
+            lookbehind: true
+          },
+          // `class` is always a keyword unlike other keywords
+          /\bclass\b/i,
+          {
+            // https://www.php.net/manual/en/reserved.keywords.php
+            //
+            // keywords cannot be preceded by "->"
+            // the complex lookbehind means `(?<!(?:->|::)\s*)`
+            pattern: /((?:^|[^\s>:]|(?:^|[^-])>|(?:^|[^:]):)\s*)\b(?:abstract|and|array|as|break|callable|case|catch|clone|const|continue|declare|default|die|do|echo|else|elseif|empty|enddeclare|endfor|endforeach|endif|endswitch|endwhile|enum|eval|exit|extends|final|finally|fn|for|foreach|function|global|goto|if|implements|include|include_once|instanceof|insteadof|interface|isset|list|match|namespace|never|new|or|parent|print|private|protected|public|readonly|require|require_once|return|self|static|switch|throw|trait|try|unset|use|var|while|xor|yield|__halt_compiler)\b/i,
+            lookbehind: true
+          }
+        ],
+        "argument-name": {
+          pattern: /([(,]\s*)\b[a-z_]\w*(?=\s*:(?!:))/i,
+          lookbehind: true
+        },
+        "class-name": [
+          {
+            pattern: /(\b(?:extends|implements|instanceof|new(?!\s+self|\s+static))\s+|\bcatch\s*\()\b[a-z_]\w*(?!\\)\b/i,
+            greedy: true,
+            lookbehind: true
+          },
+          {
+            pattern: /(\|\s*)\b[a-z_]\w*(?!\\)\b/i,
+            greedy: true,
+            lookbehind: true
+          },
+          {
+            pattern: /\b[a-z_]\w*(?!\\)\b(?=\s*\|)/i,
+            greedy: true
+          },
+          {
+            pattern: /(\|\s*)(?:\\?\b[a-z_]\w*)+\b/i,
+            alias: "class-name-fully-qualified",
+            greedy: true,
+            lookbehind: true,
+            inside: {
+              punctuation: /\\/
+            }
+          },
+          {
+            pattern: /(?:\\?\b[a-z_]\w*)+\b(?=\s*\|)/i,
+            alias: "class-name-fully-qualified",
+            greedy: true,
+            inside: {
+              punctuation: /\\/
+            }
+          },
+          {
+            pattern: /(\b(?:extends|implements|instanceof|new(?!\s+self\b|\s+static\b))\s+|\bcatch\s*\()(?:\\?\b[a-z_]\w*)+\b(?!\\)/i,
+            alias: "class-name-fully-qualified",
+            greedy: true,
+            lookbehind: true,
+            inside: {
+              punctuation: /\\/
+            }
+          },
+          {
+            pattern: /\b[a-z_]\w*(?=\s*\$)/i,
+            alias: "type-declaration",
+            greedy: true
+          },
+          {
+            pattern: /(?:\\?\b[a-z_]\w*)+(?=\s*\$)/i,
+            alias: ["class-name-fully-qualified", "type-declaration"],
+            greedy: true,
+            inside: {
+              punctuation: /\\/
+            }
+          },
+          {
+            pattern: /\b[a-z_]\w*(?=\s*::)/i,
+            alias: "static-context",
+            greedy: true
+          },
+          {
+            pattern: /(?:\\?\b[a-z_]\w*)+(?=\s*::)/i,
+            alias: ["class-name-fully-qualified", "static-context"],
+            greedy: true,
+            inside: {
+              punctuation: /\\/
+            }
+          },
+          {
+            pattern: /([(,?]\s*)[a-z_]\w*(?=\s*\$)/i,
+            alias: "type-hint",
+            greedy: true,
+            lookbehind: true
+          },
+          {
+            pattern: /([(,?]\s*)(?:\\?\b[a-z_]\w*)+(?=\s*\$)/i,
+            alias: ["class-name-fully-qualified", "type-hint"],
+            greedy: true,
+            lookbehind: true,
+            inside: {
+              punctuation: /\\/
+            }
+          },
+          {
+            pattern: /(\)\s*:\s*(?:\?\s*)?)\b[a-z_]\w*(?!\\)\b/i,
+            alias: "return-type",
+            greedy: true,
+            lookbehind: true
+          },
+          {
+            pattern: /(\)\s*:\s*(?:\?\s*)?)(?:\\?\b[a-z_]\w*)+\b(?!\\)/i,
+            alias: ["class-name-fully-qualified", "return-type"],
+            greedy: true,
+            lookbehind: true,
+            inside: {
+              punctuation: /\\/
+            }
+          }
+        ],
+        constant,
+        function: {
+          pattern: /(^|[^\\\w])\\?[a-z_](?:[\w\\]*\w)?(?=\s*\()/i,
+          lookbehind: true,
+          inside: {
+            punctuation: /\\/
+          }
+        },
+        property: {
+          pattern: /(->\s*)\w+/,
+          lookbehind: true
+        },
+        number: number2,
+        operator,
+        punctuation
+      };
+      var string_interpolation = {
+        pattern: /\{\$(?:\{(?:\{[^{}]+\}|[^{}]+)\}|[^{}])+\}|(^|[^\\{])\$+(?:\w+(?:\[[^\r\n\[\]]+\]|->\w+)?)/,
+        lookbehind: true,
+        inside: Prism3.languages.php
+      };
+      var string = [
+        {
+          pattern: /<<<'([^']+)'[\r\n](?:.*[\r\n])*?\1;/,
+          alias: "nowdoc-string",
+          greedy: true,
+          inside: {
+            delimiter: {
+              pattern: /^<<<'[^']+'|[a-z_]\w*;$/i,
+              alias: "symbol",
+              inside: {
+                punctuation: /^<<<'?|[';]$/
+              }
+            }
+          }
+        },
+        {
+          pattern: /<<<(?:"([^"]+)"[\r\n](?:.*[\r\n])*?\1;|([a-z_]\w*)[\r\n](?:.*[\r\n])*?\2;)/i,
+          alias: "heredoc-string",
+          greedy: true,
+          inside: {
+            delimiter: {
+              pattern: /^<<<(?:"[^"]+"|[a-z_]\w*)|[a-z_]\w*;$/i,
+              alias: "symbol",
+              inside: {
+                punctuation: /^<<<"?|[";]$/
+              }
+            },
+            interpolation: string_interpolation
+          }
+        },
+        {
+          pattern: /`(?:\\[\s\S]|[^\\`])*`/,
+          alias: "backtick-quoted-string",
+          greedy: true
+        },
+        {
+          pattern: /'(?:\\[\s\S]|[^\\'])*'/,
+          alias: "single-quoted-string",
+          greedy: true
+        },
+        {
+          pattern: /"(?:\\[\s\S]|[^\\"])*"/,
+          alias: "double-quoted-string",
+          greedy: true,
+          inside: {
+            interpolation: string_interpolation
+          }
+        }
+      ];
+      Prism3.languages.insertBefore("php", "variable", {
+        string,
+        attribute: {
+          pattern: /#\[(?:[^"'\/#]|\/(?![*/])|\/\/.*$|#(?!\[).*$|\/\*(?:[^*]|\*(?!\/))*\*\/|"(?:\\[\s\S]|[^\\"])*"|'(?:\\[\s\S]|[^\\'])*')+\](?=\s*[a-z$#])/im,
+          greedy: true,
+          inside: {
+            "attribute-content": {
+              pattern: /^(#\[)[\s\S]+(?=\]$)/,
+              lookbehind: true,
+              // inside can appear subset of php
+              inside: {
+                comment,
+                string,
+                "attribute-class-name": [
+                  {
+                    pattern: /([^:]|^)\b[a-z_]\w*(?!\\)\b/i,
+                    alias: "class-name",
+                    greedy: true,
+                    lookbehind: true
+                  },
+                  {
+                    pattern: /([^:]|^)(?:\\?\b[a-z_]\w*)+/i,
+                    alias: ["class-name", "class-name-fully-qualified"],
+                    greedy: true,
+                    lookbehind: true,
+                    inside: {
+                      punctuation: /\\/
+                    }
+                  }
+                ],
+                constant,
+                number: number2,
+                operator,
+                punctuation
+              }
+            },
+            delimiter: {
+              pattern: /^#\[|\]$/,
+              alias: "punctuation"
+            }
+          }
+        }
+      });
+      Prism3.hooks.add("before-tokenize", function(env) {
+        if (!/<\?/.test(env.code)) {
+          return;
+        }
+        var phpPattern = /<\?(?:[^"'/#]|\/(?![*/])|("|')(?:\\[\s\S]|(?!\1)[^\\])*\1|(?:\/\/|#(?!\[))(?:[^?\n\r]|\?(?!>))*(?=$|\?>|[\r\n])|#\[|\/\*(?:[^*]|\*(?!\/))*(?:\*\/|$))*?(?:\?>|$)/g;
+        Prism3.languages["markup-templating"].buildPlaceholders(
+          env,
+          "php",
+          phpPattern
+        );
+      });
+      Prism3.hooks.add("after-tokenize", function(env) {
+        Prism3.languages["markup-templating"].tokenizePlaceholders(env, "php");
+      });
+    })(Prism2);
+  }
+  __name(php, "php");
+
+  // node_modules/refractor/lang/python.js
+  python.displayName = "python";
+  python.aliases = ["py"];
+  function python(Prism2) {
+    Prism2.languages.python = {
+      comment: {
+        pattern: /(^|[^\\])#.*/,
+        lookbehind: true,
+        greedy: true
+      },
+      "string-interpolation": {
+        pattern: /(?:f|fr|rf)(?:("""|''')[\s\S]*?\1|("|')(?:\\.|(?!\2)[^\\\r\n])*\2)/i,
+        greedy: true,
+        inside: {
+          interpolation: {
+            // "{" <expression> <optional "!s", "!r", or "!a"> <optional ":" format specifier> "}"
+            pattern: /((?:^|[^{])(?:\{\{)*)\{(?!\{)(?:[^{}]|\{(?!\{)(?:[^{}]|\{(?!\{)(?:[^{}])+\})+\})+\}/,
+            lookbehind: true,
+            inside: {
+              "format-spec": {
+                pattern: /(:)[^:(){}]+(?=\}$)/,
+                lookbehind: true
+              },
+              "conversion-option": {
+                pattern: /![sra](?=[:}]$)/,
+                alias: "punctuation"
+              },
+              rest: null
+            }
+          },
+          string: /[\s\S]+/
+        }
+      },
+      "triple-quoted-string": {
+        pattern: /(?:[rub]|br|rb)?("""|''')[\s\S]*?\1/i,
+        greedy: true,
+        alias: "string"
+      },
+      string: {
+        pattern: /(?:[rub]|br|rb)?("|')(?:\\.|(?!\1)[^\\\r\n])*\1/i,
+        greedy: true
+      },
+      function: {
+        pattern: /((?:^|\s)def[ \t]+)[a-zA-Z_]\w*(?=\s*\()/g,
+        lookbehind: true
+      },
+      "class-name": {
+        pattern: /(\bclass\s+)\w+/i,
+        lookbehind: true
+      },
+      decorator: {
+        pattern: /(^[\t ]*)@\w+(?:\.\w+)*/m,
+        lookbehind: true,
+        alias: ["annotation", "punctuation"],
+        inside: {
+          punctuation: /\./
+        }
+      },
+      keyword: /\b(?:_(?=\s*:)|and|as|assert|async|await|break|case|class|continue|def|del|elif|else|except|exec|finally|for|from|global|if|import|in|is|lambda|match|nonlocal|not|or|pass|print|raise|return|try|while|with|yield)\b/,
+      builtin: /\b(?:__import__|abs|all|any|apply|ascii|basestring|bin|bool|buffer|bytearray|bytes|callable|chr|classmethod|cmp|coerce|compile|complex|delattr|dict|dir|divmod|enumerate|eval|execfile|file|filter|float|format|frozenset|getattr|globals|hasattr|hash|help|hex|id|input|int|intern|isinstance|issubclass|iter|len|list|locals|long|map|max|memoryview|min|next|object|oct|open|ord|pow|property|range|raw_input|reduce|reload|repr|reversed|round|set|setattr|slice|sorted|staticmethod|str|sum|super|tuple|type|unichr|unicode|vars|xrange|zip)\b/,
+      boolean: /\b(?:False|None|True)\b/,
+      number: /\b0(?:b(?:_?[01])+|o(?:_?[0-7])+|x(?:_?[a-f0-9])+)\b|(?:\b\d+(?:_\d+)*(?:\.(?:\d+(?:_\d+)*)?)?|\B\.\d+(?:_\d+)*)(?:e[+-]?\d+(?:_\d+)*)?j?(?!\w)/i,
+      operator: /[-+%=]=?|!=|:=|\*\*?=?|\/\/?=?|<[<=>]?|>[=>]?|[&|^~]/,
+      punctuation: /[{}[\];(),.:]/
+    };
+    Prism2.languages.python["string-interpolation"].inside["interpolation"].inside.rest = Prism2.languages.python;
+    Prism2.languages.py = Prism2.languages.python;
+  }
+  __name(python, "python");
+
+  // node_modules/refractor/lang/r.js
+  r.displayName = "r";
+  r.aliases = [];
+  function r(Prism2) {
+    Prism2.languages.r = {
+      comment: /#.*/,
+      string: {
+        pattern: /(['"])(?:\\.|(?!\1)[^\\\r\n])*\1/,
+        greedy: true
+      },
+      "percent-operator": {
+        // Includes user-defined operators
+        // and %%, %*%, %/%, %in%, %o%, %x%
+        pattern: /%[^%\s]*%/,
+        alias: "operator"
+      },
+      boolean: /\b(?:FALSE|TRUE)\b/,
+      ellipsis: /\.\.(?:\.|\d+)/,
+      number: [
+        /\b(?:Inf|NaN)\b/,
+        /(?:\b0x[\dA-Fa-f]+(?:\.\d*)?|\b\d+(?:\.\d*)?|\B\.\d+)(?:[EePp][+-]?\d+)?[iL]?/
+      ],
+      keyword: /\b(?:NA|NA_character_|NA_complex_|NA_integer_|NA_real_|NULL|break|else|for|function|if|in|next|repeat|while)\b/,
+      operator: /->?>?|<(?:=|<?-)?|[>=!]=?|::?|&&?|\|\|?|[+*\/^$@~]/,
+      punctuation: /[(){}\[\],;]/
+    };
+  }
+  __name(r, "r");
+
+  // node_modules/refractor/lang/ruby.js
+  ruby.displayName = "ruby";
+  ruby.aliases = ["rb"];
+  function ruby(Prism2) {
+    Prism2.register(clike);
+    (function(Prism3) {
+      Prism3.languages.ruby = Prism3.languages.extend("clike", {
+        comment: {
+          pattern: /#.*|^=begin\s[\s\S]*?^=end/m,
+          greedy: true
+        },
+        "class-name": {
+          pattern: /(\b(?:class|module)\s+|\bcatch\s+\()[\w.\\]+|\b[A-Z_]\w*(?=\s*\.\s*new\b)/,
+          lookbehind: true,
+          inside: {
+            punctuation: /[.\\]/
+          }
+        },
+        keyword: /\b(?:BEGIN|END|alias|and|begin|break|case|class|def|define_method|defined|do|each|else|elsif|end|ensure|extend|for|if|in|include|module|new|next|nil|not|or|prepend|private|protected|public|raise|redo|require|rescue|retry|return|self|super|then|throw|undef|unless|until|when|while|yield)\b/,
+        operator: /\.{2,3}|&\.|===|<?=>|[!=]?~|(?:&&|\|\||<<|>>|\*\*|[+\-*/%<>!^&|=])=?|[?:]/,
+        punctuation: /[(){}[\].,;]/
+      });
+      Prism3.languages.insertBefore("ruby", "operator", {
+        "double-colon": {
+          pattern: /::/,
+          alias: "punctuation"
+        }
+      });
+      var interpolation = {
+        pattern: /((?:^|[^\\])(?:\\{2})*)#\{(?:[^{}]|\{[^{}]*\})*\}/,
+        lookbehind: true,
+        inside: {
+          content: {
+            pattern: /^(#\{)[\s\S]+(?=\}$)/,
+            lookbehind: true,
+            inside: Prism3.languages.ruby
+          },
+          delimiter: {
+            pattern: /^#\{|\}$/,
+            alias: "punctuation"
+          }
+        }
+      };
+      delete Prism3.languages.ruby.function;
+      var percentExpression = "(?:" + [
+        /([^a-zA-Z0-9\s{(\[<=])(?:(?!\1)[^\\]|\\[\s\S])*\1/.source,
+        /\((?:[^()\\]|\\[\s\S]|\((?:[^()\\]|\\[\s\S])*\))*\)/.source,
+        /\{(?:[^{}\\]|\\[\s\S]|\{(?:[^{}\\]|\\[\s\S])*\})*\}/.source,
+        /\[(?:[^\[\]\\]|\\[\s\S]|\[(?:[^\[\]\\]|\\[\s\S])*\])*\]/.source,
+        /<(?:[^<>\\]|\\[\s\S]|<(?:[^<>\\]|\\[\s\S])*>)*>/.source
+      ].join("|") + ")";
+      var symbolName = /(?:"(?:\\.|[^"\\\r\n])*"|(?:\b[a-zA-Z_]\w*|[^\s\0-\x7F]+)[?!]?|\$.)/.source;
+      Prism3.languages.insertBefore("ruby", "keyword", {
+        "regex-literal": [
+          {
+            pattern: RegExp(
+              /%r/.source + percentExpression + /[egimnosux]{0,6}/.source
+            ),
+            greedy: true,
+            inside: {
+              interpolation,
+              regex: /[\s\S]+/
+            }
+          },
+          {
+            pattern: /(^|[^/])\/(?!\/)(?:\[[^\r\n\]]+\]|\\.|[^[/\\\r\n])+\/[egimnosux]{0,6}(?=\s*(?:$|[\r\n,.;})#]))/,
+            lookbehind: true,
+            greedy: true,
+            inside: {
+              interpolation,
+              regex: /[\s\S]+/
+            }
+          }
+        ],
+        variable: /[@$]+[a-zA-Z_]\w*(?:[?!]|\b)/,
+        symbol: [
+          {
+            pattern: RegExp(/(^|[^:]):/.source + symbolName),
+            lookbehind: true,
+            greedy: true
+          },
+          {
+            pattern: RegExp(
+              /([\r\n{(,][ \t]*)/.source + symbolName + /(?=:(?!:))/.source
+            ),
+            lookbehind: true,
+            greedy: true
+          }
+        ],
+        "method-definition": {
+          pattern: /(\bdef\s+)\w+(?:\s*\.\s*\w+)?/,
+          lookbehind: true,
+          inside: {
+            function: /\b\w+$/,
+            keyword: /^self\b/,
+            "class-name": /^\w+/,
+            punctuation: /\./
+          }
+        }
+      });
+      Prism3.languages.insertBefore("ruby", "string", {
+        "string-literal": [
+          {
+            pattern: RegExp(/%[qQiIwWs]?/.source + percentExpression),
+            greedy: true,
+            inside: {
+              interpolation,
+              string: /[\s\S]+/
+            }
+          },
+          {
+            pattern: /("|')(?:#\{[^}]+\}|#(?!\{)|\\(?:\r\n|[\s\S])|(?!\1)[^\\#\r\n])*\1/,
+            greedy: true,
+            inside: {
+              interpolation,
+              string: /[\s\S]+/
+            }
+          },
+          {
+            pattern: /<<[-~]?([a-z_]\w*)[\r\n](?:.*[\r\n])*?[\t ]*\1/i,
+            alias: "heredoc-string",
+            greedy: true,
+            inside: {
+              delimiter: {
+                pattern: /^<<[-~]?[a-z_]\w*|\b[a-z_]\w*$/i,
+                inside: {
+                  symbol: /\b\w+/,
+                  punctuation: /^<<[-~]?/
+                }
+              },
+              interpolation,
+              string: /[\s\S]+/
+            }
+          },
+          {
+            pattern: /<<[-~]?'([a-z_]\w*)'[\r\n](?:.*[\r\n])*?[\t ]*\1/i,
+            alias: "heredoc-string",
+            greedy: true,
+            inside: {
+              delimiter: {
+                pattern: /^<<[-~]?'[a-z_]\w*'|\b[a-z_]\w*$/i,
+                inside: {
+                  symbol: /\b\w+/,
+                  punctuation: /^<<[-~]?'|'$/
+                }
+              },
+              string: /[\s\S]+/
+            }
+          }
+        ],
+        "command-literal": [
+          {
+            pattern: RegExp(/%x/.source + percentExpression),
+            greedy: true,
+            inside: {
+              interpolation,
+              command: {
+                pattern: /[\s\S]+/,
+                alias: "string"
+              }
+            }
+          },
+          {
+            pattern: /`(?:#\{[^}]+\}|#(?!\{)|\\(?:\r\n|[\s\S])|[^\\`#\r\n])*`/,
+            greedy: true,
+            inside: {
+              interpolation,
+              command: {
+                pattern: /[\s\S]+/,
+                alias: "string"
+              }
+            }
+          }
+        ]
+      });
+      delete Prism3.languages.ruby.string;
+      Prism3.languages.insertBefore("ruby", "number", {
+        builtin: /\b(?:Array|Bignum|Binding|Class|Continuation|Dir|Exception|FalseClass|File|Fixnum|Float|Hash|IO|Integer|MatchData|Method|Module|NilClass|Numeric|Object|Proc|Range|Regexp|Stat|String|Struct|Symbol|TMS|Thread|ThreadGroup|Time|TrueClass)\b/,
+        constant: /\b[A-Z][A-Z0-9_]*(?:[?!]|\b)/
+      });
+      Prism3.languages.rb = Prism3.languages.ruby;
+    })(Prism2);
+  }
+  __name(ruby, "ruby");
+
+  // node_modules/refractor/lang/rust.js
+  rust.displayName = "rust";
+  rust.aliases = [];
+  function rust(Prism2) {
+    ;
+    (function(Prism3) {
+      var multilineComment = /\/\*(?:[^*/]|\*(?!\/)|\/(?!\*)|<self>)*\*\//.source;
+      for (var i = 0; i < 2; i++) {
+        multilineComment = multilineComment.replace(/<self>/g, function() {
+          return multilineComment;
+        });
+      }
+      multilineComment = multilineComment.replace(/<self>/g, function() {
+        return /[^\s\S]/.source;
+      });
+      Prism3.languages.rust = {
+        comment: [
+          {
+            pattern: RegExp(/(^|[^\\])/.source + multilineComment),
+            lookbehind: true,
+            greedy: true
+          },
+          {
+            pattern: /(^|[^\\:])\/\/.*/,
+            lookbehind: true,
+            greedy: true
+          }
+        ],
+        string: {
+          pattern: /b?"(?:\\[\s\S]|[^\\"])*"|b?r(#*)"(?:[^"]|"(?!\1))*"\1/,
+          greedy: true
+        },
+        char: {
+          pattern: /b?'(?:\\(?:x[0-7][\da-fA-F]|u\{(?:[\da-fA-F]_*){1,6}\}|.)|[^\\\r\n\t'])'/,
+          greedy: true
+        },
+        attribute: {
+          pattern: /#!?\[(?:[^\[\]"]|"(?:\\[\s\S]|[^\\"])*")*\]/,
+          greedy: true,
+          alias: "attr-name",
+          inside: {
+            string: null
+            // see below
+          }
+        },
+        // Closure params should not be confused with bitwise OR |
+        "closure-params": {
+          pattern: /([=(,:]\s*|\bmove\s*)\|[^|]*\||\|[^|]*\|(?=\s*(?:\{|->))/,
+          lookbehind: true,
+          greedy: true,
+          inside: {
+            "closure-punctuation": {
+              pattern: /^\||\|$/,
+              alias: "punctuation"
+            },
+            rest: null
+            // see below
+          }
+        },
+        "lifetime-annotation": {
+          pattern: /'\w+/,
+          alias: "symbol"
+        },
+        "fragment-specifier": {
+          pattern: /(\$\w+:)[a-z]+/,
+          lookbehind: true,
+          alias: "punctuation"
+        },
+        variable: /\$\w+/,
+        "function-definition": {
+          pattern: /(\bfn\s+)\w+/,
+          lookbehind: true,
+          alias: "function"
+        },
+        "type-definition": {
+          pattern: /(\b(?:enum|struct|trait|type|union)\s+)\w+/,
+          lookbehind: true,
+          alias: "class-name"
+        },
+        "module-declaration": [
+          {
+            pattern: /(\b(?:crate|mod)\s+)[a-z][a-z_\d]*/,
+            lookbehind: true,
+            alias: "namespace"
+          },
+          {
+            pattern: /(\b(?:crate|self|super)\s*)::\s*[a-z][a-z_\d]*\b(?:\s*::(?:\s*[a-z][a-z_\d]*\s*::)*)?/,
+            lookbehind: true,
+            alias: "namespace",
+            inside: {
+              punctuation: /::/
+            }
+          }
+        ],
+        keyword: [
+          // https://github.com/rust-lang/reference/blob/master/src/keywords.md
+          /\b(?:Self|abstract|as|async|await|become|box|break|const|continue|crate|do|dyn|else|enum|extern|final|fn|for|if|impl|in|let|loop|macro|match|mod|move|mut|override|priv|pub|ref|return|self|static|struct|super|trait|try|type|typeof|union|unsafe|unsized|use|virtual|where|while|yield)\b/,
+          // primitives and str
+          // https://doc.rust-lang.org/stable/rust-by-example/primitives.html
+          /\b(?:bool|char|f(?:32|64)|[ui](?:8|16|32|64|128|size)|str)\b/
+        ],
+        // functions can technically start with an upper-case letter, but this will introduce a lot of false positives
+        // and Rust's naming conventions recommend snake_case anyway.
+        // https://doc.rust-lang.org/1.0.0/style/style/naming/README.html
+        function: /\b[a-z_]\w*(?=\s*(?:::\s*<|\())/,
+        macro: {
+          pattern: /\b\w+!/,
+          alias: "property"
+        },
+        constant: /\b[A-Z_][A-Z_\d]+\b/,
+        "class-name": /\b[A-Z]\w*\b/,
+        namespace: {
+          pattern: /(?:\b[a-z][a-z_\d]*\s*::\s*)*\b[a-z][a-z_\d]*\s*::(?!\s*<)/,
+          inside: {
+            punctuation: /::/
+          }
+        },
+        // Hex, oct, bin, dec numbers with visual separators and type suffix
+        number: /\b(?:0x[\dA-Fa-f](?:_?[\dA-Fa-f])*|0o[0-7](?:_?[0-7])*|0b[01](?:_?[01])*|(?:(?:\d(?:_?\d)*)?\.)?\d(?:_?\d)*(?:[Ee][+-]?\d+)?)(?:_?(?:f32|f64|[iu](?:8|16|32|64|size)?))?\b/,
+        boolean: /\b(?:false|true)\b/,
+        punctuation: /->|\.\.=|\.{1,3}|::|[{}[\];(),:]/,
+        operator: /[-+*\/%!^]=?|=[=>]?|&[&=]?|\|[|=]?|<<?=?|>>?=?|[@?]/
+      };
+      Prism3.languages.rust["closure-params"].inside.rest = Prism3.languages.rust;
+      Prism3.languages.rust["attribute"].inside["string"] = Prism3.languages.rust["string"];
+    })(Prism2);
+  }
+  __name(rust, "rust");
+
+  // node_modules/refractor/lang/sass.js
+  sass.displayName = "sass";
+  sass.aliases = [];
+  function sass(Prism2) {
+    Prism2.register(css);
+    (function(Prism3) {
+      Prism3.languages.sass = Prism3.languages.extend("css", {
+        // Sass comments don't need to be closed, only indented
+        comment: {
+          pattern: /^([ \t]*)\/[\/*].*(?:(?:\r?\n|\r)\1[ \t].+)*/m,
+          lookbehind: true,
+          greedy: true
+        }
+      });
+      Prism3.languages.insertBefore("sass", "atrule", {
+        // We want to consume the whole line
+        "atrule-line": {
+          // Includes support for = and + shortcuts
+          pattern: /^(?:[ \t]*)[@+=].+/m,
+          greedy: true,
+          inside: {
+            atrule: /(?:@[\w-]+|[+=])/
+          }
+        }
+      });
+      delete Prism3.languages.sass.atrule;
+      var variable = /\$[-\w]+|#\{\$[-\w]+\}/;
+      var operator = [
+        /[+*\/%]|[=!]=|<=?|>=?|\b(?:and|not|or)\b/,
+        {
+          pattern: /(\s)-(?=\s)/,
+          lookbehind: true
+        }
+      ];
+      Prism3.languages.insertBefore("sass", "property", {
+        // We want to consume the whole line
+        "variable-line": {
+          pattern: /^[ \t]*\$.+/m,
+          greedy: true,
+          inside: {
+            punctuation: /:/,
+            variable,
+            operator
+          }
+        },
+        // We want to consume the whole line
+        "property-line": {
+          pattern: /^[ \t]*(?:[^:\s]+ *:.*|:[^:\s].*)/m,
+          greedy: true,
+          inside: {
+            property: [
+              /[^:\s]+(?=\s*:)/,
+              {
+                pattern: /(:)[^:\s]+/,
+                lookbehind: true
+              }
+            ],
+            punctuation: /:/,
+            variable,
+            operator,
+            important: Prism3.languages.sass.important
+          }
+        }
+      });
+      delete Prism3.languages.sass.property;
+      delete Prism3.languages.sass.important;
+      Prism3.languages.insertBefore("sass", "punctuation", {
+        selector: {
+          pattern: /^([ \t]*)\S(?:,[^,\r\n]+|[^,\r\n]*)(?:,[^,\r\n]+)*(?:,(?:\r?\n|\r)\1[ \t]+\S(?:,[^,\r\n]+|[^,\r\n]*)(?:,[^,\r\n]+)*)*/m,
+          lookbehind: true,
+          greedy: true
+        }
+      });
+    })(Prism2);
+  }
+  __name(sass, "sass");
+
+  // node_modules/refractor/lang/scss.js
+  scss.displayName = "scss";
+  scss.aliases = [];
+  function scss(Prism2) {
+    Prism2.register(css);
+    Prism2.languages.scss = Prism2.languages.extend("css", {
+      comment: {
+        pattern: /(^|[^\\])(?:\/\*[\s\S]*?\*\/|\/\/.*)/,
+        lookbehind: true
+      },
+      atrule: {
+        pattern: /@[\w-](?:\([^()]+\)|[^()\s]|\s+(?!\s))*?(?=\s+[{;])/,
+        inside: {
+          rule: /@[\w-]+/
+          // See rest below
+        }
+      },
+      // url, compassified
+      url: /(?:[-a-z]+-)?url(?=\()/i,
+      // CSS selector regex is not appropriate for Sass
+      // since there can be lot more things (var, @ directive, nesting..)
+      // a selector must start at the end of a property or after a brace (end of other rules or nesting)
+      // it can contain some characters that aren't used for defining rules or end of selector, & (parent selector), or interpolated variable
+      // the end of a selector is found when there is no rules in it ( {} or {\s}) or if there is a property (because an interpolated var
+      // can "pass" as a selector- e.g: proper#{$erty})
+      // this one was hard to do, so please be careful if you edit this one :)
+      selector: {
+        // Initial look-ahead is used to prevent matching of blank selectors
+        pattern: /(?=\S)[^@;{}()]?(?:[^@;{}()\s]|\s+(?!\s)|#\{\$[-\w]+\})+(?=\s*\{(?:\}|\s|[^}][^:{}]*[:{][^}]))/,
+        inside: {
+          parent: {
+            pattern: /&/,
+            alias: "important"
+          },
+          placeholder: /%[-\w]+/,
+          variable: /\$[-\w]+|#\{\$[-\w]+\}/
+        }
+      },
+      property: {
+        pattern: /(?:[-\w]|\$[-\w]|#\{\$[-\w]+\})+(?=\s*:)/,
+        inside: {
+          variable: /\$[-\w]+|#\{\$[-\w]+\}/
+        }
+      }
+    });
+    Prism2.languages.insertBefore("scss", "atrule", {
+      keyword: [
+        /@(?:content|debug|each|else(?: if)?|extend|for|forward|function|if|import|include|mixin|return|use|warn|while)\b/i,
+        {
+          pattern: /( )(?:from|through)(?= )/,
+          lookbehind: true
+        }
+      ]
+    });
+    Prism2.languages.insertBefore("scss", "important", {
+      // var and interpolated vars
+      variable: /\$[-\w]+|#\{\$[-\w]+\}/
+    });
+    Prism2.languages.insertBefore("scss", "function", {
+      "module-modifier": {
+        pattern: /\b(?:as|hide|show|with)\b/i,
+        alias: "keyword"
+      },
+      placeholder: {
+        pattern: /%[-\w]+/,
+        alias: "selector"
+      },
+      statement: {
+        pattern: /\B!(?:default|optional)\b/i,
+        alias: "keyword"
+      },
+      boolean: /\b(?:false|true)\b/,
+      null: {
+        pattern: /\bnull\b/,
+        alias: "keyword"
+      },
+      operator: {
+        pattern: /(\s)(?:[-+*\/%]|[=!]=|<=?|>=?|and|not|or)(?=\s)/,
+        lookbehind: true
+      }
+    });
+    Prism2.languages.scss["atrule"].inside.rest = Prism2.languages.scss;
+  }
+  __name(scss, "scss");
+
+  // node_modules/refractor/lang/sql.js
+  sql.displayName = "sql";
+  sql.aliases = [];
+  function sql(Prism2) {
+    Prism2.languages.sql = {
+      comment: {
+        pattern: /(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#).*)/,
+        lookbehind: true
+      },
+      variable: [
+        {
+          pattern: /@(["'`])(?:\\[\s\S]|(?!\1)[^\\])+\1/,
+          greedy: true
+        },
+        /@[\w.$]+/
+      ],
+      string: {
+        pattern: /(^|[^@\\])("|')(?:\\[\s\S]|(?!\2)[^\\]|\2\2)*\2/,
+        greedy: true,
+        lookbehind: true
+      },
+      identifier: {
+        pattern: /(^|[^@\\])`(?:\\[\s\S]|[^`\\]|``)*`/,
+        greedy: true,
+        lookbehind: true,
+        inside: {
+          punctuation: /^`|`$/
+        }
+      },
+      function: /\b(?:AVG|COUNT|FIRST|FORMAT|LAST|LCASE|LEN|MAX|MID|MIN|MOD|NOW|ROUND|SUM|UCASE)(?=\s*\()/i,
+      // Should we highlight user defined functions too?
+      keyword: /\b(?:ACTION|ADD|AFTER|ALGORITHM|ALL|ALTER|ANALYZE|ANY|APPLY|AS|ASC|AUTHORIZATION|AUTO_INCREMENT|BACKUP|BDB|BEGIN|BERKELEYDB|BIGINT|BINARY|BIT|BLOB|BOOL|BOOLEAN|BREAK|BROWSE|BTREE|BULK|BY|CALL|CASCADED?|CASE|CHAIN|CHAR(?:ACTER|SET)?|CHECK(?:POINT)?|CLOSE|CLUSTERED|COALESCE|COLLATE|COLUMNS?|COMMENT|COMMIT(?:TED)?|COMPUTE|CONNECT|CONSISTENT|CONSTRAINT|CONTAINS(?:TABLE)?|CONTINUE|CONVERT|CREATE|CROSS|CURRENT(?:_DATE|_TIME|_TIMESTAMP|_USER)?|CURSOR|CYCLE|DATA(?:BASES?)?|DATE(?:TIME)?|DAY|DBCC|DEALLOCATE|DEC|DECIMAL|DECLARE|DEFAULT|DEFINER|DELAYED|DELETE|DELIMITERS?|DENY|DESC|DESCRIBE|DETERMINISTIC|DISABLE|DISCARD|DISK|DISTINCT|DISTINCTROW|DISTRIBUTED|DO|DOUBLE|DROP|DUMMY|DUMP(?:FILE)?|DUPLICATE|ELSE(?:IF)?|ENABLE|ENCLOSED|END|ENGINE|ENUM|ERRLVL|ERRORS|ESCAPED?|EXCEPT|EXEC(?:UTE)?|EXISTS|EXIT|EXPLAIN|EXTENDED|FETCH|FIELDS|FILE|FILLFACTOR|FIRST|FIXED|FLOAT|FOLLOWING|FOR(?: EACH ROW)?|FORCE|FOREIGN|FREETEXT(?:TABLE)?|FROM|FULL|FUNCTION|GEOMETRY(?:COLLECTION)?|GLOBAL|GOTO|GRANT|GROUP|HANDLER|HASH|HAVING|HOLDLOCK|HOUR|IDENTITY(?:COL|_INSERT)?|IF|IGNORE|IMPORT|INDEX|INFILE|INNER|INNODB|INOUT|INSERT|INT|INTEGER|INTERSECT|INTERVAL|INTO|INVOKER|ISOLATION|ITERATE|JOIN|KEYS?|KILL|LANGUAGE|LAST|LEAVE|LEFT|LEVEL|LIMIT|LINENO|LINES|LINESTRING|LOAD|LOCAL|LOCK|LONG(?:BLOB|TEXT)|LOOP|MATCH(?:ED)?|MEDIUM(?:BLOB|INT|TEXT)|MERGE|MIDDLEINT|MINUTE|MODE|MODIFIES|MODIFY|MONTH|MULTI(?:LINESTRING|POINT|POLYGON)|NATIONAL|NATURAL|NCHAR|NEXT|NO|NONCLUSTERED|NULLIF|NUMERIC|OFF?|OFFSETS?|ON|OPEN(?:DATASOURCE|QUERY|ROWSET)?|OPTIMIZE|OPTION(?:ALLY)?|ORDER|OUT(?:ER|FILE)?|OVER|PARTIAL|PARTITION|PERCENT|PIVOT|PLAN|POINT|POLYGON|PRECEDING|PRECISION|PREPARE|PREV|PRIMARY|PRINT|PRIVILEGES|PROC(?:EDURE)?|PUBLIC|PURGE|QUICK|RAISERROR|READS?|REAL|RECONFIGURE|REFERENCES|RELEASE|RENAME|REPEAT(?:ABLE)?|REPLACE|REPLICATION|REQUIRE|RESIGNAL|RESTORE|RESTRICT|RETURN(?:ING|S)?|REVOKE|RIGHT|ROLLBACK|ROUTINE|ROW(?:COUNT|GUIDCOL|S)?|RTREE|RULE|SAVE(?:POINT)?|SCHEMA|SECOND|SELECT|SERIAL(?:IZABLE)?|SESSION(?:_USER)?|SET(?:USER)?|SHARE|SHOW|SHUTDOWN|SIMPLE|SMALLINT|SNAPSHOT|SOME|SONAME|SQL|START(?:ING)?|STATISTICS|STATUS|STRIPED|SYSTEM_USER|TABLES?|TABLESPACE|TEMP(?:ORARY|TABLE)?|TERMINATED|TEXT(?:SIZE)?|THEN|TIME(?:STAMP)?|TINY(?:BLOB|INT|TEXT)|TOP?|TRAN(?:SACTIONS?)?|TRIGGER|TRUNCATE|TSEQUAL|TYPES?|UNBOUNDED|UNCOMMITTED|UNDEFINED|UNION|UNIQUE|UNLOCK|UNPIVOT|UNSIGNED|UPDATE(?:TEXT)?|USAGE|USE|USER|USING|VALUES?|VAR(?:BINARY|CHAR|CHARACTER|YING)|VIEW|WAITFOR|WARNINGS|WHEN|WHERE|WHILE|WITH(?: ROLLUP|IN)?|WORK|WRITE(?:TEXT)?|YEAR)\b/i,
+      boolean: /\b(?:FALSE|NULL|TRUE)\b/i,
+      number: /\b0x[\da-f]+\b|\b\d+(?:\.\d*)?|\B\.\d+\b/i,
+      operator: /[-+*\/=%^~]|&&?|\|\|?|!=?|<(?:=>?|<|>)?|>[>=]?|\b(?:AND|BETWEEN|DIV|ILIKE|IN|IS|LIKE|NOT|OR|REGEXP|RLIKE|SOUNDS LIKE|XOR)\b/i,
+      punctuation: /[;[\]()`,.]/
+    };
+  }
+  __name(sql, "sql");
+
+  // node_modules/refractor/lang/swift.js
+  swift.displayName = "swift";
+  swift.aliases = [];
+  function swift(Prism2) {
+    Prism2.languages.swift = {
+      comment: {
+        // Nested comments are supported up to 2 levels
+        pattern: /(^|[^\\:])(?:\/\/.*|\/\*(?:[^/*]|\/(?!\*)|\*(?!\/)|\/\*(?:[^*]|\*(?!\/))*\*\/)*\*\/)/,
+        lookbehind: true,
+        greedy: true
+      },
+      "string-literal": [
+        // https://docs.swift.org/swift-book/LanguageGuide/StringsAndCharacters.html
+        {
+          pattern: RegExp(
+            /(^|[^"#])/.source + "(?:" + // single-line string
+            /"(?:\\(?:\((?:[^()]|\([^()]*\))*\)|\r\n|[^(])|[^\\\r\n"])*"/.source + "|" + // multi-line string
+            /"""(?:\\(?:\((?:[^()]|\([^()]*\))*\)|[^(])|[^\\"]|"(?!""))*"""/.source + ")" + /(?!["#])/.source
+          ),
+          lookbehind: true,
+          greedy: true,
+          inside: {
+            interpolation: {
+              pattern: /(\\\()(?:[^()]|\([^()]*\))*(?=\))/,
+              lookbehind: true,
+              inside: null
+              // see below
+            },
+            "interpolation-punctuation": {
+              pattern: /^\)|\\\($/,
+              alias: "punctuation"
+            },
+            punctuation: /\\(?=[\r\n])/,
+            string: /[\s\S]+/
+          }
+        },
+        {
+          pattern: RegExp(
+            /(^|[^"#])(#+)/.source + "(?:" + // single-line string
+            /"(?:\\(?:#+\((?:[^()]|\([^()]*\))*\)|\r\n|[^#])|[^\\\r\n])*?"/.source + "|" + // multi-line string
+            /"""(?:\\(?:#+\((?:[^()]|\([^()]*\))*\)|[^#])|[^\\])*?"""/.source + ")\\2"
+          ),
+          lookbehind: true,
+          greedy: true,
+          inside: {
+            interpolation: {
+              pattern: /(\\#+\()(?:[^()]|\([^()]*\))*(?=\))/,
+              lookbehind: true,
+              inside: null
+              // see below
+            },
+            "interpolation-punctuation": {
+              pattern: /^\)|\\#+\($/,
+              alias: "punctuation"
+            },
+            string: /[\s\S]+/
+          }
+        }
+      ],
+      directive: {
+        // directives with conditions
+        pattern: RegExp(
+          /#/.source + "(?:" + (/(?:elseif|if)\b/.source + "(?:[ 	]*" + // This regex is a little complex. It's equivalent to this:
+          //   (?:![ \t]*)?(?:\b\w+\b(?:[ \t]*<round>)?|<round>)(?:[ \t]*(?:&&|\|\|))?
+          // where <round> is a general parentheses expression.
+          /(?:![ \t]*)?(?:\b\w+\b(?:[ \t]*\((?:[^()]|\([^()]*\))*\))?|\((?:[^()]|\([^()]*\))*\))(?:[ \t]*(?:&&|\|\|))?/.source + ")+") + "|" + /(?:else|endif)\b/.source + ")"
+        ),
+        alias: "property",
+        inside: {
+          "directive-name": /^#\w+/,
+          boolean: /\b(?:false|true)\b/,
+          number: /\b\d+(?:\.\d+)*\b/,
+          operator: /!|&&|\|\||[<>]=?/,
+          punctuation: /[(),]/
+        }
+      },
+      literal: {
+        pattern: /#(?:colorLiteral|column|dsohandle|file(?:ID|Literal|Path)?|function|imageLiteral|line)\b/,
+        alias: "constant"
+      },
+      "other-directive": {
+        pattern: /#\w+\b/,
+        alias: "property"
+      },
+      attribute: {
+        pattern: /@\w+/,
+        alias: "atrule"
+      },
+      "function-definition": {
+        pattern: /(\bfunc\s+)\w+/,
+        lookbehind: true,
+        alias: "function"
+      },
+      label: {
+        // https://docs.swift.org/swift-book/LanguageGuide/ControlFlow.html#ID141
+        pattern: /\b(break|continue)\s+\w+|\b[a-zA-Z_]\w*(?=\s*:\s*(?:for|repeat|while)\b)/,
+        lookbehind: true,
+        alias: "important"
+      },
+      keyword: /\b(?:Any|Protocol|Self|Type|actor|as|assignment|associatedtype|associativity|async|await|break|case|catch|class|continue|convenience|default|defer|deinit|didSet|do|dynamic|else|enum|extension|fallthrough|fileprivate|final|for|func|get|guard|higherThan|if|import|in|indirect|infix|init|inout|internal|is|isolated|lazy|left|let|lowerThan|mutating|none|nonisolated|nonmutating|open|operator|optional|override|postfix|precedencegroup|prefix|private|protocol|public|repeat|required|rethrows|return|right|safe|self|set|some|static|struct|subscript|super|switch|throw|throws|try|typealias|unowned|unsafe|var|weak|where|while|willSet)\b/,
+      boolean: /\b(?:false|true)\b/,
+      nil: {
+        pattern: /\bnil\b/,
+        alias: "constant"
+      },
+      "short-argument": /\$\d+\b/,
+      omit: {
+        pattern: /\b_\b/,
+        alias: "keyword"
+      },
+      number: /\b(?:[\d_]+(?:\.[\de_]+)?|0x[a-f0-9_]+(?:\.[a-f0-9p_]+)?|0b[01_]+|0o[0-7_]+)\b/i,
+      // A class name must start with an upper-case letter and be either 1 letter long or contain a lower-case letter.
+      "class-name": /\b[A-Z](?:[A-Z_\d]*[a-z]\w*)?\b/,
+      function: /\b[a-z_]\w*(?=\s*\()/i,
+      constant: /\b(?:[A-Z_]{2,}|k[A-Z][A-Za-z_]+)\b/,
+      // Operators are generic in Swift. Developers can even create new operators (e.g. +++).
+      // https://docs.swift.org/swift-book/ReferenceManual/zzSummaryOfTheGrammar.html#ID481
+      // This regex only supports ASCII operators.
+      operator: /[-+*/%=!<>&|^~?]+|\.[.\-+*/%=!<>&|^~?]+/,
+      punctuation: /[{}[\]();,.:\\]/
+    };
+    Prism2.languages.swift["string-literal"].forEach(function(rule) {
+      rule.inside["interpolation"].inside = Prism2.languages.swift;
+    });
+  }
+  __name(swift, "swift");
+
+  // node_modules/refractor/lang/typescript.js
+  typescript.displayName = "typescript";
+  typescript.aliases = ["ts"];
+  function typescript(Prism2) {
+    Prism2.register(javascript);
+    (function(Prism3) {
+      Prism3.languages.typescript = Prism3.languages.extend("javascript", {
+        "class-name": {
+          pattern: /(\b(?:class|extends|implements|instanceof|interface|new|type)\s+)(?!keyof\b)(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?:\s*<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)?/,
+          lookbehind: true,
+          greedy: true,
+          inside: null
+          // see below
+        },
+        builtin: /\b(?:Array|Function|Promise|any|boolean|console|never|number|string|symbol|unknown)\b/
+      });
+      Prism3.languages.typescript.keyword.push(
+        /\b(?:abstract|declare|is|keyof|readonly|require)\b/,
+        // keywords that have to be followed by an identifier
+        /\b(?:asserts|infer|interface|module|namespace|type)\b(?=\s*(?:[{_$a-zA-Z\xA0-\uFFFF]|$))/,
+        // This is for `import type *, {}`
+        /\btype\b(?=\s*(?:[\{*]|$))/
+      );
+      delete Prism3.languages.typescript["parameter"];
+      delete Prism3.languages.typescript["literal-property"];
+      var typeInside = Prism3.languages.extend("typescript", {});
+      delete typeInside["class-name"];
+      Prism3.languages.typescript["class-name"].inside = typeInside;
+      Prism3.languages.insertBefore("typescript", "function", {
+        decorator: {
+          pattern: /@[$\w\xA0-\uFFFF]+/,
+          inside: {
+            at: {
+              pattern: /^@/,
+              alias: "operator"
+            },
+            function: /^[\s\S]+/
+          }
+        },
+        "generic-function": {
+          // e.g. foo<T extends "bar" | "baz">( ...
+          pattern: /#?(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*\s*<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>(?=\s*\()/,
+          greedy: true,
+          inside: {
+            function: /^#?(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*/,
+            generic: {
+              pattern: /<[\s\S]+/,
+              // everything after the first <
+              alias: "class-name",
+              inside: typeInside
+            }
+          }
+        }
+      });
+      Prism3.languages.ts = Prism3.languages.typescript;
+    })(Prism2);
+  }
+  __name(typescript, "typescript");
+
+  // node_modules/refractor/lang/basic.js
+  basic.displayName = "basic";
+  basic.aliases = [];
+  function basic(Prism2) {
+    Prism2.languages.basic = {
+      comment: {
+        pattern: /(?:!|REM\b).+/i,
+        inside: {
+          keyword: /^REM/i
+        }
+      },
+      string: {
+        pattern: /"(?:""|[!#$%&'()*,\/:;<=>?^\w +\-.])*"/,
+        greedy: true
+      },
+      number: /(?:\b\d+(?:\.\d*)?|\B\.\d+)(?:E[+-]?\d+)?/i,
+      keyword: /\b(?:AS|BEEP|BLOAD|BSAVE|CALL(?: ABSOLUTE)?|CASE|CHAIN|CHDIR|CLEAR|CLOSE|CLS|COM|COMMON|CONST|DATA|DECLARE|DEF(?: FN| SEG|DBL|INT|LNG|SNG|STR)|DIM|DO|DOUBLE|ELSE|ELSEIF|END|ENVIRON|ERASE|ERROR|EXIT|FIELD|FILES|FOR|FUNCTION|GET|GOSUB|GOTO|IF|INPUT|INTEGER|IOCTL|KEY|KILL|LINE INPUT|LOCATE|LOCK|LONG|LOOP|LSET|MKDIR|NAME|NEXT|OFF|ON(?: COM| ERROR| KEY| TIMER)?|OPEN|OPTION BASE|OUT|POKE|PUT|READ|REDIM|REM|RESTORE|RESUME|RETURN|RMDIR|RSET|RUN|SELECT CASE|SHARED|SHELL|SINGLE|SLEEP|STATIC|STEP|STOP|STRING|SUB|SWAP|SYSTEM|THEN|TIMER|TO|TROFF|TRON|TYPE|UNLOCK|UNTIL|USING|VIEW PRINT|WAIT|WEND|WHILE|WRITE)(?:\$|\b)/i,
+      function: /\b(?:ABS|ACCESS|ACOS|ANGLE|AREA|ARITHMETIC|ARRAY|ASIN|ASK|AT|ATN|BASE|BEGIN|BREAK|CAUSE|CEIL|CHR|CLIP|COLLATE|COLOR|CON|COS|COSH|COT|CSC|DATE|DATUM|DEBUG|DECIMAL|DEF|DEG|DEGREES|DELETE|DET|DEVICE|DISPLAY|DOT|ELAPSED|EPS|ERASABLE|EXLINE|EXP|EXTERNAL|EXTYPE|FILETYPE|FIXED|FP|GO|GRAPH|HANDLER|IDN|IMAGE|IN|INT|INTERNAL|IP|IS|KEYED|LBOUND|LCASE|LEFT|LEN|LENGTH|LET|LINE|LINES|LOG|LOG10|LOG2|LTRIM|MARGIN|MAT|MAX|MAXNUM|MID|MIN|MISSING|MOD|NATIVE|NUL|NUMERIC|OF|OPTION|ORD|ORGANIZATION|OUTIN|OUTPUT|PI|POINT|POINTER|POINTS|POS|PRINT|PROGRAM|PROMPT|RAD|RADIANS|RANDOMIZE|RECORD|RECSIZE|RECTYPE|RELATIVE|REMAINDER|REPEAT|REST|RETRY|REWRITE|RIGHT|RND|ROUND|RTRIM|SAME|SEC|SELECT|SEQUENTIAL|SET|SETTER|SGN|SIN|SINH|SIZE|SKIP|SQR|STANDARD|STATUS|STR|STREAM|STYLE|TAB|TAN|TANH|TEMPLATE|TEXT|THERE|TIME|TIMEOUT|TRACE|TRANSFORM|TRUNCATE|UBOUND|UCASE|USE|VAL|VARIABLE|VIEWPORT|WHEN|WINDOW|WITH|ZER|ZONEWIDTH)(?:\$|\b)/i,
+      operator: /<[=>]?|>=?|[+\-*\/^=&]|\b(?:AND|EQV|IMP|NOT|OR|XOR)\b/i,
+      punctuation: /[,;:()]/
+    };
+  }
+  __name(basic, "basic");
+
+  // node_modules/refractor/lang/vbnet.js
+  vbnet.displayName = "vbnet";
+  vbnet.aliases = [];
+  function vbnet(Prism2) {
+    Prism2.register(basic);
+    Prism2.languages.vbnet = Prism2.languages.extend("basic", {
+      comment: [
+        {
+          pattern: /(?:!|REM\b).+/i,
+          inside: {
+            keyword: /^REM/i
+          }
+        },
+        {
+          pattern: /(^|[^\\:])'.*/,
+          lookbehind: true,
+          greedy: true
+        }
+      ],
+      string: {
+        pattern: /(^|[^"])"(?:""|[^"])*"(?!")/,
+        lookbehind: true,
+        greedy: true
+      },
+      keyword: /(?:\b(?:ADDHANDLER|ADDRESSOF|ALIAS|AND|ANDALSO|AS|BEEP|BLOAD|BOOLEAN|BSAVE|BYREF|BYTE|BYVAL|CALL(?: ABSOLUTE)?|CASE|CATCH|CBOOL|CBYTE|CCHAR|CDATE|CDBL|CDEC|CHAIN|CHAR|CHDIR|CINT|CLASS|CLEAR|CLNG|CLOSE|CLS|COBJ|COM|COMMON|CONST|CONTINUE|CSBYTE|CSHORT|CSNG|CSTR|CTYPE|CUINT|CULNG|CUSHORT|DATA|DATE|DECIMAL|DECLARE|DEF(?: FN| SEG|DBL|INT|LNG|SNG|STR)|DEFAULT|DELEGATE|DIM|DIRECTCAST|DO|DOUBLE|ELSE|ELSEIF|END|ENUM|ENVIRON|ERASE|ERROR|EVENT|EXIT|FALSE|FIELD|FILES|FINALLY|FOR(?: EACH)?|FRIEND|FUNCTION|GET|GETTYPE|GETXMLNAMESPACE|GLOBAL|GOSUB|GOTO|HANDLES|IF|IMPLEMENTS|IMPORTS|IN|INHERITS|INPUT|INTEGER|INTERFACE|IOCTL|IS|ISNOT|KEY|KILL|LET|LIB|LIKE|LINE INPUT|LOCATE|LOCK|LONG|LOOP|LSET|ME|MKDIR|MOD|MODULE|MUSTINHERIT|MUSTOVERRIDE|MYBASE|MYCLASS|NAME|NAMESPACE|NARROWING|NEW|NEXT|NOT|NOTHING|NOTINHERITABLE|NOTOVERRIDABLE|OBJECT|OF|OFF|ON(?: COM| ERROR| KEY| TIMER)?|OPEN|OPERATOR|OPTION(?: BASE)?|OPTIONAL|OR|ORELSE|OUT|OVERLOADS|OVERRIDABLE|OVERRIDES|PARAMARRAY|PARTIAL|POKE|PRIVATE|PROPERTY|PROTECTED|PUBLIC|PUT|RAISEEVENT|READ|READONLY|REDIM|REM|REMOVEHANDLER|RESTORE|RESUME|RETURN|RMDIR|RSET|RUN|SBYTE|SELECT(?: CASE)?|SET|SHADOWS|SHARED|SHELL|SHORT|SINGLE|SLEEP|STATIC|STEP|STOP|STRING|STRUCTURE|SUB|SWAP|SYNCLOCK|SYSTEM|THEN|THROW|TIMER|TO|TROFF|TRON|TRUE|TRY|TRYCAST|TYPE|TYPEOF|UINTEGER|ULONG|UNLOCK|UNTIL|USHORT|USING|VIEW PRINT|WAIT|WEND|WHEN|WHILE|WIDENING|WITH|WITHEVENTS|WRITE|WRITEONLY|XOR)|\B(?:#CONST|#ELSE|#ELSEIF|#END|#IF))(?:\$|\b)/i,
+      punctuation: /[,;:(){}]/
+    });
+  }
+  __name(vbnet, "vbnet");
+
+  // node_modules/property-information/lib/util/schema.js
+  var Schema = class {
+    static {
+      __name(this, "Schema");
+    }
+    /**
+     * @param {SchemaType['property']} property
+     *   Property.
+     * @param {SchemaType['normal']} normal
+     *   Normal.
+     * @param {Space | undefined} [space]
+     *   Space.
+     * @returns
+     *   Schema.
+     */
+    constructor(property, normal, space) {
+      this.normal = normal;
+      this.property = property;
+      if (space) {
+        this.space = space;
+      }
+    }
+  };
+  Schema.prototype.normal = {};
+  Schema.prototype.property = {};
+  Schema.prototype.space = void 0;
+
+  // node_modules/property-information/lib/util/merge.js
+  function merge(definitions, space) {
+    const property = {};
+    const normal = {};
+    for (const definition of definitions) {
+      Object.assign(property, definition.property);
+      Object.assign(normal, definition.normal);
+    }
+    return new Schema(property, normal, space);
+  }
+  __name(merge, "merge");
+
+  // node_modules/property-information/lib/normalize.js
+  function normalize(value) {
+    return value.toLowerCase();
+  }
+  __name(normalize, "normalize");
+
+  // node_modules/property-information/lib/util/info.js
+  var Info = class {
+    static {
+      __name(this, "Info");
+    }
+    /**
+     * @param {string} property
+     *   Property.
+     * @param {string} attribute
+     *   Attribute.
+     * @returns
+     *   Info.
+     */
+    constructor(property, attribute) {
+      this.attribute = attribute;
+      this.property = property;
+    }
+  };
+  Info.prototype.attribute = "";
+  Info.prototype.booleanish = false;
+  Info.prototype.boolean = false;
+  Info.prototype.commaOrSpaceSeparated = false;
+  Info.prototype.commaSeparated = false;
+  Info.prototype.defined = false;
+  Info.prototype.mustUseProperty = false;
+  Info.prototype.number = false;
+  Info.prototype.overloadedBoolean = false;
+  Info.prototype.property = "";
+  Info.prototype.spaceSeparated = false;
+  Info.prototype.space = void 0;
+
+  // node_modules/property-information/lib/util/types.js
+  var types_exports = {};
+  __export(types_exports, {
+    boolean: () => boolean,
+    booleanish: () => booleanish,
+    commaOrSpaceSeparated: () => commaOrSpaceSeparated,
+    commaSeparated: () => commaSeparated,
+    number: () => number,
+    overloadedBoolean: () => overloadedBoolean,
+    spaceSeparated: () => spaceSeparated
+  });
+  var powers = 0;
+  var boolean = increment();
+  var booleanish = increment();
+  var overloadedBoolean = increment();
+  var number = increment();
+  var spaceSeparated = increment();
+  var commaSeparated = increment();
+  var commaOrSpaceSeparated = increment();
+  function increment() {
+    return 2 ** ++powers;
+  }
+  __name(increment, "increment");
+
+  // node_modules/property-information/lib/util/defined-info.js
+  var checks = (
+    /** @type {ReadonlyArray<keyof typeof types>} */
+    Object.keys(types_exports)
+  );
+  var DefinedInfo = class extends Info {
+    static {
+      __name(this, "DefinedInfo");
+    }
+    /**
+     * @constructor
+     * @param {string} property
+     *   Property.
+     * @param {string} attribute
+     *   Attribute.
+     * @param {number | null | undefined} [mask]
+     *   Mask.
+     * @param {Space | undefined} [space]
+     *   Space.
+     * @returns
+     *   Info.
+     */
+    constructor(property, attribute, mask, space) {
+      let index = -1;
+      super(property, attribute);
+      mark(this, "space", space);
+      if (typeof mask === "number") {
+        while (++index < checks.length) {
+          const check = checks[index];
+          mark(this, checks[index], (mask & types_exports[check]) === types_exports[check]);
+        }
+      }
+    }
+  };
+  DefinedInfo.prototype.defined = true;
+  function mark(values, key, value) {
+    if (value) {
+      values[key] = value;
+    }
+  }
+  __name(mark, "mark");
+
+  // node_modules/property-information/lib/util/create.js
+  function create(definition) {
+    const properties = {};
+    const normals = {};
+    for (const [property, value] of Object.entries(definition.properties)) {
+      const info = new DefinedInfo(
+        property,
+        definition.transform(definition.attributes || {}, property),
+        value,
+        definition.space
+      );
+      if (definition.mustUseProperty && definition.mustUseProperty.includes(property)) {
+        info.mustUseProperty = true;
+      }
+      properties[property] = info;
+      normals[normalize(property)] = property;
+      normals[normalize(info.attribute)] = property;
+    }
+    return new Schema(properties, normals, definition.space);
+  }
+  __name(create, "create");
+
+  // node_modules/property-information/lib/aria.js
+  var aria = create({
+    properties: {
+      ariaActiveDescendant: null,
+      ariaAtomic: booleanish,
+      ariaAutoComplete: null,
+      ariaBusy: booleanish,
+      ariaChecked: booleanish,
+      ariaColCount: number,
+      ariaColIndex: number,
+      ariaColSpan: number,
+      ariaControls: spaceSeparated,
+      ariaCurrent: null,
+      ariaDescribedBy: spaceSeparated,
+      ariaDetails: null,
+      ariaDisabled: booleanish,
+      ariaDropEffect: spaceSeparated,
+      ariaErrorMessage: null,
+      ariaExpanded: booleanish,
+      ariaFlowTo: spaceSeparated,
+      ariaGrabbed: booleanish,
+      ariaHasPopup: null,
+      ariaHidden: booleanish,
+      ariaInvalid: null,
+      ariaKeyShortcuts: null,
+      ariaLabel: null,
+      ariaLabelledBy: spaceSeparated,
+      ariaLevel: number,
+      ariaLive: null,
+      ariaModal: booleanish,
+      ariaMultiLine: booleanish,
+      ariaMultiSelectable: booleanish,
+      ariaOrientation: null,
+      ariaOwns: spaceSeparated,
+      ariaPlaceholder: null,
+      ariaPosInSet: number,
+      ariaPressed: booleanish,
+      ariaReadOnly: booleanish,
+      ariaRelevant: null,
+      ariaRequired: booleanish,
+      ariaRoleDescription: spaceSeparated,
+      ariaRowCount: number,
+      ariaRowIndex: number,
+      ariaRowSpan: number,
+      ariaSelected: booleanish,
+      ariaSetSize: number,
+      ariaSort: null,
+      ariaValueMax: number,
+      ariaValueMin: number,
+      ariaValueNow: number,
+      ariaValueText: null,
+      role: null
+    },
+    transform(_2, property) {
+      return property === "role" ? property : "aria-" + property.slice(4).toLowerCase();
+    }
+  });
+
+  // node_modules/property-information/lib/util/case-sensitive-transform.js
+  function caseSensitiveTransform(attributes2, attribute) {
+    return attribute in attributes2 ? attributes2[attribute] : attribute;
+  }
+  __name(caseSensitiveTransform, "caseSensitiveTransform");
+
+  // node_modules/property-information/lib/util/case-insensitive-transform.js
+  function caseInsensitiveTransform(attributes2, property) {
+    return caseSensitiveTransform(attributes2, property.toLowerCase());
+  }
+  __name(caseInsensitiveTransform, "caseInsensitiveTransform");
+
+  // node_modules/property-information/lib/html.js
+  var html = create({
+    attributes: {
+      acceptcharset: "accept-charset",
+      classname: "class",
+      htmlfor: "for",
+      httpequiv: "http-equiv"
+    },
+    mustUseProperty: ["checked", "multiple", "muted", "selected"],
+    properties: {
+      // Standard Properties.
+      abbr: null,
+      accept: commaSeparated,
+      acceptCharset: spaceSeparated,
+      accessKey: spaceSeparated,
+      action: null,
+      allow: null,
+      allowFullScreen: boolean,
+      allowPaymentRequest: boolean,
+      allowUserMedia: boolean,
+      alpha: boolean,
+      alt: null,
+      as: null,
+      async: boolean,
+      autoCapitalize: null,
+      autoComplete: spaceSeparated,
+      autoFocus: boolean,
+      autoPlay: boolean,
+      blocking: spaceSeparated,
+      capture: null,
+      charSet: null,
+      checked: boolean,
+      cite: null,
+      className: spaceSeparated,
+      closedBy: null,
+      colorSpace: null,
+      cols: number,
+      colSpan: number,
+      command: null,
+      commandFor: null,
+      content: null,
+      contentEditable: booleanish,
+      controls: boolean,
+      controlsList: spaceSeparated,
+      coords: number | commaSeparated,
+      crossOrigin: null,
+      data: null,
+      dateTime: null,
+      decoding: null,
+      default: boolean,
+      defer: boolean,
+      dir: null,
+      dirName: null,
+      disabled: boolean,
+      download: overloadedBoolean,
+      draggable: booleanish,
+      encType: null,
+      enterKeyHint: null,
+      fetchPriority: null,
+      form: null,
+      formAction: null,
+      formEncType: null,
+      formMethod: null,
+      formNoValidate: boolean,
+      formTarget: null,
+      headers: spaceSeparated,
+      height: number,
+      hidden: overloadedBoolean,
+      high: number,
+      href: null,
+      hrefLang: null,
+      htmlFor: spaceSeparated,
+      httpEquiv: spaceSeparated,
+      id: null,
+      imageSizes: null,
+      imageSrcSet: null,
+      inert: boolean,
+      inputMode: null,
+      integrity: null,
+      is: null,
+      isMap: boolean,
+      itemId: null,
+      itemProp: spaceSeparated,
+      itemRef: spaceSeparated,
+      itemScope: boolean,
+      itemType: spaceSeparated,
+      kind: null,
+      label: null,
+      lang: null,
+      language: null,
+      list: null,
+      loading: null,
+      loop: boolean,
+      low: number,
+      manifest: null,
+      max: null,
+      maxLength: number,
+      media: null,
+      method: null,
+      min: null,
+      minLength: number,
+      multiple: boolean,
+      muted: boolean,
+      name: null,
+      nonce: null,
+      noModule: boolean,
+      noValidate: boolean,
+      onAbort: null,
+      onAfterPrint: null,
+      onAuxClick: null,
+      onBeforeMatch: null,
+      onBeforePrint: null,
+      onBeforeToggle: null,
+      onBeforeUnload: null,
+      onBlur: null,
+      onCancel: null,
+      onCanPlay: null,
+      onCanPlayThrough: null,
+      onChange: null,
+      onClick: null,
+      onClose: null,
+      onContextLost: null,
+      onContextMenu: null,
+      onContextRestored: null,
+      onCopy: null,
+      onCueChange: null,
+      onCut: null,
+      onDblClick: null,
+      onDrag: null,
+      onDragEnd: null,
+      onDragEnter: null,
+      onDragExit: null,
+      onDragLeave: null,
+      onDragOver: null,
+      onDragStart: null,
+      onDrop: null,
+      onDurationChange: null,
+      onEmptied: null,
+      onEnded: null,
+      onError: null,
+      onFocus: null,
+      onFormData: null,
+      onHashChange: null,
+      onInput: null,
+      onInvalid: null,
+      onKeyDown: null,
+      onKeyPress: null,
+      onKeyUp: null,
+      onLanguageChange: null,
+      onLoad: null,
+      onLoadedData: null,
+      onLoadedMetadata: null,
+      onLoadEnd: null,
+      onLoadStart: null,
+      onMessage: null,
+      onMessageError: null,
+      onMouseDown: null,
+      onMouseEnter: null,
+      onMouseLeave: null,
+      onMouseMove: null,
+      onMouseOut: null,
+      onMouseOver: null,
+      onMouseUp: null,
+      onOffline: null,
+      onOnline: null,
+      onPageHide: null,
+      onPageShow: null,
+      onPaste: null,
+      onPause: null,
+      onPlay: null,
+      onPlaying: null,
+      onPopState: null,
+      onProgress: null,
+      onRateChange: null,
+      onRejectionHandled: null,
+      onReset: null,
+      onResize: null,
+      onScroll: null,
+      onScrollEnd: null,
+      onSecurityPolicyViolation: null,
+      onSeeked: null,
+      onSeeking: null,
+      onSelect: null,
+      onSlotChange: null,
+      onStalled: null,
+      onStorage: null,
+      onSubmit: null,
+      onSuspend: null,
+      onTimeUpdate: null,
+      onToggle: null,
+      onUnhandledRejection: null,
+      onUnload: null,
+      onVolumeChange: null,
+      onWaiting: null,
+      onWheel: null,
+      open: boolean,
+      optimum: number,
+      pattern: null,
+      ping: spaceSeparated,
+      placeholder: null,
+      playsInline: boolean,
+      popover: null,
+      popoverTarget: null,
+      popoverTargetAction: null,
+      poster: null,
+      preload: null,
+      readOnly: boolean,
+      referrerPolicy: null,
+      rel: spaceSeparated,
+      required: boolean,
+      reversed: boolean,
+      rows: number,
+      rowSpan: number,
+      sandbox: spaceSeparated,
+      scope: null,
+      scoped: boolean,
+      seamless: boolean,
+      selected: boolean,
+      shadowRootClonable: boolean,
+      shadowRootCustomElementRegistry: boolean,
+      shadowRootDelegatesFocus: boolean,
+      shadowRootMode: null,
+      shadowRootSerializable: boolean,
+      shape: null,
+      size: number,
+      sizes: null,
+      slot: null,
+      span: number,
+      spellCheck: booleanish,
+      src: null,
+      srcDoc: null,
+      srcLang: null,
+      srcSet: null,
+      start: number,
+      step: null,
+      style: null,
+      tabIndex: number,
+      target: null,
+      title: null,
+      translate: null,
+      type: null,
+      typeMustMatch: boolean,
+      useMap: null,
+      value: booleanish,
+      width: number,
+      wrap: null,
+      writingSuggestions: null,
+      // Legacy.
+      // See: https://html.spec.whatwg.org/#other-elements,-attributes-and-apis
+      align: null,
+      // Several. Use CSS `text-align` instead,
+      aLink: null,
+      // `<body>`. Use CSS `a:active {color}` instead
+      archive: spaceSeparated,
+      // `<object>`. List of URIs to archives
+      axis: null,
+      // `<td>` and `<th>`. Use `scope` on `<th>`
+      background: null,
+      // `<body>`. Use CSS `background-image` instead
+      bgColor: null,
+      // `<body>` and table elements. Use CSS `background-color` instead
+      border: number,
+      // `<table>`. Use CSS `border-width` instead,
+      borderColor: null,
+      // `<table>`. Use CSS `border-color` instead,
+      bottomMargin: number,
+      // `<body>`
+      cellPadding: null,
+      // `<table>`
+      cellSpacing: null,
+      // `<table>`
+      char: null,
+      // Several table elements. When `align=char`, sets the character to align on
+      charOff: null,
+      // Several table elements. When `char`, offsets the alignment
+      classId: null,
+      // `<object>`
+      clear: null,
+      // `<br>`. Use CSS `clear` instead
+      code: null,
+      // `<object>`
+      codeBase: null,
+      // `<object>`
+      codeType: null,
+      // `<object>`
+      color: null,
+      // `<font>` and `<hr>`. Use CSS instead
+      compact: boolean,
+      // Lists. Use CSS to reduce space between items instead
+      declare: boolean,
+      // `<object>`
+      event: null,
+      // `<script>`
+      face: null,
+      // `<font>`. Use CSS instead
+      frame: null,
+      // `<table>`
+      frameBorder: null,
+      // `<iframe>`. Use CSS `border` instead
+      hSpace: number,
+      // `<img>` and `<object>`
+      leftMargin: number,
+      // `<body>`
+      link: null,
+      // `<body>`. Use CSS `a:link {color: *}` instead
+      longDesc: null,
+      // `<frame>`, `<iframe>`, and `<img>`. Use an `<a>`
+      lowSrc: null,
+      // `<img>`. Use a `<picture>`
+      marginHeight: number,
+      // `<body>`
+      marginWidth: number,
+      // `<body>`
+      noResize: boolean,
+      // `<frame>`
+      noHref: boolean,
+      // `<area>`. Use no href instead of an explicit `nohref`
+      noShade: boolean,
+      // `<hr>`. Use background-color and height instead of borders
+      noWrap: boolean,
+      // `<td>` and `<th>`
+      object: null,
+      // `<applet>`
+      profile: null,
+      // `<head>`
+      prompt: null,
+      // `<isindex>`
+      rev: null,
+      // `<link>`
+      rightMargin: number,
+      // `<body>`
+      rules: null,
+      // `<table>`
+      scheme: null,
+      // `<meta>`
+      scrolling: booleanish,
+      // `<frame>`. Use overflow in the child context
+      standby: null,
+      // `<object>`
+      summary: null,
+      // `<table>`
+      text: null,
+      // `<body>`. Use CSS `color` instead
+      topMargin: number,
+      // `<body>`
+      valueType: null,
+      // `<param>`
+      version: null,
+      // `<html>`. Use a doctype.
+      vAlign: null,
+      // Several. Use CSS `vertical-align` instead
+      vLink: null,
+      // `<body>`. Use CSS `a:visited {color}` instead
+      vSpace: number,
+      // `<img>` and `<object>`
+      // Non-standard Properties.
+      allowTransparency: null,
+      autoCorrect: null,
+      autoSave: null,
+      credentialless: boolean,
+      disablePictureInPicture: boolean,
+      disableRemotePlayback: boolean,
+      exportParts: commaSeparated,
+      part: spaceSeparated,
+      prefix: null,
+      property: null,
+      results: number,
+      security: null,
+      unselectable: null
+    },
+    space: "html",
+    transform: caseInsensitiveTransform
+  });
+
+  // node_modules/property-information/lib/svg.js
+  var svg = create({
+    attributes: {
+      accentHeight: "accent-height",
+      alignmentBaseline: "alignment-baseline",
+      arabicForm: "arabic-form",
+      baselineShift: "baseline-shift",
+      capHeight: "cap-height",
+      className: "class",
+      clipPath: "clip-path",
+      clipRule: "clip-rule",
+      colorInterpolation: "color-interpolation",
+      colorInterpolationFilters: "color-interpolation-filters",
+      colorProfile: "color-profile",
+      colorRendering: "color-rendering",
+      crossOrigin: "crossorigin",
+      dataType: "datatype",
+      dominantBaseline: "dominant-baseline",
+      enableBackground: "enable-background",
+      fillOpacity: "fill-opacity",
+      fillRule: "fill-rule",
+      floodColor: "flood-color",
+      floodOpacity: "flood-opacity",
+      fontFamily: "font-family",
+      fontSize: "font-size",
+      fontSizeAdjust: "font-size-adjust",
+      fontStretch: "font-stretch",
+      fontStyle: "font-style",
+      fontVariant: "font-variant",
+      fontWeight: "font-weight",
+      glyphName: "glyph-name",
+      glyphOrientationHorizontal: "glyph-orientation-horizontal",
+      glyphOrientationVertical: "glyph-orientation-vertical",
+      hrefLang: "hreflang",
+      horizAdvX: "horiz-adv-x",
+      horizOriginX: "horiz-origin-x",
+      horizOriginY: "horiz-origin-y",
+      imageRendering: "image-rendering",
+      letterSpacing: "letter-spacing",
+      lightingColor: "lighting-color",
+      markerEnd: "marker-end",
+      markerMid: "marker-mid",
+      markerStart: "marker-start",
+      maskType: "mask-type",
+      navDown: "nav-down",
+      navDownLeft: "nav-down-left",
+      navDownRight: "nav-down-right",
+      navLeft: "nav-left",
+      navNext: "nav-next",
+      navPrev: "nav-prev",
+      navRight: "nav-right",
+      navUp: "nav-up",
+      navUpLeft: "nav-up-left",
+      navUpRight: "nav-up-right",
+      onAbort: "onabort",
+      onActivate: "onactivate",
+      onAfterPrint: "onafterprint",
+      onBeforePrint: "onbeforeprint",
+      onBegin: "onbegin",
+      onCancel: "oncancel",
+      onCanPlay: "oncanplay",
+      onCanPlayThrough: "oncanplaythrough",
+      onChange: "onchange",
+      onClick: "onclick",
+      onClose: "onclose",
+      onCopy: "oncopy",
+      onCueChange: "oncuechange",
+      onCut: "oncut",
+      onDblClick: "ondblclick",
+      onDrag: "ondrag",
+      onDragEnd: "ondragend",
+      onDragEnter: "ondragenter",
+      onDragExit: "ondragexit",
+      onDragLeave: "ondragleave",
+      onDragOver: "ondragover",
+      onDragStart: "ondragstart",
+      onDrop: "ondrop",
+      onDurationChange: "ondurationchange",
+      onEmptied: "onemptied",
+      onEnd: "onend",
+      onEnded: "onended",
+      onError: "onerror",
+      onFocus: "onfocus",
+      onFocusIn: "onfocusin",
+      onFocusOut: "onfocusout",
+      onHashChange: "onhashchange",
+      onInput: "oninput",
+      onInvalid: "oninvalid",
+      onKeyDown: "onkeydown",
+      onKeyPress: "onkeypress",
+      onKeyUp: "onkeyup",
+      onLoad: "onload",
+      onLoadedData: "onloadeddata",
+      onLoadedMetadata: "onloadedmetadata",
+      onLoadStart: "onloadstart",
+      onMessage: "onmessage",
+      onMouseDown: "onmousedown",
+      onMouseEnter: "onmouseenter",
+      onMouseLeave: "onmouseleave",
+      onMouseMove: "onmousemove",
+      onMouseOut: "onmouseout",
+      onMouseOver: "onmouseover",
+      onMouseUp: "onmouseup",
+      onMouseWheel: "onmousewheel",
+      onOffline: "onoffline",
+      onOnline: "ononline",
+      onPageHide: "onpagehide",
+      onPageShow: "onpageshow",
+      onPaste: "onpaste",
+      onPause: "onpause",
+      onPlay: "onplay",
+      onPlaying: "onplaying",
+      onPopState: "onpopstate",
+      onProgress: "onprogress",
+      onRateChange: "onratechange",
+      onRepeat: "onrepeat",
+      onReset: "onreset",
+      onResize: "onresize",
+      onScroll: "onscroll",
+      onSeeked: "onseeked",
+      onSeeking: "onseeking",
+      onSelect: "onselect",
+      onShow: "onshow",
+      onStalled: "onstalled",
+      onStorage: "onstorage",
+      onSubmit: "onsubmit",
+      onSuspend: "onsuspend",
+      onTimeUpdate: "ontimeupdate",
+      onToggle: "ontoggle",
+      onUnload: "onunload",
+      onVolumeChange: "onvolumechange",
+      onWaiting: "onwaiting",
+      onZoom: "onzoom",
+      overlinePosition: "overline-position",
+      overlineThickness: "overline-thickness",
+      paintOrder: "paint-order",
+      panose1: "panose-1",
+      pointerEvents: "pointer-events",
+      referrerPolicy: "referrerpolicy",
+      renderingIntent: "rendering-intent",
+      shapeRendering: "shape-rendering",
+      stopColor: "stop-color",
+      stopOpacity: "stop-opacity",
+      strikethroughPosition: "strikethrough-position",
+      strikethroughThickness: "strikethrough-thickness",
+      strokeDashArray: "stroke-dasharray",
+      strokeDashOffset: "stroke-dashoffset",
+      strokeLineCap: "stroke-linecap",
+      strokeLineJoin: "stroke-linejoin",
+      strokeMiterLimit: "stroke-miterlimit",
+      strokeOpacity: "stroke-opacity",
+      strokeWidth: "stroke-width",
+      tabIndex: "tabindex",
+      textAnchor: "text-anchor",
+      textDecoration: "text-decoration",
+      textRendering: "text-rendering",
+      transformOrigin: "transform-origin",
+      typeOf: "typeof",
+      underlinePosition: "underline-position",
+      underlineThickness: "underline-thickness",
+      unicodeBidi: "unicode-bidi",
+      unicodeRange: "unicode-range",
+      unitsPerEm: "units-per-em",
+      vAlphabetic: "v-alphabetic",
+      vHanging: "v-hanging",
+      vIdeographic: "v-ideographic",
+      vMathematical: "v-mathematical",
+      vectorEffect: "vector-effect",
+      vertAdvY: "vert-adv-y",
+      vertOriginX: "vert-origin-x",
+      vertOriginY: "vert-origin-y",
+      wordSpacing: "word-spacing",
+      writingMode: "writing-mode",
+      xHeight: "x-height",
+      // These were camelcased in Tiny. Now lowercased in SVG 2
+      playbackOrder: "playbackorder",
+      timelineBegin: "timelinebegin"
+    },
+    properties: {
+      about: commaOrSpaceSeparated,
+      accentHeight: number,
+      accumulate: null,
+      additive: null,
+      alignmentBaseline: null,
+      alphabetic: number,
+      amplitude: number,
+      arabicForm: null,
+      ascent: number,
+      attributeName: null,
+      attributeType: null,
+      azimuth: number,
+      bandwidth: null,
+      baselineShift: null,
+      baseFrequency: null,
+      baseProfile: null,
+      bbox: null,
+      begin: null,
+      bias: number,
+      by: null,
+      calcMode: null,
+      capHeight: number,
+      className: spaceSeparated,
+      clip: null,
+      clipPath: null,
+      clipPathUnits: null,
+      clipRule: null,
+      color: null,
+      colorInterpolation: null,
+      colorInterpolationFilters: null,
+      colorProfile: null,
+      colorRendering: null,
+      content: null,
+      contentScriptType: null,
+      contentStyleType: null,
+      crossOrigin: null,
+      cursor: null,
+      cx: null,
+      cy: null,
+      d: null,
+      dataType: null,
+      defaultAction: null,
+      descent: number,
+      diffuseConstant: number,
+      direction: null,
+      display: null,
+      dur: null,
+      divisor: number,
+      dominantBaseline: null,
+      download: boolean,
+      dx: null,
+      dy: null,
+      edgeMode: null,
+      editable: null,
+      elevation: number,
+      enableBackground: null,
+      end: null,
+      event: null,
+      exponent: number,
+      externalResourcesRequired: null,
+      fill: null,
+      fillOpacity: number,
+      fillRule: null,
+      filter: null,
+      filterRes: null,
+      filterUnits: null,
+      floodColor: null,
+      floodOpacity: null,
+      focusable: null,
+      focusHighlight: null,
+      fontFamily: null,
+      fontSize: null,
+      fontSizeAdjust: null,
+      fontStretch: null,
+      fontStyle: null,
+      fontVariant: null,
+      fontWeight: null,
+      format: null,
+      fr: null,
+      from: null,
+      fx: null,
+      fy: null,
+      g1: commaSeparated,
+      g2: commaSeparated,
+      glyphName: commaSeparated,
+      glyphOrientationHorizontal: null,
+      glyphOrientationVertical: null,
+      glyphRef: null,
+      gradientTransform: null,
+      gradientUnits: null,
+      handler: null,
+      hanging: number,
+      hatchContentUnits: null,
+      hatchUnits: null,
+      height: null,
+      href: null,
+      hrefLang: null,
+      horizAdvX: number,
+      horizOriginX: number,
+      horizOriginY: number,
+      id: null,
+      ideographic: number,
+      imageRendering: null,
+      initialVisibility: null,
+      in: null,
+      in2: null,
+      intercept: number,
+      k: number,
+      k1: number,
+      k2: number,
+      k3: number,
+      k4: number,
+      kernelMatrix: commaOrSpaceSeparated,
+      kernelUnitLength: null,
+      keyPoints: null,
+      // SEMI_COLON_SEPARATED
+      keySplines: null,
+      // SEMI_COLON_SEPARATED
+      keyTimes: null,
+      // SEMI_COLON_SEPARATED
+      kerning: null,
+      lang: null,
+      lengthAdjust: null,
+      letterSpacing: null,
+      lightingColor: null,
+      limitingConeAngle: number,
+      local: null,
+      markerEnd: null,
+      markerMid: null,
+      markerStart: null,
+      markerHeight: null,
+      markerUnits: null,
+      markerWidth: null,
+      mask: null,
+      maskContentUnits: null,
+      maskType: null,
+      maskUnits: null,
+      mathematical: null,
+      max: null,
+      media: null,
+      mediaCharacterEncoding: null,
+      mediaContentEncodings: null,
+      mediaSize: number,
+      mediaTime: null,
+      method: null,
+      min: null,
+      mode: null,
+      name: null,
+      navDown: null,
+      navDownLeft: null,
+      navDownRight: null,
+      navLeft: null,
+      navNext: null,
+      navPrev: null,
+      navRight: null,
+      navUp: null,
+      navUpLeft: null,
+      navUpRight: null,
+      numOctaves: null,
+      observer: null,
+      offset: null,
+      onAbort: null,
+      onActivate: null,
+      onAfterPrint: null,
+      onBeforePrint: null,
+      onBegin: null,
+      onCancel: null,
+      onCanPlay: null,
+      onCanPlayThrough: null,
+      onChange: null,
+      onClick: null,
+      onClose: null,
+      onCopy: null,
+      onCueChange: null,
+      onCut: null,
+      onDblClick: null,
+      onDrag: null,
+      onDragEnd: null,
+      onDragEnter: null,
+      onDragExit: null,
+      onDragLeave: null,
+      onDragOver: null,
+      onDragStart: null,
+      onDrop: null,
+      onDurationChange: null,
+      onEmptied: null,
+      onEnd: null,
+      onEnded: null,
+      onError: null,
+      onFocus: null,
+      onFocusIn: null,
+      onFocusOut: null,
+      onHashChange: null,
+      onInput: null,
+      onInvalid: null,
+      onKeyDown: null,
+      onKeyPress: null,
+      onKeyUp: null,
+      onLoad: null,
+      onLoadedData: null,
+      onLoadedMetadata: null,
+      onLoadStart: null,
+      onMessage: null,
+      onMouseDown: null,
+      onMouseEnter: null,
+      onMouseLeave: null,
+      onMouseMove: null,
+      onMouseOut: null,
+      onMouseOver: null,
+      onMouseUp: null,
+      onMouseWheel: null,
+      onOffline: null,
+      onOnline: null,
+      onPageHide: null,
+      onPageShow: null,
+      onPaste: null,
+      onPause: null,
+      onPlay: null,
+      onPlaying: null,
+      onPopState: null,
+      onProgress: null,
+      onRateChange: null,
+      onRepeat: null,
+      onReset: null,
+      onResize: null,
+      onScroll: null,
+      onSeeked: null,
+      onSeeking: null,
+      onSelect: null,
+      onShow: null,
+      onStalled: null,
+      onStorage: null,
+      onSubmit: null,
+      onSuspend: null,
+      onTimeUpdate: null,
+      onToggle: null,
+      onUnload: null,
+      onVolumeChange: null,
+      onWaiting: null,
+      onZoom: null,
+      opacity: null,
+      operator: null,
+      order: null,
+      orient: null,
+      orientation: null,
+      origin: null,
+      overflow: null,
+      overlay: null,
+      overlinePosition: number,
+      overlineThickness: number,
+      paintOrder: null,
+      panose1: null,
+      path: null,
+      pathLength: number,
+      patternContentUnits: null,
+      patternTransform: null,
+      patternUnits: null,
+      phase: null,
+      ping: spaceSeparated,
+      pitch: null,
+      playbackOrder: null,
+      pointerEvents: null,
+      points: null,
+      pointsAtX: number,
+      pointsAtY: number,
+      pointsAtZ: number,
+      preserveAlpha: null,
+      preserveAspectRatio: null,
+      primitiveUnits: null,
+      propagate: null,
+      property: commaOrSpaceSeparated,
+      r: null,
+      radius: null,
+      referrerPolicy: null,
+      refX: null,
+      refY: null,
+      rel: commaOrSpaceSeparated,
+      rev: commaOrSpaceSeparated,
+      renderingIntent: null,
+      repeatCount: null,
+      repeatDur: null,
+      requiredExtensions: commaOrSpaceSeparated,
+      requiredFeatures: commaOrSpaceSeparated,
+      requiredFonts: commaOrSpaceSeparated,
+      requiredFormats: commaOrSpaceSeparated,
+      resource: null,
+      restart: null,
+      result: null,
+      rotate: null,
+      rx: null,
+      ry: null,
+      scale: null,
+      seed: null,
+      shapeRendering: null,
+      side: null,
+      slope: null,
+      snapshotTime: null,
+      specularConstant: number,
+      specularExponent: number,
+      spreadMethod: null,
+      spacing: null,
+      startOffset: null,
+      stdDeviation: null,
+      stemh: null,
+      stemv: null,
+      stitchTiles: null,
+      stopColor: null,
+      stopOpacity: null,
+      strikethroughPosition: number,
+      strikethroughThickness: number,
+      string: null,
+      stroke: null,
+      strokeDashArray: commaOrSpaceSeparated,
+      strokeDashOffset: null,
+      strokeLineCap: null,
+      strokeLineJoin: null,
+      strokeMiterLimit: number,
+      strokeOpacity: number,
+      strokeWidth: null,
+      style: null,
+      surfaceScale: number,
+      syncBehavior: null,
+      syncBehaviorDefault: null,
+      syncMaster: null,
+      syncTolerance: null,
+      syncToleranceDefault: null,
+      systemLanguage: commaOrSpaceSeparated,
+      tabIndex: number,
+      tableValues: null,
+      target: null,
+      targetX: number,
+      targetY: number,
+      textAnchor: null,
+      textDecoration: null,
+      textRendering: null,
+      textLength: null,
+      timelineBegin: null,
+      title: null,
+      transformBehavior: null,
+      type: null,
+      typeOf: commaOrSpaceSeparated,
+      to: null,
+      transform: null,
+      transformOrigin: null,
+      u1: null,
+      u2: null,
+      underlinePosition: number,
+      underlineThickness: number,
+      unicode: null,
+      unicodeBidi: null,
+      unicodeRange: null,
+      unitsPerEm: number,
+      values: null,
+      vAlphabetic: number,
+      vMathematical: number,
+      vectorEffect: null,
+      vHanging: number,
+      vIdeographic: number,
+      version: null,
+      vertAdvY: number,
+      vertOriginX: number,
+      vertOriginY: number,
+      viewBox: null,
+      viewTarget: null,
+      visibility: null,
+      width: null,
+      widths: null,
+      wordSpacing: null,
+      writingMode: null,
+      x: null,
+      x1: null,
+      x2: null,
+      xChannelSelector: null,
+      xHeight: number,
+      y: null,
+      y1: null,
+      y2: null,
+      yChannelSelector: null,
+      z: null,
+      zoomAndPan: null
+    },
+    space: "svg",
+    transform: caseSensitiveTransform
+  });
+
+  // node_modules/property-information/lib/xlink.js
+  var xlink = create({
+    properties: {
+      xLinkActuate: null,
+      xLinkArcRole: null,
+      xLinkHref: null,
+      xLinkRole: null,
+      xLinkShow: null,
+      xLinkTitle: null,
+      xLinkType: null
+    },
+    space: "xlink",
+    transform(_2, property) {
+      return "xlink:" + property.slice(5).toLowerCase();
+    }
+  });
+
+  // node_modules/property-information/lib/xmlns.js
+  var xmlns = create({
+    attributes: { xmlnsxlink: "xmlns:xlink" },
+    properties: { xmlnsXLink: null, xmlns: null },
+    space: "xmlns",
+    transform: caseInsensitiveTransform
+  });
+
+  // node_modules/property-information/lib/xml.js
+  var xml = create({
+    properties: { xmlBase: null, xmlLang: null, xmlSpace: null },
+    space: "xml",
+    transform(_2, property) {
+      return "xml:" + property.slice(3).toLowerCase();
+    }
+  });
+
+  // node_modules/property-information/lib/find.js
+  var cap = /[A-Z]/g;
+  var dash = /-[a-z]/g;
+  var valid = /^data[-\w.:]+$/i;
+  function find(schema, value) {
+    const normal = normalize(value);
+    let property = value;
+    let Type = Info;
+    if (normal in schema.normal) {
+      return schema.property[schema.normal[normal]];
+    }
+    if (normal.length > 4 && normal.slice(0, 4) === "data" && valid.test(value)) {
+      if (value.charAt(4) === "-") {
+        const rest = value.slice(5).replace(dash, camelcase);
+        property = "data" + rest.charAt(0).toUpperCase() + rest.slice(1);
+      } else {
+        const rest = value.slice(4);
+        if (!dash.test(rest)) {
+          let dashes = rest.replace(cap, kebab);
+          if (dashes.charAt(0) !== "-") {
+            dashes = "-" + dashes;
+          }
+          value = "data" + dashes;
+        }
+      }
+      Type = DefinedInfo;
+    }
+    return new Type(property, value);
+  }
+  __name(find, "find");
+  function kebab($0) {
+    return "-" + $0.toLowerCase();
+  }
+  __name(kebab, "kebab");
+  function camelcase($0) {
+    return $0.charAt(1).toUpperCase();
+  }
+  __name(camelcase, "camelcase");
+
+  // node_modules/property-information/index.js
+  var html2 = merge([aria, html, xlink, xmlns, xml], "html");
+  var svg2 = merge([aria, svg, xlink, xmlns, xml], "svg");
+
+  // node_modules/comma-separated-tokens/index.js
+  function parse(value) {
+    const tokens = [];
+    const input = String(value || "");
+    let index = input.indexOf(",");
+    let start = 0;
+    let end = false;
+    while (!end) {
+      if (index === -1) {
+        index = input.length;
+        end = true;
+      }
+      const token = input.slice(start, index).trim();
+      if (token || !end) {
+        tokens.push(token);
+      }
+      start = index + 1;
+      index = input.indexOf(",", start);
+    }
+    return tokens;
+  }
+  __name(parse, "parse");
+
+  // node_modules/hast-util-parse-selector/lib/index.js
+  var search = /[#.]/g;
+  function parseSelector(selector, defaultTagName) {
+    const value = selector || "";
+    const props = {};
+    let start = 0;
+    let previous;
+    let tagName;
+    while (start < value.length) {
+      search.lastIndex = start;
+      const match = search.exec(value);
+      const subvalue = value.slice(start, match ? match.index : value.length);
+      if (subvalue) {
+        if (!previous) {
+          tagName = subvalue;
+        } else if (previous === "#") {
+          props.id = subvalue;
+        } else if (Array.isArray(props.className)) {
+          props.className.push(subvalue);
+        } else {
+          props.className = [subvalue];
+        }
+        start += subvalue.length;
+      }
+      if (match) {
+        previous = match[0];
+        start++;
+      }
+    }
+    return {
+      type: "element",
+      // @ts-expect-error: tag name is parsed.
+      tagName: tagName || defaultTagName || "div",
+      properties: props,
+      children: []
+    };
+  }
+  __name(parseSelector, "parseSelector");
+
+  // node_modules/space-separated-tokens/index.js
+  function parse2(value) {
+    const input = String(value || "").trim();
+    return input ? input.split(/[ \t\n\r\f]+/g) : [];
+  }
+  __name(parse2, "parse");
+
+  // node_modules/hastscript/lib/create-h.js
+  function createH(schema, defaultTagName, caseSensitive) {
+    const adjust = caseSensitive ? createAdjustMap(caseSensitive) : void 0;
+    function h2(selector, properties, ...children) {
+      let node;
+      if (selector === null || selector === void 0) {
+        node = { type: "root", children: [] };
+        const child = (
+          /** @type {Child} */
+          properties
+        );
+        children.unshift(child);
+      } else {
+        node = parseSelector(selector, defaultTagName);
+        const lower = node.tagName.toLowerCase();
+        const adjusted = adjust ? adjust.get(lower) : void 0;
+        node.tagName = adjusted || lower;
+        if (isChild(properties)) {
+          children.unshift(properties);
+        } else {
+          for (const [key, value] of Object.entries(properties)) {
+            addProperty(schema, node.properties, key, value);
+          }
+        }
+      }
+      for (const child of children) {
+        addChild(node.children, child);
+      }
+      if (node.type === "element" && node.tagName === "template" && schema.space === "html") {
+        node.content = { type: "root", children: node.children };
+        node.children = [];
+      }
+      return node;
+    }
+    __name(h2, "h");
+    return h2;
+  }
+  __name(createH, "createH");
+  function isChild(value) {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      return true;
+    }
+    if (typeof value.type !== "string") return false;
+    const record = (
+      /** @type {Record<string, unknown>} */
+      value
+    );
+    const keys = Object.keys(value);
+    for (const key of keys) {
+      const value2 = record[key];
+      if (value2 && typeof value2 === "object") {
+        if (!Array.isArray(value2)) return true;
+        const list = (
+          /** @type {ReadonlyArray<unknown>} */
+          value2
+        );
+        for (const item of list) {
+          if (typeof item !== "number" && typeof item !== "string") {
+            return true;
+          }
+        }
+      }
+    }
+    if ("children" in value && Array.isArray(value.children)) {
+      return true;
+    }
+    return false;
+  }
+  __name(isChild, "isChild");
+  function addProperty(schema, properties, key, value) {
+    if (value === null || value === void 0) return;
+    const info = find(schema, key);
+    let result;
+    if (typeof value === "number") {
+      if (Number.isNaN(value)) return;
+      result = value;
+    } else if (typeof value === "boolean") {
+      result = value;
+    } else if (typeof value === "string") {
+      if (info.spaceSeparated) {
+        result = parse2(value);
+      } else if (info.commaSeparated) {
+        result = parse(value);
+      } else if (info.commaOrSpaceSeparated) {
+        result = parse2(parse(value).join(" "));
+      } else {
+        result = parsePrimitive(info, info.property, value);
+      }
+    } else if (Array.isArray(value)) {
+      result = [...value];
+    } else {
+      result = info.property === "style" ? style(value) : String(value);
+    }
+    if (Array.isArray(result)) {
+      const finalResult = [];
+      for (const item of result) {
+        finalResult.push(
+          /** @type {number | string} */
+          parsePrimitive(info, info.property, item)
+        );
+      }
+      result = finalResult;
+    }
+    if (info.property === "className" && Array.isArray(properties.className)) {
+      const add = (
+        /** @type {Array<number | string> | number | string} */
+        result
+      );
+      result = [...properties.className, ...Array.isArray(add) ? add : [add]];
+    }
+    properties[info.property] = result;
+  }
+  __name(addProperty, "addProperty");
+  function addChild(nodes, value) {
+    if (value === null || value === void 0) {
+    } else if (typeof value === "number" || typeof value === "string") {
+      nodes.push({ type: "text", value: String(value) });
+    } else if (Array.isArray(value)) {
+      for (const child of value) {
+        addChild(nodes, child);
+      }
+    } else if (typeof value === "object" && "type" in value) {
+      if (value.type === "root") {
+        addChild(nodes, value.children);
+      } else {
+        nodes.push(value);
+      }
+    } else {
+      throw new Error("Expected node, nodes, or string, got `" + value + "`");
+    }
+  }
+  __name(addChild, "addChild");
+  function parsePrimitive(info, name, value) {
+    if (typeof value === "string") {
+      if (info.number && value && !Number.isNaN(Number(value))) {
+        return Number(value);
+      }
+      if ((info.boolean || info.overloadedBoolean) && (value === "" || normalize(value) === normalize(name))) {
+        return true;
+      }
+    }
+    return value;
+  }
+  __name(parsePrimitive, "parsePrimitive");
+  function style(styles) {
+    const result = [];
+    for (const [key, value] of Object.entries(styles)) {
+      result.push([key, value].join(": "));
+    }
+    return result.join("; ");
+  }
+  __name(style, "style");
+  function createAdjustMap(values) {
+    const result = /* @__PURE__ */ new Map();
+    for (const value of values) {
+      result.set(value.toLowerCase(), value);
+    }
+    return result;
+  }
+  __name(createAdjustMap, "createAdjustMap");
+
+  // node_modules/hastscript/lib/svg-case-sensitive-tag-names.js
+  var svgCaseSensitiveTagNames = [
+    "altGlyph",
+    "altGlyphDef",
+    "altGlyphItem",
+    "animateColor",
+    "animateMotion",
+    "animateTransform",
+    "clipPath",
+    "feBlend",
+    "feColorMatrix",
+    "feComponentTransfer",
+    "feComposite",
+    "feConvolveMatrix",
+    "feDiffuseLighting",
+    "feDisplacementMap",
+    "feDistantLight",
+    "feDropShadow",
+    "feFlood",
+    "feFuncA",
+    "feFuncB",
+    "feFuncG",
+    "feFuncR",
+    "feGaussianBlur",
+    "feImage",
+    "feMerge",
+    "feMergeNode",
+    "feMorphology",
+    "feOffset",
+    "fePointLight",
+    "feSpecularLighting",
+    "feSpotLight",
+    "feTile",
+    "feTurbulence",
+    "foreignObject",
+    "glyphRef",
+    "linearGradient",
+    "radialGradient",
+    "solidColor",
+    "textArea",
+    "textPath"
+  ];
+
+  // node_modules/hastscript/lib/index.js
+  var h = createH(html2, "div");
+  var s = createH(svg2, "g", svgCaseSensitiveTagNames);
+
+  // node_modules/character-entities-legacy/index.js
+  var characterEntitiesLegacy = [
+    "AElig",
+    "AMP",
+    "Aacute",
+    "Acirc",
+    "Agrave",
+    "Aring",
+    "Atilde",
+    "Auml",
+    "COPY",
+    "Ccedil",
+    "ETH",
+    "Eacute",
+    "Ecirc",
+    "Egrave",
+    "Euml",
+    "GT",
+    "Iacute",
+    "Icirc",
+    "Igrave",
+    "Iuml",
+    "LT",
+    "Ntilde",
+    "Oacute",
+    "Ocirc",
+    "Ograve",
+    "Oslash",
+    "Otilde",
+    "Ouml",
+    "QUOT",
+    "REG",
+    "THORN",
+    "Uacute",
+    "Ucirc",
+    "Ugrave",
+    "Uuml",
+    "Yacute",
+    "aacute",
+    "acirc",
+    "acute",
+    "aelig",
+    "agrave",
+    "amp",
+    "aring",
+    "atilde",
+    "auml",
+    "brvbar",
+    "ccedil",
+    "cedil",
+    "cent",
+    "copy",
+    "curren",
+    "deg",
+    "divide",
+    "eacute",
+    "ecirc",
+    "egrave",
+    "eth",
+    "euml",
+    "frac12",
+    "frac14",
+    "frac34",
+    "gt",
+    "iacute",
+    "icirc",
+    "iexcl",
+    "igrave",
+    "iquest",
+    "iuml",
+    "laquo",
+    "lt",
+    "macr",
+    "micro",
+    "middot",
+    "nbsp",
+    "not",
+    "ntilde",
+    "oacute",
+    "ocirc",
+    "ograve",
+    "ordf",
+    "ordm",
+    "oslash",
+    "otilde",
+    "ouml",
+    "para",
+    "plusmn",
+    "pound",
+    "quot",
+    "raquo",
+    "reg",
+    "sect",
+    "shy",
+    "sup1",
+    "sup2",
+    "sup3",
+    "szlig",
+    "thorn",
+    "times",
+    "uacute",
+    "ucirc",
+    "ugrave",
+    "uml",
+    "uuml",
+    "yacute",
+    "yen",
+    "yuml"
+  ];
+
+  // node_modules/character-reference-invalid/index.js
+  var characterReferenceInvalid = {
+    0: "�",
+    128: "€",
+    130: "‚",
+    131: "ƒ",
+    132: "„",
+    133: "…",
+    134: "†",
+    135: "‡",
+    136: "ˆ",
+    137: "‰",
+    138: "Š",
+    139: "‹",
+    140: "Œ",
+    142: "Ž",
+    145: "‘",
+    146: "’",
+    147: "“",
+    148: "”",
+    149: "•",
+    150: "–",
+    151: "—",
+    152: "˜",
+    153: "™",
+    154: "š",
+    155: "›",
+    156: "œ",
+    158: "ž",
+    159: "Ÿ"
+  };
+
+  // node_modules/is-decimal/index.js
+  function isDecimal(character) {
+    const code = typeof character === "string" ? character.charCodeAt(0) : character;
+    return code >= 48 && code <= 57;
+  }
+  __name(isDecimal, "isDecimal");
+
+  // node_modules/is-hexadecimal/index.js
+  function isHexadecimal(character) {
+    const code = typeof character === "string" ? character.charCodeAt(0) : character;
+    return code >= 97 && code <= 102 || code >= 65 && code <= 70 || code >= 48 && code <= 57;
+  }
+  __name(isHexadecimal, "isHexadecimal");
+
+  // node_modules/is-alphabetical/index.js
+  function isAlphabetical(character) {
+    const code = typeof character === "string" ? character.charCodeAt(0) : character;
+    return code >= 97 && code <= 122 || code >= 65 && code <= 90;
+  }
+  __name(isAlphabetical, "isAlphabetical");
+
+  // node_modules/is-alphanumerical/index.js
+  function isAlphanumerical(character) {
+    return isAlphabetical(character) || isDecimal(character);
+  }
+  __name(isAlphanumerical, "isAlphanumerical");
+
+  // node_modules/character-entities/index.js
+  var characterEntities = {
+    AElig: "Æ",
+    AMP: "&",
+    Aacute: "Á",
+    Abreve: "Ă",
+    Acirc: "Â",
+    Acy: "А",
+    Afr: "𝔄",
+    Agrave: "À",
+    Alpha: "Α",
+    Amacr: "Ā",
+    And: "⩓",
+    Aogon: "Ą",
+    Aopf: "𝔸",
+    ApplyFunction: "⁡",
+    Aring: "Å",
+    Ascr: "𝒜",
+    Assign: "≔",
+    Atilde: "Ã",
+    Auml: "Ä",
+    Backslash: "∖",
+    Barv: "⫧",
+    Barwed: "⌆",
+    Bcy: "Б",
+    Because: "∵",
+    Bernoullis: "ℬ",
+    Beta: "Β",
+    Bfr: "𝔅",
+    Bopf: "𝔹",
+    Breve: "˘",
+    Bscr: "ℬ",
+    Bumpeq: "≎",
+    CHcy: "Ч",
+    COPY: "©",
+    Cacute: "Ć",
+    Cap: "⋒",
+    CapitalDifferentialD: "ⅅ",
+    Cayleys: "ℭ",
+    Ccaron: "Č",
+    Ccedil: "Ç",
+    Ccirc: "Ĉ",
+    Cconint: "∰",
+    Cdot: "Ċ",
+    Cedilla: "¸",
+    CenterDot: "·",
+    Cfr: "ℭ",
+    Chi: "Χ",
+    CircleDot: "⊙",
+    CircleMinus: "⊖",
+    CirclePlus: "⊕",
+    CircleTimes: "⊗",
+    ClockwiseContourIntegral: "∲",
+    CloseCurlyDoubleQuote: "”",
+    CloseCurlyQuote: "’",
+    Colon: "∷",
+    Colone: "⩴",
+    Congruent: "≡",
+    Conint: "∯",
+    ContourIntegral: "∮",
+    Copf: "ℂ",
+    Coproduct: "∐",
+    CounterClockwiseContourIntegral: "∳",
+    Cross: "⨯",
+    Cscr: "𝒞",
+    Cup: "⋓",
+    CupCap: "≍",
+    DD: "ⅅ",
+    DDotrahd: "⤑",
+    DJcy: "Ђ",
+    DScy: "Ѕ",
+    DZcy: "Џ",
+    Dagger: "‡",
+    Darr: "↡",
+    Dashv: "⫤",
+    Dcaron: "Ď",
+    Dcy: "Д",
+    Del: "∇",
+    Delta: "Δ",
+    Dfr: "𝔇",
+    DiacriticalAcute: "´",
+    DiacriticalDot: "˙",
+    DiacriticalDoubleAcute: "˝",
+    DiacriticalGrave: "`",
+    DiacriticalTilde: "˜",
+    Diamond: "⋄",
+    DifferentialD: "ⅆ",
+    Dopf: "𝔻",
+    Dot: "¨",
+    DotDot: "⃜",
+    DotEqual: "≐",
+    DoubleContourIntegral: "∯",
+    DoubleDot: "¨",
+    DoubleDownArrow: "⇓",
+    DoubleLeftArrow: "⇐",
+    DoubleLeftRightArrow: "⇔",
+    DoubleLeftTee: "⫤",
+    DoubleLongLeftArrow: "⟸",
+    DoubleLongLeftRightArrow: "⟺",
+    DoubleLongRightArrow: "⟹",
+    DoubleRightArrow: "⇒",
+    DoubleRightTee: "⊨",
+    DoubleUpArrow: "⇑",
+    DoubleUpDownArrow: "⇕",
+    DoubleVerticalBar: "∥",
+    DownArrow: "↓",
+    DownArrowBar: "⤓",
+    DownArrowUpArrow: "⇵",
+    DownBreve: "̑",
+    DownLeftRightVector: "⥐",
+    DownLeftTeeVector: "⥞",
+    DownLeftVector: "↽",
+    DownLeftVectorBar: "⥖",
+    DownRightTeeVector: "⥟",
+    DownRightVector: "⇁",
+    DownRightVectorBar: "⥗",
+    DownTee: "⊤",
+    DownTeeArrow: "↧",
+    Downarrow: "⇓",
+    Dscr: "𝒟",
+    Dstrok: "Đ",
+    ENG: "Ŋ",
+    ETH: "Ð",
+    Eacute: "É",
+    Ecaron: "Ě",
+    Ecirc: "Ê",
+    Ecy: "Э",
+    Edot: "Ė",
+    Efr: "𝔈",
+    Egrave: "È",
+    Element: "∈",
+    Emacr: "Ē",
+    EmptySmallSquare: "◻",
+    EmptyVerySmallSquare: "▫",
+    Eogon: "Ę",
+    Eopf: "𝔼",
+    Epsilon: "Ε",
+    Equal: "⩵",
+    EqualTilde: "≂",
+    Equilibrium: "⇌",
+    Escr: "ℰ",
+    Esim: "⩳",
+    Eta: "Η",
+    Euml: "Ë",
+    Exists: "∃",
+    ExponentialE: "ⅇ",
+    Fcy: "Ф",
+    Ffr: "𝔉",
+    FilledSmallSquare: "◼",
+    FilledVerySmallSquare: "▪",
+    Fopf: "𝔽",
+    ForAll: "∀",
+    Fouriertrf: "ℱ",
+    Fscr: "ℱ",
+    GJcy: "Ѓ",
+    GT: ">",
+    Gamma: "Γ",
+    Gammad: "Ϝ",
+    Gbreve: "Ğ",
+    Gcedil: "Ģ",
+    Gcirc: "Ĝ",
+    Gcy: "Г",
+    Gdot: "Ġ",
+    Gfr: "𝔊",
+    Gg: "⋙",
+    Gopf: "𝔾",
+    GreaterEqual: "≥",
+    GreaterEqualLess: "⋛",
+    GreaterFullEqual: "≧",
+    GreaterGreater: "⪢",
+    GreaterLess: "≷",
+    GreaterSlantEqual: "⩾",
+    GreaterTilde: "≳",
+    Gscr: "𝒢",
+    Gt: "≫",
+    HARDcy: "Ъ",
+    Hacek: "ˇ",
+    Hat: "^",
+    Hcirc: "Ĥ",
+    Hfr: "ℌ",
+    HilbertSpace: "ℋ",
+    Hopf: "ℍ",
+    HorizontalLine: "─",
+    Hscr: "ℋ",
+    Hstrok: "Ħ",
+    HumpDownHump: "≎",
+    HumpEqual: "≏",
+    IEcy: "Е",
+    IJlig: "Ĳ",
+    IOcy: "Ё",
+    Iacute: "Í",
+    Icirc: "Î",
+    Icy: "И",
+    Idot: "İ",
+    Ifr: "ℑ",
+    Igrave: "Ì",
+    Im: "ℑ",
+    Imacr: "Ī",
+    ImaginaryI: "ⅈ",
+    Implies: "⇒",
+    Int: "∬",
+    Integral: "∫",
+    Intersection: "⋂",
+    InvisibleComma: "⁣",
+    InvisibleTimes: "⁢",
+    Iogon: "Į",
+    Iopf: "𝕀",
+    Iota: "Ι",
+    Iscr: "ℐ",
+    Itilde: "Ĩ",
+    Iukcy: "І",
+    Iuml: "Ï",
+    Jcirc: "Ĵ",
+    Jcy: "Й",
+    Jfr: "𝔍",
+    Jopf: "𝕁",
+    Jscr: "𝒥",
+    Jsercy: "Ј",
+    Jukcy: "Є",
+    KHcy: "Х",
+    KJcy: "Ќ",
+    Kappa: "Κ",
+    Kcedil: "Ķ",
+    Kcy: "К",
+    Kfr: "𝔎",
+    Kopf: "𝕂",
+    Kscr: "𝒦",
+    LJcy: "Љ",
+    LT: "<",
+    Lacute: "Ĺ",
+    Lambda: "Λ",
+    Lang: "⟪",
+    Laplacetrf: "ℒ",
+    Larr: "↞",
+    Lcaron: "Ľ",
+    Lcedil: "Ļ",
+    Lcy: "Л",
+    LeftAngleBracket: "⟨",
+    LeftArrow: "←",
+    LeftArrowBar: "⇤",
+    LeftArrowRightArrow: "⇆",
+    LeftCeiling: "⌈",
+    LeftDoubleBracket: "⟦",
+    LeftDownTeeVector: "⥡",
+    LeftDownVector: "⇃",
+    LeftDownVectorBar: "⥙",
+    LeftFloor: "⌊",
+    LeftRightArrow: "↔",
+    LeftRightVector: "⥎",
+    LeftTee: "⊣",
+    LeftTeeArrow: "↤",
+    LeftTeeVector: "⥚",
+    LeftTriangle: "⊲",
+    LeftTriangleBar: "⧏",
+    LeftTriangleEqual: "⊴",
+    LeftUpDownVector: "⥑",
+    LeftUpTeeVector: "⥠",
+    LeftUpVector: "↿",
+    LeftUpVectorBar: "⥘",
+    LeftVector: "↼",
+    LeftVectorBar: "⥒",
+    Leftarrow: "⇐",
+    Leftrightarrow: "⇔",
+    LessEqualGreater: "⋚",
+    LessFullEqual: "≦",
+    LessGreater: "≶",
+    LessLess: "⪡",
+    LessSlantEqual: "⩽",
+    LessTilde: "≲",
+    Lfr: "𝔏",
+    Ll: "⋘",
+    Lleftarrow: "⇚",
+    Lmidot: "Ŀ",
+    LongLeftArrow: "⟵",
+    LongLeftRightArrow: "⟷",
+    LongRightArrow: "⟶",
+    Longleftarrow: "⟸",
+    Longleftrightarrow: "⟺",
+    Longrightarrow: "⟹",
+    Lopf: "𝕃",
+    LowerLeftArrow: "↙",
+    LowerRightArrow: "↘",
+    Lscr: "ℒ",
+    Lsh: "↰",
+    Lstrok: "Ł",
+    Lt: "≪",
+    Map: "⤅",
+    Mcy: "М",
+    MediumSpace: " ",
+    Mellintrf: "ℳ",
+    Mfr: "𝔐",
+    MinusPlus: "∓",
+    Mopf: "𝕄",
+    Mscr: "ℳ",
+    Mu: "Μ",
+    NJcy: "Њ",
+    Nacute: "Ń",
+    Ncaron: "Ň",
+    Ncedil: "Ņ",
+    Ncy: "Н",
+    NegativeMediumSpace: "​",
+    NegativeThickSpace: "​",
+    NegativeThinSpace: "​",
+    NegativeVeryThinSpace: "​",
+    NestedGreaterGreater: "≫",
+    NestedLessLess: "≪",
+    NewLine: "\n",
+    Nfr: "𝔑",
+    NoBreak: "⁠",
+    NonBreakingSpace: " ",
+    Nopf: "ℕ",
+    Not: "⫬",
+    NotCongruent: "≢",
+    NotCupCap: "≭",
+    NotDoubleVerticalBar: "∦",
+    NotElement: "∉",
+    NotEqual: "≠",
+    NotEqualTilde: "≂̸",
+    NotExists: "∄",
+    NotGreater: "≯",
+    NotGreaterEqual: "≱",
+    NotGreaterFullEqual: "≧̸",
+    NotGreaterGreater: "≫̸",
+    NotGreaterLess: "≹",
+    NotGreaterSlantEqual: "⩾̸",
+    NotGreaterTilde: "≵",
+    NotHumpDownHump: "≎̸",
+    NotHumpEqual: "≏̸",
+    NotLeftTriangle: "⋪",
+    NotLeftTriangleBar: "⧏̸",
+    NotLeftTriangleEqual: "⋬",
+    NotLess: "≮",
+    NotLessEqual: "≰",
+    NotLessGreater: "≸",
+    NotLessLess: "≪̸",
+    NotLessSlantEqual: "⩽̸",
+    NotLessTilde: "≴",
+    NotNestedGreaterGreater: "⪢̸",
+    NotNestedLessLess: "⪡̸",
+    NotPrecedes: "⊀",
+    NotPrecedesEqual: "⪯̸",
+    NotPrecedesSlantEqual: "⋠",
+    NotReverseElement: "∌",
+    NotRightTriangle: "⋫",
+    NotRightTriangleBar: "⧐̸",
+    NotRightTriangleEqual: "⋭",
+    NotSquareSubset: "⊏̸",
+    NotSquareSubsetEqual: "⋢",
+    NotSquareSuperset: "⊐̸",
+    NotSquareSupersetEqual: "⋣",
+    NotSubset: "⊂⃒",
+    NotSubsetEqual: "⊈",
+    NotSucceeds: "⊁",
+    NotSucceedsEqual: "⪰̸",
+    NotSucceedsSlantEqual: "⋡",
+    NotSucceedsTilde: "≿̸",
+    NotSuperset: "⊃⃒",
+    NotSupersetEqual: "⊉",
+    NotTilde: "≁",
+    NotTildeEqual: "≄",
+    NotTildeFullEqual: "≇",
+    NotTildeTilde: "≉",
+    NotVerticalBar: "∤",
+    Nscr: "𝒩",
+    Ntilde: "Ñ",
+    Nu: "Ν",
+    OElig: "Œ",
+    Oacute: "Ó",
+    Ocirc: "Ô",
+    Ocy: "О",
+    Odblac: "Ő",
+    Ofr: "𝔒",
+    Ograve: "Ò",
+    Omacr: "Ō",
+    Omega: "Ω",
+    Omicron: "Ο",
+    Oopf: "𝕆",
+    OpenCurlyDoubleQuote: "“",
+    OpenCurlyQuote: "‘",
+    Or: "⩔",
+    Oscr: "𝒪",
+    Oslash: "Ø",
+    Otilde: "Õ",
+    Otimes: "⨷",
+    Ouml: "Ö",
+    OverBar: "‾",
+    OverBrace: "⏞",
+    OverBracket: "⎴",
+    OverParenthesis: "⏜",
+    PartialD: "∂",
+    Pcy: "П",
+    Pfr: "𝔓",
+    Phi: "Φ",
+    Pi: "Π",
+    PlusMinus: "±",
+    Poincareplane: "ℌ",
+    Popf: "ℙ",
+    Pr: "⪻",
+    Precedes: "≺",
+    PrecedesEqual: "⪯",
+    PrecedesSlantEqual: "≼",
+    PrecedesTilde: "≾",
+    Prime: "″",
+    Product: "∏",
+    Proportion: "∷",
+    Proportional: "∝",
+    Pscr: "𝒫",
+    Psi: "Ψ",
+    QUOT: '"',
+    Qfr: "𝔔",
+    Qopf: "ℚ",
+    Qscr: "𝒬",
+    RBarr: "⤐",
+    REG: "®",
+    Racute: "Ŕ",
+    Rang: "⟫",
+    Rarr: "↠",
+    Rarrtl: "⤖",
+    Rcaron: "Ř",
+    Rcedil: "Ŗ",
+    Rcy: "Р",
+    Re: "ℜ",
+    ReverseElement: "∋",
+    ReverseEquilibrium: "⇋",
+    ReverseUpEquilibrium: "⥯",
+    Rfr: "ℜ",
+    Rho: "Ρ",
+    RightAngleBracket: "⟩",
+    RightArrow: "→",
+    RightArrowBar: "⇥",
+    RightArrowLeftArrow: "⇄",
+    RightCeiling: "⌉",
+    RightDoubleBracket: "⟧",
+    RightDownTeeVector: "⥝",
+    RightDownVector: "⇂",
+    RightDownVectorBar: "⥕",
+    RightFloor: "⌋",
+    RightTee: "⊢",
+    RightTeeArrow: "↦",
+    RightTeeVector: "⥛",
+    RightTriangle: "⊳",
+    RightTriangleBar: "⧐",
+    RightTriangleEqual: "⊵",
+    RightUpDownVector: "⥏",
+    RightUpTeeVector: "⥜",
+    RightUpVector: "↾",
+    RightUpVectorBar: "⥔",
+    RightVector: "⇀",
+    RightVectorBar: "⥓",
+    Rightarrow: "⇒",
+    Ropf: "ℝ",
+    RoundImplies: "⥰",
+    Rrightarrow: "⇛",
+    Rscr: "ℛ",
+    Rsh: "↱",
+    RuleDelayed: "⧴",
+    SHCHcy: "Щ",
+    SHcy: "Ш",
+    SOFTcy: "Ь",
+    Sacute: "Ś",
+    Sc: "⪼",
+    Scaron: "Š",
+    Scedil: "Ş",
+    Scirc: "Ŝ",
+    Scy: "С",
+    Sfr: "𝔖",
+    ShortDownArrow: "↓",
+    ShortLeftArrow: "←",
+    ShortRightArrow: "→",
+    ShortUpArrow: "↑",
+    Sigma: "Σ",
+    SmallCircle: "∘",
+    Sopf: "𝕊",
+    Sqrt: "√",
+    Square: "□",
+    SquareIntersection: "⊓",
+    SquareSubset: "⊏",
+    SquareSubsetEqual: "⊑",
+    SquareSuperset: "⊐",
+    SquareSupersetEqual: "⊒",
+    SquareUnion: "⊔",
+    Sscr: "𝒮",
+    Star: "⋆",
+    Sub: "⋐",
+    Subset: "⋐",
+    SubsetEqual: "⊆",
+    Succeeds: "≻",
+    SucceedsEqual: "⪰",
+    SucceedsSlantEqual: "≽",
+    SucceedsTilde: "≿",
+    SuchThat: "∋",
+    Sum: "∑",
+    Sup: "⋑",
+    Superset: "⊃",
+    SupersetEqual: "⊇",
+    Supset: "⋑",
+    THORN: "Þ",
+    TRADE: "™",
+    TSHcy: "Ћ",
+    TScy: "Ц",
+    Tab: "	",
+    Tau: "Τ",
+    Tcaron: "Ť",
+    Tcedil: "Ţ",
+    Tcy: "Т",
+    Tfr: "𝔗",
+    Therefore: "∴",
+    Theta: "Θ",
+    ThickSpace: "  ",
+    ThinSpace: " ",
+    Tilde: "∼",
+    TildeEqual: "≃",
+    TildeFullEqual: "≅",
+    TildeTilde: "≈",
+    Topf: "𝕋",
+    TripleDot: "⃛",
+    Tscr: "𝒯",
+    Tstrok: "Ŧ",
+    Uacute: "Ú",
+    Uarr: "↟",
+    Uarrocir: "⥉",
+    Ubrcy: "Ў",
+    Ubreve: "Ŭ",
+    Ucirc: "Û",
+    Ucy: "У",
+    Udblac: "Ű",
+    Ufr: "𝔘",
+    Ugrave: "Ù",
+    Umacr: "Ū",
+    UnderBar: "_",
+    UnderBrace: "⏟",
+    UnderBracket: "⎵",
+    UnderParenthesis: "⏝",
+    Union: "⋃",
+    UnionPlus: "⊎",
+    Uogon: "Ų",
+    Uopf: "𝕌",
+    UpArrow: "↑",
+    UpArrowBar: "⤒",
+    UpArrowDownArrow: "⇅",
+    UpDownArrow: "↕",
+    UpEquilibrium: "⥮",
+    UpTee: "⊥",
+    UpTeeArrow: "↥",
+    Uparrow: "⇑",
+    Updownarrow: "⇕",
+    UpperLeftArrow: "↖",
+    UpperRightArrow: "↗",
+    Upsi: "ϒ",
+    Upsilon: "Υ",
+    Uring: "Ů",
+    Uscr: "𝒰",
+    Utilde: "Ũ",
+    Uuml: "Ü",
+    VDash: "⊫",
+    Vbar: "⫫",
+    Vcy: "В",
+    Vdash: "⊩",
+    Vdashl: "⫦",
+    Vee: "⋁",
+    Verbar: "‖",
+    Vert: "‖",
+    VerticalBar: "∣",
+    VerticalLine: "|",
+    VerticalSeparator: "❘",
+    VerticalTilde: "≀",
+    VeryThinSpace: " ",
+    Vfr: "𝔙",
+    Vopf: "𝕍",
+    Vscr: "𝒱",
+    Vvdash: "⊪",
+    Wcirc: "Ŵ",
+    Wedge: "⋀",
+    Wfr: "𝔚",
+    Wopf: "𝕎",
+    Wscr: "𝒲",
+    Xfr: "𝔛",
+    Xi: "Ξ",
+    Xopf: "𝕏",
+    Xscr: "𝒳",
+    YAcy: "Я",
+    YIcy: "Ї",
+    YUcy: "Ю",
+    Yacute: "Ý",
+    Ycirc: "Ŷ",
+    Ycy: "Ы",
+    Yfr: "𝔜",
+    Yopf: "𝕐",
+    Yscr: "𝒴",
+    Yuml: "Ÿ",
+    ZHcy: "Ж",
+    Zacute: "Ź",
+    Zcaron: "Ž",
+    Zcy: "З",
+    Zdot: "Ż",
+    ZeroWidthSpace: "​",
+    Zeta: "Ζ",
+    Zfr: "ℨ",
+    Zopf: "ℤ",
+    Zscr: "𝒵",
+    aacute: "á",
+    abreve: "ă",
+    ac: "∾",
+    acE: "∾̳",
+    acd: "∿",
+    acirc: "â",
+    acute: "´",
+    acy: "а",
+    aelig: "æ",
+    af: "⁡",
+    afr: "𝔞",
+    agrave: "à",
+    alefsym: "ℵ",
+    aleph: "ℵ",
+    alpha: "α",
+    amacr: "ā",
+    amalg: "⨿",
+    amp: "&",
+    and: "∧",
+    andand: "⩕",
+    andd: "⩜",
+    andslope: "⩘",
+    andv: "⩚",
+    ang: "∠",
+    ange: "⦤",
+    angle: "∠",
+    angmsd: "∡",
+    angmsdaa: "⦨",
+    angmsdab: "⦩",
+    angmsdac: "⦪",
+    angmsdad: "⦫",
+    angmsdae: "⦬",
+    angmsdaf: "⦭",
+    angmsdag: "⦮",
+    angmsdah: "⦯",
+    angrt: "∟",
+    angrtvb: "⊾",
+    angrtvbd: "⦝",
+    angsph: "∢",
+    angst: "Å",
+    angzarr: "⍼",
+    aogon: "ą",
+    aopf: "𝕒",
+    ap: "≈",
+    apE: "⩰",
+    apacir: "⩯",
+    ape: "≊",
+    apid: "≋",
+    apos: "'",
+    approx: "≈",
+    approxeq: "≊",
+    aring: "å",
+    ascr: "𝒶",
+    ast: "*",
+    asymp: "≈",
+    asympeq: "≍",
+    atilde: "ã",
+    auml: "ä",
+    awconint: "∳",
+    awint: "⨑",
+    bNot: "⫭",
+    backcong: "≌",
+    backepsilon: "϶",
+    backprime: "‵",
+    backsim: "∽",
+    backsimeq: "⋍",
+    barvee: "⊽",
+    barwed: "⌅",
+    barwedge: "⌅",
+    bbrk: "⎵",
+    bbrktbrk: "⎶",
+    bcong: "≌",
+    bcy: "б",
+    bdquo: "„",
+    becaus: "∵",
+    because: "∵",
+    bemptyv: "⦰",
+    bepsi: "϶",
+    bernou: "ℬ",
+    beta: "β",
+    beth: "ℶ",
+    between: "≬",
+    bfr: "𝔟",
+    bigcap: "⋂",
+    bigcirc: "◯",
+    bigcup: "⋃",
+    bigodot: "⨀",
+    bigoplus: "⨁",
+    bigotimes: "⨂",
+    bigsqcup: "⨆",
+    bigstar: "★",
+    bigtriangledown: "▽",
+    bigtriangleup: "△",
+    biguplus: "⨄",
+    bigvee: "⋁",
+    bigwedge: "⋀",
+    bkarow: "⤍",
+    blacklozenge: "⧫",
+    blacksquare: "▪",
+    blacktriangle: "▴",
+    blacktriangledown: "▾",
+    blacktriangleleft: "◂",
+    blacktriangleright: "▸",
+    blank: "␣",
+    blk12: "▒",
+    blk14: "░",
+    blk34: "▓",
+    block: "█",
+    bne: "=⃥",
+    bnequiv: "≡⃥",
+    bnot: "⌐",
+    bopf: "𝕓",
+    bot: "⊥",
+    bottom: "⊥",
+    bowtie: "⋈",
+    boxDL: "╗",
+    boxDR: "╔",
+    boxDl: "╖",
+    boxDr: "╓",
+    boxH: "═",
+    boxHD: "╦",
+    boxHU: "╩",
+    boxHd: "╤",
+    boxHu: "╧",
+    boxUL: "╝",
+    boxUR: "╚",
+    boxUl: "╜",
+    boxUr: "╙",
+    boxV: "║",
+    boxVH: "╬",
+    boxVL: "╣",
+    boxVR: "╠",
+    boxVh: "╫",
+    boxVl: "╢",
+    boxVr: "╟",
+    boxbox: "⧉",
+    boxdL: "╕",
+    boxdR: "╒",
+    boxdl: "┐",
+    boxdr: "┌",
+    boxh: "─",
+    boxhD: "╥",
+    boxhU: "╨",
+    boxhd: "┬",
+    boxhu: "┴",
+    boxminus: "⊟",
+    boxplus: "⊞",
+    boxtimes: "⊠",
+    boxuL: "╛",
+    boxuR: "╘",
+    boxul: "┘",
+    boxur: "└",
+    boxv: "│",
+    boxvH: "╪",
+    boxvL: "╡",
+    boxvR: "╞",
+    boxvh: "┼",
+    boxvl: "┤",
+    boxvr: "├",
+    bprime: "‵",
+    breve: "˘",
+    brvbar: "¦",
+    bscr: "𝒷",
+    bsemi: "⁏",
+    bsim: "∽",
+    bsime: "⋍",
+    bsol: "\\",
+    bsolb: "⧅",
+    bsolhsub: "⟈",
+    bull: "•",
+    bullet: "•",
+    bump: "≎",
+    bumpE: "⪮",
+    bumpe: "≏",
+    bumpeq: "≏",
+    cacute: "ć",
+    cap: "∩",
+    capand: "⩄",
+    capbrcup: "⩉",
+    capcap: "⩋",
+    capcup: "⩇",
+    capdot: "⩀",
+    caps: "∩︀",
+    caret: "⁁",
+    caron: "ˇ",
+    ccaps: "⩍",
+    ccaron: "č",
+    ccedil: "ç",
+    ccirc: "ĉ",
+    ccups: "⩌",
+    ccupssm: "⩐",
+    cdot: "ċ",
+    cedil: "¸",
+    cemptyv: "⦲",
+    cent: "¢",
+    centerdot: "·",
+    cfr: "𝔠",
+    chcy: "ч",
+    check: "✓",
+    checkmark: "✓",
+    chi: "χ",
+    cir: "○",
+    cirE: "⧃",
+    circ: "ˆ",
+    circeq: "≗",
+    circlearrowleft: "↺",
+    circlearrowright: "↻",
+    circledR: "®",
+    circledS: "Ⓢ",
+    circledast: "⊛",
+    circledcirc: "⊚",
+    circleddash: "⊝",
+    cire: "≗",
+    cirfnint: "⨐",
+    cirmid: "⫯",
+    cirscir: "⧂",
+    clubs: "♣",
+    clubsuit: "♣",
+    colon: ":",
+    colone: "≔",
+    coloneq: "≔",
+    comma: ",",
+    commat: "@",
+    comp: "∁",
+    compfn: "∘",
+    complement: "∁",
+    complexes: "ℂ",
+    cong: "≅",
+    congdot: "⩭",
+    conint: "∮",
+    copf: "𝕔",
+    coprod: "∐",
+    copy: "©",
+    copysr: "℗",
+    crarr: "↵",
+    cross: "✗",
+    cscr: "𝒸",
+    csub: "⫏",
+    csube: "⫑",
+    csup: "⫐",
+    csupe: "⫒",
+    ctdot: "⋯",
+    cudarrl: "⤸",
+    cudarrr: "⤵",
+    cuepr: "⋞",
+    cuesc: "⋟",
+    cularr: "↶",
+    cularrp: "⤽",
+    cup: "∪",
+    cupbrcap: "⩈",
+    cupcap: "⩆",
+    cupcup: "⩊",
+    cupdot: "⊍",
+    cupor: "⩅",
+    cups: "∪︀",
+    curarr: "↷",
+    curarrm: "⤼",
+    curlyeqprec: "⋞",
+    curlyeqsucc: "⋟",
+    curlyvee: "⋎",
+    curlywedge: "⋏",
+    curren: "¤",
+    curvearrowleft: "↶",
+    curvearrowright: "↷",
+    cuvee: "⋎",
+    cuwed: "⋏",
+    cwconint: "∲",
+    cwint: "∱",
+    cylcty: "⌭",
+    dArr: "⇓",
+    dHar: "⥥",
+    dagger: "†",
+    daleth: "ℸ",
+    darr: "↓",
+    dash: "‐",
+    dashv: "⊣",
+    dbkarow: "⤏",
+    dblac: "˝",
+    dcaron: "ď",
+    dcy: "д",
+    dd: "ⅆ",
+    ddagger: "‡",
+    ddarr: "⇊",
+    ddotseq: "⩷",
+    deg: "°",
+    delta: "δ",
+    demptyv: "⦱",
+    dfisht: "⥿",
+    dfr: "𝔡",
+    dharl: "⇃",
+    dharr: "⇂",
+    diam: "⋄",
+    diamond: "⋄",
+    diamondsuit: "♦",
+    diams: "♦",
+    die: "¨",
+    digamma: "ϝ",
+    disin: "⋲",
+    div: "÷",
+    divide: "÷",
+    divideontimes: "⋇",
+    divonx: "⋇",
+    djcy: "ђ",
+    dlcorn: "⌞",
+    dlcrop: "⌍",
+    dollar: "$",
+    dopf: "𝕕",
+    dot: "˙",
+    doteq: "≐",
+    doteqdot: "≑",
+    dotminus: "∸",
+    dotplus: "∔",
+    dotsquare: "⊡",
+    doublebarwedge: "⌆",
+    downarrow: "↓",
+    downdownarrows: "⇊",
+    downharpoonleft: "⇃",
+    downharpoonright: "⇂",
+    drbkarow: "⤐",
+    drcorn: "⌟",
+    drcrop: "⌌",
+    dscr: "𝒹",
+    dscy: "ѕ",
+    dsol: "⧶",
+    dstrok: "đ",
+    dtdot: "⋱",
+    dtri: "▿",
+    dtrif: "▾",
+    duarr: "⇵",
+    duhar: "⥯",
+    dwangle: "⦦",
+    dzcy: "џ",
+    dzigrarr: "⟿",
+    eDDot: "⩷",
+    eDot: "≑",
+    eacute: "é",
+    easter: "⩮",
+    ecaron: "ě",
+    ecir: "≖",
+    ecirc: "ê",
+    ecolon: "≕",
+    ecy: "э",
+    edot: "ė",
+    ee: "ⅇ",
+    efDot: "≒",
+    efr: "𝔢",
+    eg: "⪚",
+    egrave: "è",
+    egs: "⪖",
+    egsdot: "⪘",
+    el: "⪙",
+    elinters: "⏧",
+    ell: "ℓ",
+    els: "⪕",
+    elsdot: "⪗",
+    emacr: "ē",
+    empty: "∅",
+    emptyset: "∅",
+    emptyv: "∅",
+    emsp13: " ",
+    emsp14: " ",
+    emsp: " ",
+    eng: "ŋ",
+    ensp: " ",
+    eogon: "ę",
+    eopf: "𝕖",
+    epar: "⋕",
+    eparsl: "⧣",
+    eplus: "⩱",
+    epsi: "ε",
+    epsilon: "ε",
+    epsiv: "ϵ",
+    eqcirc: "≖",
+    eqcolon: "≕",
+    eqsim: "≂",
+    eqslantgtr: "⪖",
+    eqslantless: "⪕",
+    equals: "=",
+    equest: "≟",
+    equiv: "≡",
+    equivDD: "⩸",
+    eqvparsl: "⧥",
+    erDot: "≓",
+    erarr: "⥱",
+    escr: "ℯ",
+    esdot: "≐",
+    esim: "≂",
+    eta: "η",
+    eth: "ð",
+    euml: "ë",
+    euro: "€",
+    excl: "!",
+    exist: "∃",
+    expectation: "ℰ",
+    exponentiale: "ⅇ",
+    fallingdotseq: "≒",
+    fcy: "ф",
+    female: "♀",
+    ffilig: "ﬃ",
+    fflig: "ﬀ",
+    ffllig: "ﬄ",
+    ffr: "𝔣",
+    filig: "ﬁ",
+    fjlig: "fj",
+    flat: "♭",
+    fllig: "ﬂ",
+    fltns: "▱",
+    fnof: "ƒ",
+    fopf: "𝕗",
+    forall: "∀",
+    fork: "⋔",
+    forkv: "⫙",
+    fpartint: "⨍",
+    frac12: "½",
+    frac13: "⅓",
+    frac14: "¼",
+    frac15: "⅕",
+    frac16: "⅙",
+    frac18: "⅛",
+    frac23: "⅔",
+    frac25: "⅖",
+    frac34: "¾",
+    frac35: "⅗",
+    frac38: "⅜",
+    frac45: "⅘",
+    frac56: "⅚",
+    frac58: "⅝",
+    frac78: "⅞",
+    frasl: "⁄",
+    frown: "⌢",
+    fscr: "𝒻",
+    gE: "≧",
+    gEl: "⪌",
+    gacute: "ǵ",
+    gamma: "γ",
+    gammad: "ϝ",
+    gap: "⪆",
+    gbreve: "ğ",
+    gcirc: "ĝ",
+    gcy: "г",
+    gdot: "ġ",
+    ge: "≥",
+    gel: "⋛",
+    geq: "≥",
+    geqq: "≧",
+    geqslant: "⩾",
+    ges: "⩾",
+    gescc: "⪩",
+    gesdot: "⪀",
+    gesdoto: "⪂",
+    gesdotol: "⪄",
+    gesl: "⋛︀",
+    gesles: "⪔",
+    gfr: "𝔤",
+    gg: "≫",
+    ggg: "⋙",
+    gimel: "ℷ",
+    gjcy: "ѓ",
+    gl: "≷",
+    glE: "⪒",
+    gla: "⪥",
+    glj: "⪤",
+    gnE: "≩",
+    gnap: "⪊",
+    gnapprox: "⪊",
+    gne: "⪈",
+    gneq: "⪈",
+    gneqq: "≩",
+    gnsim: "⋧",
+    gopf: "𝕘",
+    grave: "`",
+    gscr: "ℊ",
+    gsim: "≳",
+    gsime: "⪎",
+    gsiml: "⪐",
+    gt: ">",
+    gtcc: "⪧",
+    gtcir: "⩺",
+    gtdot: "⋗",
+    gtlPar: "⦕",
+    gtquest: "⩼",
+    gtrapprox: "⪆",
+    gtrarr: "⥸",
+    gtrdot: "⋗",
+    gtreqless: "⋛",
+    gtreqqless: "⪌",
+    gtrless: "≷",
+    gtrsim: "≳",
+    gvertneqq: "≩︀",
+    gvnE: "≩︀",
+    hArr: "⇔",
+    hairsp: " ",
+    half: "½",
+    hamilt: "ℋ",
+    hardcy: "ъ",
+    harr: "↔",
+    harrcir: "⥈",
+    harrw: "↭",
+    hbar: "ℏ",
+    hcirc: "ĥ",
+    hearts: "♥",
+    heartsuit: "♥",
+    hellip: "…",
+    hercon: "⊹",
+    hfr: "𝔥",
+    hksearow: "⤥",
+    hkswarow: "⤦",
+    hoarr: "⇿",
+    homtht: "∻",
+    hookleftarrow: "↩",
+    hookrightarrow: "↪",
+    hopf: "𝕙",
+    horbar: "―",
+    hscr: "𝒽",
+    hslash: "ℏ",
+    hstrok: "ħ",
+    hybull: "⁃",
+    hyphen: "‐",
+    iacute: "í",
+    ic: "⁣",
+    icirc: "î",
+    icy: "и",
+    iecy: "е",
+    iexcl: "¡",
+    iff: "⇔",
+    ifr: "𝔦",
+    igrave: "ì",
+    ii: "ⅈ",
+    iiiint: "⨌",
+    iiint: "∭",
+    iinfin: "⧜",
+    iiota: "℩",
+    ijlig: "ĳ",
+    imacr: "ī",
+    image: "ℑ",
+    imagline: "ℐ",
+    imagpart: "ℑ",
+    imath: "ı",
+    imof: "⊷",
+    imped: "Ƶ",
+    in: "∈",
+    incare: "℅",
+    infin: "∞",
+    infintie: "⧝",
+    inodot: "ı",
+    int: "∫",
+    intcal: "⊺",
+    integers: "ℤ",
+    intercal: "⊺",
+    intlarhk: "⨗",
+    intprod: "⨼",
+    iocy: "ё",
+    iogon: "į",
+    iopf: "𝕚",
+    iota: "ι",
+    iprod: "⨼",
+    iquest: "¿",
+    iscr: "𝒾",
+    isin: "∈",
+    isinE: "⋹",
+    isindot: "⋵",
+    isins: "⋴",
+    isinsv: "⋳",
+    isinv: "∈",
+    it: "⁢",
+    itilde: "ĩ",
+    iukcy: "і",
+    iuml: "ï",
+    jcirc: "ĵ",
+    jcy: "й",
+    jfr: "𝔧",
+    jmath: "ȷ",
+    jopf: "𝕛",
+    jscr: "𝒿",
+    jsercy: "ј",
+    jukcy: "є",
+    kappa: "κ",
+    kappav: "ϰ",
+    kcedil: "ķ",
+    kcy: "к",
+    kfr: "𝔨",
+    kgreen: "ĸ",
+    khcy: "х",
+    kjcy: "ќ",
+    kopf: "𝕜",
+    kscr: "𝓀",
+    lAarr: "⇚",
+    lArr: "⇐",
+    lAtail: "⤛",
+    lBarr: "⤎",
+    lE: "≦",
+    lEg: "⪋",
+    lHar: "⥢",
+    lacute: "ĺ",
+    laemptyv: "⦴",
+    lagran: "ℒ",
+    lambda: "λ",
+    lang: "⟨",
+    langd: "⦑",
+    langle: "⟨",
+    lap: "⪅",
+    laquo: "«",
+    larr: "←",
+    larrb: "⇤",
+    larrbfs: "⤟",
+    larrfs: "⤝",
+    larrhk: "↩",
+    larrlp: "↫",
+    larrpl: "⤹",
+    larrsim: "⥳",
+    larrtl: "↢",
+    lat: "⪫",
+    latail: "⤙",
+    late: "⪭",
+    lates: "⪭︀",
+    lbarr: "⤌",
+    lbbrk: "❲",
+    lbrace: "{",
+    lbrack: "[",
+    lbrke: "⦋",
+    lbrksld: "⦏",
+    lbrkslu: "⦍",
+    lcaron: "ľ",
+    lcedil: "ļ",
+    lceil: "⌈",
+    lcub: "{",
+    lcy: "л",
+    ldca: "⤶",
+    ldquo: "“",
+    ldquor: "„",
+    ldrdhar: "⥧",
+    ldrushar: "⥋",
+    ldsh: "↲",
+    le: "≤",
+    leftarrow: "←",
+    leftarrowtail: "↢",
+    leftharpoondown: "↽",
+    leftharpoonup: "↼",
+    leftleftarrows: "⇇",
+    leftrightarrow: "↔",
+    leftrightarrows: "⇆",
+    leftrightharpoons: "⇋",
+    leftrightsquigarrow: "↭",
+    leftthreetimes: "⋋",
+    leg: "⋚",
+    leq: "≤",
+    leqq: "≦",
+    leqslant: "⩽",
+    les: "⩽",
+    lescc: "⪨",
+    lesdot: "⩿",
+    lesdoto: "⪁",
+    lesdotor: "⪃",
+    lesg: "⋚︀",
+    lesges: "⪓",
+    lessapprox: "⪅",
+    lessdot: "⋖",
+    lesseqgtr: "⋚",
+    lesseqqgtr: "⪋",
+    lessgtr: "≶",
+    lesssim: "≲",
+    lfisht: "⥼",
+    lfloor: "⌊",
+    lfr: "𝔩",
+    lg: "≶",
+    lgE: "⪑",
+    lhard: "↽",
+    lharu: "↼",
+    lharul: "⥪",
+    lhblk: "▄",
+    ljcy: "љ",
+    ll: "≪",
+    llarr: "⇇",
+    llcorner: "⌞",
+    llhard: "⥫",
+    lltri: "◺",
+    lmidot: "ŀ",
+    lmoust: "⎰",
+    lmoustache: "⎰",
+    lnE: "≨",
+    lnap: "⪉",
+    lnapprox: "⪉",
+    lne: "⪇",
+    lneq: "⪇",
+    lneqq: "≨",
+    lnsim: "⋦",
+    loang: "⟬",
+    loarr: "⇽",
+    lobrk: "⟦",
+    longleftarrow: "⟵",
+    longleftrightarrow: "⟷",
+    longmapsto: "⟼",
+    longrightarrow: "⟶",
+    looparrowleft: "↫",
+    looparrowright: "↬",
+    lopar: "⦅",
+    lopf: "𝕝",
+    loplus: "⨭",
+    lotimes: "⨴",
+    lowast: "∗",
+    lowbar: "_",
+    loz: "◊",
+    lozenge: "◊",
+    lozf: "⧫",
+    lpar: "(",
+    lparlt: "⦓",
+    lrarr: "⇆",
+    lrcorner: "⌟",
+    lrhar: "⇋",
+    lrhard: "⥭",
+    lrm: "‎",
+    lrtri: "⊿",
+    lsaquo: "‹",
+    lscr: "𝓁",
+    lsh: "↰",
+    lsim: "≲",
+    lsime: "⪍",
+    lsimg: "⪏",
+    lsqb: "[",
+    lsquo: "‘",
+    lsquor: "‚",
+    lstrok: "ł",
+    lt: "<",
+    ltcc: "⪦",
+    ltcir: "⩹",
+    ltdot: "⋖",
+    lthree: "⋋",
+    ltimes: "⋉",
+    ltlarr: "⥶",
+    ltquest: "⩻",
+    ltrPar: "⦖",
+    ltri: "◃",
+    ltrie: "⊴",
+    ltrif: "◂",
+    lurdshar: "⥊",
+    luruhar: "⥦",
+    lvertneqq: "≨︀",
+    lvnE: "≨︀",
+    mDDot: "∺",
+    macr: "¯",
+    male: "♂",
+    malt: "✠",
+    maltese: "✠",
+    map: "↦",
+    mapsto: "↦",
+    mapstodown: "↧",
+    mapstoleft: "↤",
+    mapstoup: "↥",
+    marker: "▮",
+    mcomma: "⨩",
+    mcy: "м",
+    mdash: "—",
+    measuredangle: "∡",
+    mfr: "𝔪",
+    mho: "℧",
+    micro: "µ",
+    mid: "∣",
+    midast: "*",
+    midcir: "⫰",
+    middot: "·",
+    minus: "−",
+    minusb: "⊟",
+    minusd: "∸",
+    minusdu: "⨪",
+    mlcp: "⫛",
+    mldr: "…",
+    mnplus: "∓",
+    models: "⊧",
+    mopf: "𝕞",
+    mp: "∓",
+    mscr: "𝓂",
+    mstpos: "∾",
+    mu: "μ",
+    multimap: "⊸",
+    mumap: "⊸",
+    nGg: "⋙̸",
+    nGt: "≫⃒",
+    nGtv: "≫̸",
+    nLeftarrow: "⇍",
+    nLeftrightarrow: "⇎",
+    nLl: "⋘̸",
+    nLt: "≪⃒",
+    nLtv: "≪̸",
+    nRightarrow: "⇏",
+    nVDash: "⊯",
+    nVdash: "⊮",
+    nabla: "∇",
+    nacute: "ń",
+    nang: "∠⃒",
+    nap: "≉",
+    napE: "⩰̸",
+    napid: "≋̸",
+    napos: "ŉ",
+    napprox: "≉",
+    natur: "♮",
+    natural: "♮",
+    naturals: "ℕ",
+    nbsp: " ",
+    nbump: "≎̸",
+    nbumpe: "≏̸",
+    ncap: "⩃",
+    ncaron: "ň",
+    ncedil: "ņ",
+    ncong: "≇",
+    ncongdot: "⩭̸",
+    ncup: "⩂",
+    ncy: "н",
+    ndash: "–",
+    ne: "≠",
+    neArr: "⇗",
+    nearhk: "⤤",
+    nearr: "↗",
+    nearrow: "↗",
+    nedot: "≐̸",
+    nequiv: "≢",
+    nesear: "⤨",
+    nesim: "≂̸",
+    nexist: "∄",
+    nexists: "∄",
+    nfr: "𝔫",
+    ngE: "≧̸",
+    nge: "≱",
+    ngeq: "≱",
+    ngeqq: "≧̸",
+    ngeqslant: "⩾̸",
+    nges: "⩾̸",
+    ngsim: "≵",
+    ngt: "≯",
+    ngtr: "≯",
+    nhArr: "⇎",
+    nharr: "↮",
+    nhpar: "⫲",
+    ni: "∋",
+    nis: "⋼",
+    nisd: "⋺",
+    niv: "∋",
+    njcy: "њ",
+    nlArr: "⇍",
+    nlE: "≦̸",
+    nlarr: "↚",
+    nldr: "‥",
+    nle: "≰",
+    nleftarrow: "↚",
+    nleftrightarrow: "↮",
+    nleq: "≰",
+    nleqq: "≦̸",
+    nleqslant: "⩽̸",
+    nles: "⩽̸",
+    nless: "≮",
+    nlsim: "≴",
+    nlt: "≮",
+    nltri: "⋪",
+    nltrie: "⋬",
+    nmid: "∤",
+    nopf: "𝕟",
+    not: "¬",
+    notin: "∉",
+    notinE: "⋹̸",
+    notindot: "⋵̸",
+    notinva: "∉",
+    notinvb: "⋷",
+    notinvc: "⋶",
+    notni: "∌",
+    notniva: "∌",
+    notnivb: "⋾",
+    notnivc: "⋽",
+    npar: "∦",
+    nparallel: "∦",
+    nparsl: "⫽⃥",
+    npart: "∂̸",
+    npolint: "⨔",
+    npr: "⊀",
+    nprcue: "⋠",
+    npre: "⪯̸",
+    nprec: "⊀",
+    npreceq: "⪯̸",
+    nrArr: "⇏",
+    nrarr: "↛",
+    nrarrc: "⤳̸",
+    nrarrw: "↝̸",
+    nrightarrow: "↛",
+    nrtri: "⋫",
+    nrtrie: "⋭",
+    nsc: "⊁",
+    nsccue: "⋡",
+    nsce: "⪰̸",
+    nscr: "𝓃",
+    nshortmid: "∤",
+    nshortparallel: "∦",
+    nsim: "≁",
+    nsime: "≄",
+    nsimeq: "≄",
+    nsmid: "∤",
+    nspar: "∦",
+    nsqsube: "⋢",
+    nsqsupe: "⋣",
+    nsub: "⊄",
+    nsubE: "⫅̸",
+    nsube: "⊈",
+    nsubset: "⊂⃒",
+    nsubseteq: "⊈",
+    nsubseteqq: "⫅̸",
+    nsucc: "⊁",
+    nsucceq: "⪰̸",
+    nsup: "⊅",
+    nsupE: "⫆̸",
+    nsupe: "⊉",
+    nsupset: "⊃⃒",
+    nsupseteq: "⊉",
+    nsupseteqq: "⫆̸",
+    ntgl: "≹",
+    ntilde: "ñ",
+    ntlg: "≸",
+    ntriangleleft: "⋪",
+    ntrianglelefteq: "⋬",
+    ntriangleright: "⋫",
+    ntrianglerighteq: "⋭",
+    nu: "ν",
+    num: "#",
+    numero: "№",
+    numsp: " ",
+    nvDash: "⊭",
+    nvHarr: "⤄",
+    nvap: "≍⃒",
+    nvdash: "⊬",
+    nvge: "≥⃒",
+    nvgt: ">⃒",
+    nvinfin: "⧞",
+    nvlArr: "⤂",
+    nvle: "≤⃒",
+    nvlt: "<⃒",
+    nvltrie: "⊴⃒",
+    nvrArr: "⤃",
+    nvrtrie: "⊵⃒",
+    nvsim: "∼⃒",
+    nwArr: "⇖",
+    nwarhk: "⤣",
+    nwarr: "↖",
+    nwarrow: "↖",
+    nwnear: "⤧",
+    oS: "Ⓢ",
+    oacute: "ó",
+    oast: "⊛",
+    ocir: "⊚",
+    ocirc: "ô",
+    ocy: "о",
+    odash: "⊝",
+    odblac: "ő",
+    odiv: "⨸",
+    odot: "⊙",
+    odsold: "⦼",
+    oelig: "œ",
+    ofcir: "⦿",
+    ofr: "𝔬",
+    ogon: "˛",
+    ograve: "ò",
+    ogt: "⧁",
+    ohbar: "⦵",
+    ohm: "Ω",
+    oint: "∮",
+    olarr: "↺",
+    olcir: "⦾",
+    olcross: "⦻",
+    oline: "‾",
+    olt: "⧀",
+    omacr: "ō",
+    omega: "ω",
+    omicron: "ο",
+    omid: "⦶",
+    ominus: "⊖",
+    oopf: "𝕠",
+    opar: "⦷",
+    operp: "⦹",
+    oplus: "⊕",
+    or: "∨",
+    orarr: "↻",
+    ord: "⩝",
+    order: "ℴ",
+    orderof: "ℴ",
+    ordf: "ª",
+    ordm: "º",
+    origof: "⊶",
+    oror: "⩖",
+    orslope: "⩗",
+    orv: "⩛",
+    oscr: "ℴ",
+    oslash: "ø",
+    osol: "⊘",
+    otilde: "õ",
+    otimes: "⊗",
+    otimesas: "⨶",
+    ouml: "ö",
+    ovbar: "⌽",
+    par: "∥",
+    para: "¶",
+    parallel: "∥",
+    parsim: "⫳",
+    parsl: "⫽",
+    part: "∂",
+    pcy: "п",
+    percnt: "%",
+    period: ".",
+    permil: "‰",
+    perp: "⊥",
+    pertenk: "‱",
+    pfr: "𝔭",
+    phi: "φ",
+    phiv: "ϕ",
+    phmmat: "ℳ",
+    phone: "☎",
+    pi: "π",
+    pitchfork: "⋔",
+    piv: "ϖ",
+    planck: "ℏ",
+    planckh: "ℎ",
+    plankv: "ℏ",
+    plus: "+",
+    plusacir: "⨣",
+    plusb: "⊞",
+    pluscir: "⨢",
+    plusdo: "∔",
+    plusdu: "⨥",
+    pluse: "⩲",
+    plusmn: "±",
+    plussim: "⨦",
+    plustwo: "⨧",
+    pm: "±",
+    pointint: "⨕",
+    popf: "𝕡",
+    pound: "£",
+    pr: "≺",
+    prE: "⪳",
+    prap: "⪷",
+    prcue: "≼",
+    pre: "⪯",
+    prec: "≺",
+    precapprox: "⪷",
+    preccurlyeq: "≼",
+    preceq: "⪯",
+    precnapprox: "⪹",
+    precneqq: "⪵",
+    precnsim: "⋨",
+    precsim: "≾",
+    prime: "′",
+    primes: "ℙ",
+    prnE: "⪵",
+    prnap: "⪹",
+    prnsim: "⋨",
+    prod: "∏",
+    profalar: "⌮",
+    profline: "⌒",
+    profsurf: "⌓",
+    prop: "∝",
+    propto: "∝",
+    prsim: "≾",
+    prurel: "⊰",
+    pscr: "𝓅",
+    psi: "ψ",
+    puncsp: " ",
+    qfr: "𝔮",
+    qint: "⨌",
+    qopf: "𝕢",
+    qprime: "⁗",
+    qscr: "𝓆",
+    quaternions: "ℍ",
+    quatint: "⨖",
+    quest: "?",
+    questeq: "≟",
+    quot: '"',
+    rAarr: "⇛",
+    rArr: "⇒",
+    rAtail: "⤜",
+    rBarr: "⤏",
+    rHar: "⥤",
+    race: "∽̱",
+    racute: "ŕ",
+    radic: "√",
+    raemptyv: "⦳",
+    rang: "⟩",
+    rangd: "⦒",
+    range: "⦥",
+    rangle: "⟩",
+    raquo: "»",
+    rarr: "→",
+    rarrap: "⥵",
+    rarrb: "⇥",
+    rarrbfs: "⤠",
+    rarrc: "⤳",
+    rarrfs: "⤞",
+    rarrhk: "↪",
+    rarrlp: "↬",
+    rarrpl: "⥅",
+    rarrsim: "⥴",
+    rarrtl: "↣",
+    rarrw: "↝",
+    ratail: "⤚",
+    ratio: "∶",
+    rationals: "ℚ",
+    rbarr: "⤍",
+    rbbrk: "❳",
+    rbrace: "}",
+    rbrack: "]",
+    rbrke: "⦌",
+    rbrksld: "⦎",
+    rbrkslu: "⦐",
+    rcaron: "ř",
+    rcedil: "ŗ",
+    rceil: "⌉",
+    rcub: "}",
+    rcy: "р",
+    rdca: "⤷",
+    rdldhar: "⥩",
+    rdquo: "”",
+    rdquor: "”",
+    rdsh: "↳",
+    real: "ℜ",
+    realine: "ℛ",
+    realpart: "ℜ",
+    reals: "ℝ",
+    rect: "▭",
+    reg: "®",
+    rfisht: "⥽",
+    rfloor: "⌋",
+    rfr: "𝔯",
+    rhard: "⇁",
+    rharu: "⇀",
+    rharul: "⥬",
+    rho: "ρ",
+    rhov: "ϱ",
+    rightarrow: "→",
+    rightarrowtail: "↣",
+    rightharpoondown: "⇁",
+    rightharpoonup: "⇀",
+    rightleftarrows: "⇄",
+    rightleftharpoons: "⇌",
+    rightrightarrows: "⇉",
+    rightsquigarrow: "↝",
+    rightthreetimes: "⋌",
+    ring: "˚",
+    risingdotseq: "≓",
+    rlarr: "⇄",
+    rlhar: "⇌",
+    rlm: "‏",
+    rmoust: "⎱",
+    rmoustache: "⎱",
+    rnmid: "⫮",
+    roang: "⟭",
+    roarr: "⇾",
+    robrk: "⟧",
+    ropar: "⦆",
+    ropf: "𝕣",
+    roplus: "⨮",
+    rotimes: "⨵",
+    rpar: ")",
+    rpargt: "⦔",
+    rppolint: "⨒",
+    rrarr: "⇉",
+    rsaquo: "›",
+    rscr: "𝓇",
+    rsh: "↱",
+    rsqb: "]",
+    rsquo: "’",
+    rsquor: "’",
+    rthree: "⋌",
+    rtimes: "⋊",
+    rtri: "▹",
+    rtrie: "⊵",
+    rtrif: "▸",
+    rtriltri: "⧎",
+    ruluhar: "⥨",
+    rx: "℞",
+    sacute: "ś",
+    sbquo: "‚",
+    sc: "≻",
+    scE: "⪴",
+    scap: "⪸",
+    scaron: "š",
+    sccue: "≽",
+    sce: "⪰",
+    scedil: "ş",
+    scirc: "ŝ",
+    scnE: "⪶",
+    scnap: "⪺",
+    scnsim: "⋩",
+    scpolint: "⨓",
+    scsim: "≿",
+    scy: "с",
+    sdot: "⋅",
+    sdotb: "⊡",
+    sdote: "⩦",
+    seArr: "⇘",
+    searhk: "⤥",
+    searr: "↘",
+    searrow: "↘",
+    sect: "§",
+    semi: ";",
+    seswar: "⤩",
+    setminus: "∖",
+    setmn: "∖",
+    sext: "✶",
+    sfr: "𝔰",
+    sfrown: "⌢",
+    sharp: "♯",
+    shchcy: "щ",
+    shcy: "ш",
+    shortmid: "∣",
+    shortparallel: "∥",
+    shy: "­",
+    sigma: "σ",
+    sigmaf: "ς",
+    sigmav: "ς",
+    sim: "∼",
+    simdot: "⩪",
+    sime: "≃",
+    simeq: "≃",
+    simg: "⪞",
+    simgE: "⪠",
+    siml: "⪝",
+    simlE: "⪟",
+    simne: "≆",
+    simplus: "⨤",
+    simrarr: "⥲",
+    slarr: "←",
+    smallsetminus: "∖",
+    smashp: "⨳",
+    smeparsl: "⧤",
+    smid: "∣",
+    smile: "⌣",
+    smt: "⪪",
+    smte: "⪬",
+    smtes: "⪬︀",
+    softcy: "ь",
+    sol: "/",
+    solb: "⧄",
+    solbar: "⌿",
+    sopf: "𝕤",
+    spades: "♠",
+    spadesuit: "♠",
+    spar: "∥",
+    sqcap: "⊓",
+    sqcaps: "⊓︀",
+    sqcup: "⊔",
+    sqcups: "⊔︀",
+    sqsub: "⊏",
+    sqsube: "⊑",
+    sqsubset: "⊏",
+    sqsubseteq: "⊑",
+    sqsup: "⊐",
+    sqsupe: "⊒",
+    sqsupset: "⊐",
+    sqsupseteq: "⊒",
+    squ: "□",
+    square: "□",
+    squarf: "▪",
+    squf: "▪",
+    srarr: "→",
+    sscr: "𝓈",
+    ssetmn: "∖",
+    ssmile: "⌣",
+    sstarf: "⋆",
+    star: "☆",
+    starf: "★",
+    straightepsilon: "ϵ",
+    straightphi: "ϕ",
+    strns: "¯",
+    sub: "⊂",
+    subE: "⫅",
+    subdot: "⪽",
+    sube: "⊆",
+    subedot: "⫃",
+    submult: "⫁",
+    subnE: "⫋",
+    subne: "⊊",
+    subplus: "⪿",
+    subrarr: "⥹",
+    subset: "⊂",
+    subseteq: "⊆",
+    subseteqq: "⫅",
+    subsetneq: "⊊",
+    subsetneqq: "⫋",
+    subsim: "⫇",
+    subsub: "⫕",
+    subsup: "⫓",
+    succ: "≻",
+    succapprox: "⪸",
+    succcurlyeq: "≽",
+    succeq: "⪰",
+    succnapprox: "⪺",
+    succneqq: "⪶",
+    succnsim: "⋩",
+    succsim: "≿",
+    sum: "∑",
+    sung: "♪",
+    sup1: "¹",
+    sup2: "²",
+    sup3: "³",
+    sup: "⊃",
+    supE: "⫆",
+    supdot: "⪾",
+    supdsub: "⫘",
+    supe: "⊇",
+    supedot: "⫄",
+    suphsol: "⟉",
+    suphsub: "⫗",
+    suplarr: "⥻",
+    supmult: "⫂",
+    supnE: "⫌",
+    supne: "⊋",
+    supplus: "⫀",
+    supset: "⊃",
+    supseteq: "⊇",
+    supseteqq: "⫆",
+    supsetneq: "⊋",
+    supsetneqq: "⫌",
+    supsim: "⫈",
+    supsub: "⫔",
+    supsup: "⫖",
+    swArr: "⇙",
+    swarhk: "⤦",
+    swarr: "↙",
+    swarrow: "↙",
+    swnwar: "⤪",
+    szlig: "ß",
+    target: "⌖",
+    tau: "τ",
+    tbrk: "⎴",
+    tcaron: "ť",
+    tcedil: "ţ",
+    tcy: "т",
+    tdot: "⃛",
+    telrec: "⌕",
+    tfr: "𝔱",
+    there4: "∴",
+    therefore: "∴",
+    theta: "θ",
+    thetasym: "ϑ",
+    thetav: "ϑ",
+    thickapprox: "≈",
+    thicksim: "∼",
+    thinsp: " ",
+    thkap: "≈",
+    thksim: "∼",
+    thorn: "þ",
+    tilde: "˜",
+    times: "×",
+    timesb: "⊠",
+    timesbar: "⨱",
+    timesd: "⨰",
+    tint: "∭",
+    toea: "⤨",
+    top: "⊤",
+    topbot: "⌶",
+    topcir: "⫱",
+    topf: "𝕥",
+    topfork: "⫚",
+    tosa: "⤩",
+    tprime: "‴",
+    trade: "™",
+    triangle: "▵",
+    triangledown: "▿",
+    triangleleft: "◃",
+    trianglelefteq: "⊴",
+    triangleq: "≜",
+    triangleright: "▹",
+    trianglerighteq: "⊵",
+    tridot: "◬",
+    trie: "≜",
+    triminus: "⨺",
+    triplus: "⨹",
+    trisb: "⧍",
+    tritime: "⨻",
+    trpezium: "⏢",
+    tscr: "𝓉",
+    tscy: "ц",
+    tshcy: "ћ",
+    tstrok: "ŧ",
+    twixt: "≬",
+    twoheadleftarrow: "↞",
+    twoheadrightarrow: "↠",
+    uArr: "⇑",
+    uHar: "⥣",
+    uacute: "ú",
+    uarr: "↑",
+    ubrcy: "ў",
+    ubreve: "ŭ",
+    ucirc: "û",
+    ucy: "у",
+    udarr: "⇅",
+    udblac: "ű",
+    udhar: "⥮",
+    ufisht: "⥾",
+    ufr: "𝔲",
+    ugrave: "ù",
+    uharl: "↿",
+    uharr: "↾",
+    uhblk: "▀",
+    ulcorn: "⌜",
+    ulcorner: "⌜",
+    ulcrop: "⌏",
+    ultri: "◸",
+    umacr: "ū",
+    uml: "¨",
+    uogon: "ų",
+    uopf: "𝕦",
+    uparrow: "↑",
+    updownarrow: "↕",
+    upharpoonleft: "↿",
+    upharpoonright: "↾",
+    uplus: "⊎",
+    upsi: "υ",
+    upsih: "ϒ",
+    upsilon: "υ",
+    upuparrows: "⇈",
+    urcorn: "⌝",
+    urcorner: "⌝",
+    urcrop: "⌎",
+    uring: "ů",
+    urtri: "◹",
+    uscr: "𝓊",
+    utdot: "⋰",
+    utilde: "ũ",
+    utri: "▵",
+    utrif: "▴",
+    uuarr: "⇈",
+    uuml: "ü",
+    uwangle: "⦧",
+    vArr: "⇕",
+    vBar: "⫨",
+    vBarv: "⫩",
+    vDash: "⊨",
+    vangrt: "⦜",
+    varepsilon: "ϵ",
+    varkappa: "ϰ",
+    varnothing: "∅",
+    varphi: "ϕ",
+    varpi: "ϖ",
+    varpropto: "∝",
+    varr: "↕",
+    varrho: "ϱ",
+    varsigma: "ς",
+    varsubsetneq: "⊊︀",
+    varsubsetneqq: "⫋︀",
+    varsupsetneq: "⊋︀",
+    varsupsetneqq: "⫌︀",
+    vartheta: "ϑ",
+    vartriangleleft: "⊲",
+    vartriangleright: "⊳",
+    vcy: "в",
+    vdash: "⊢",
+    vee: "∨",
+    veebar: "⊻",
+    veeeq: "≚",
+    vellip: "⋮",
+    verbar: "|",
+    vert: "|",
+    vfr: "𝔳",
+    vltri: "⊲",
+    vnsub: "⊂⃒",
+    vnsup: "⊃⃒",
+    vopf: "𝕧",
+    vprop: "∝",
+    vrtri: "⊳",
+    vscr: "𝓋",
+    vsubnE: "⫋︀",
+    vsubne: "⊊︀",
+    vsupnE: "⫌︀",
+    vsupne: "⊋︀",
+    vzigzag: "⦚",
+    wcirc: "ŵ",
+    wedbar: "⩟",
+    wedge: "∧",
+    wedgeq: "≙",
+    weierp: "℘",
+    wfr: "𝔴",
+    wopf: "𝕨",
+    wp: "℘",
+    wr: "≀",
+    wreath: "≀",
+    wscr: "𝓌",
+    xcap: "⋂",
+    xcirc: "◯",
+    xcup: "⋃",
+    xdtri: "▽",
+    xfr: "𝔵",
+    xhArr: "⟺",
+    xharr: "⟷",
+    xi: "ξ",
+    xlArr: "⟸",
+    xlarr: "⟵",
+    xmap: "⟼",
+    xnis: "⋻",
+    xodot: "⨀",
+    xopf: "𝕩",
+    xoplus: "⨁",
+    xotime: "⨂",
+    xrArr: "⟹",
+    xrarr: "⟶",
+    xscr: "𝓍",
+    xsqcup: "⨆",
+    xuplus: "⨄",
+    xutri: "△",
+    xvee: "⋁",
+    xwedge: "⋀",
+    yacute: "ý",
+    yacy: "я",
+    ycirc: "ŷ",
+    ycy: "ы",
+    yen: "¥",
+    yfr: "𝔶",
+    yicy: "ї",
+    yopf: "𝕪",
+    yscr: "𝓎",
+    yucy: "ю",
+    yuml: "ÿ",
+    zacute: "ź",
+    zcaron: "ž",
+    zcy: "з",
+    zdot: "ż",
+    zeetrf: "ℨ",
+    zeta: "ζ",
+    zfr: "𝔷",
+    zhcy: "ж",
+    zigrarr: "⇝",
+    zopf: "𝕫",
+    zscr: "𝓏",
+    zwj: "‍",
+    zwnj: "‌"
+  };
+
+  // node_modules/decode-named-character-reference/index.js
+  var own = {}.hasOwnProperty;
+  function decodeNamedCharacterReference(value) {
+    return own.call(characterEntities, value) ? characterEntities[value] : false;
+  }
+  __name(decodeNamedCharacterReference, "decodeNamedCharacterReference");
+
+  // node_modules/parse-entities/lib/index.js
+  var messages = [
+    "",
+    /* 1: Non terminated (named) */
+    "Named character references must be terminated by a semicolon",
+    /* 2: Non terminated (numeric) */
+    "Numeric character references must be terminated by a semicolon",
+    /* 3: Empty (named) */
+    "Named character references cannot be empty",
+    /* 4: Empty (numeric) */
+    "Numeric character references cannot be empty",
+    /* 5: Unknown (named) */
+    "Named character references must be known",
+    /* 6: Disallowed (numeric) */
+    "Numeric character references cannot be disallowed",
+    /* 7: Prohibited (numeric) */
+    "Numeric character references cannot be outside the permissible Unicode range"
+  ];
+  function parseEntities(value, options) {
+    const settings = options || {};
+    const additional = typeof settings.additional === "string" ? settings.additional.charCodeAt(0) : settings.additional;
+    const result = [];
+    let index = 0;
+    let lines = -1;
+    let queue = "";
+    let point;
+    let indent;
+    if (settings.position) {
+      if ("start" in settings.position || "indent" in settings.position) {
+        indent = settings.position.indent;
+        point = settings.position.start;
+      } else {
+        point = settings.position;
+      }
+    }
+    let line = (point ? point.line : 0) || 1;
+    let column = (point ? point.column : 0) || 1;
+    let previous = now();
+    let character;
+    index--;
+    while (++index <= value.length) {
+      if (character === 10) {
+        column = (indent ? indent[lines] : 0) || 1;
+      }
+      character = value.charCodeAt(index);
+      if (character === 38) {
+        const following = value.charCodeAt(index + 1);
+        if (following === 9 || following === 10 || following === 12 || following === 32 || following === 38 || following === 60 || Number.isNaN(following) || additional && following === additional) {
+          queue += String.fromCharCode(character);
+          column++;
+          continue;
+        }
+        const start = index + 1;
+        let begin = start;
+        let end = start;
+        let type;
+        if (following === 35) {
+          end = ++begin;
+          const following2 = value.charCodeAt(end);
+          if (following2 === 88 || following2 === 120) {
+            type = "hexadecimal";
+            end = ++begin;
+          } else {
+            type = "decimal";
+          }
+        } else {
+          type = "named";
+        }
+        let characterReferenceCharacters = "";
+        let characterReference = "";
+        let characters = "";
+        const test = type === "named" ? isAlphanumerical : type === "decimal" ? isDecimal : isHexadecimal;
+        end--;
+        while (++end <= value.length) {
+          const following2 = value.charCodeAt(end);
+          if (!test(following2)) {
+            break;
+          }
+          characters += String.fromCharCode(following2);
+          if (type === "named" && characterEntitiesLegacy.includes(characters)) {
+            characterReferenceCharacters = characters;
+            characterReference = decodeNamedCharacterReference(characters);
+          }
+        }
+        let terminated = value.charCodeAt(end) === 59;
+        if (terminated) {
+          end++;
+          const namedReference = type === "named" ? decodeNamedCharacterReference(characters) : false;
+          if (namedReference) {
+            characterReferenceCharacters = characters;
+            characterReference = namedReference;
+          }
+        }
+        let diff2 = 1 + end - start;
+        let reference = "";
+        if (!terminated && settings.nonTerminated === false) {
+        } else if (!characters) {
+          if (type !== "named") {
+            warning(4, diff2);
+          }
+        } else if (type === "named") {
+          if (terminated && !characterReference) {
+            warning(5, 1);
+          } else {
+            if (characterReferenceCharacters !== characters) {
+              end = begin + characterReferenceCharacters.length;
+              diff2 = 1 + end - begin;
+              terminated = false;
+            }
+            if (!terminated) {
+              const reason = characterReferenceCharacters ? 1 : 3;
+              if (settings.attribute) {
+                const following2 = value.charCodeAt(end);
+                if (following2 === 61) {
+                  warning(reason, diff2);
+                  characterReference = "";
+                } else if (isAlphanumerical(following2)) {
+                  characterReference = "";
+                } else {
+                  warning(reason, diff2);
+                }
+              } else {
+                warning(reason, diff2);
+              }
+            }
+          }
+          reference = characterReference;
+        } else {
+          if (!terminated) {
+            warning(2, diff2);
+          }
+          let referenceCode = Number.parseInt(
+            characters,
+            type === "hexadecimal" ? 16 : 10
+          );
+          if (prohibited(referenceCode)) {
+            warning(7, diff2);
+            reference = String.fromCharCode(
+              65533
+              /* `�` */
+            );
+          } else if (referenceCode in characterReferenceInvalid) {
+            warning(6, diff2);
+            reference = characterReferenceInvalid[referenceCode];
+          } else {
+            let output = "";
+            if (disallowed(referenceCode)) {
+              warning(6, diff2);
+            }
+            if (referenceCode > 65535) {
+              referenceCode -= 65536;
+              output += String.fromCharCode(
+                referenceCode >>> (10 & 1023) | 55296
+              );
+              referenceCode = 56320 | referenceCode & 1023;
+            }
+            reference = output + String.fromCharCode(referenceCode);
+          }
+        }
+        if (reference) {
+          flush();
+          previous = now();
+          index = end - 1;
+          column += end - start + 1;
+          result.push(reference);
+          const next = now();
+          next.offset++;
+          if (settings.reference) {
+            settings.reference.call(
+              settings.referenceContext || void 0,
+              reference,
+              { start: previous, end: next },
+              value.slice(start - 1, end)
+            );
+          }
+          previous = next;
+        } else {
+          characters = value.slice(start - 1, end);
+          queue += characters;
+          column += characters.length;
+          index = end - 1;
+        }
+      } else {
+        if (character === 10) {
+          line++;
+          lines++;
+          column = 0;
+        }
+        if (Number.isNaN(character)) {
+          flush();
+        } else {
+          queue += String.fromCharCode(character);
+          column++;
+        }
+      }
+    }
+    return result.join("");
+    function now() {
+      return {
+        line,
+        column,
+        offset: index + ((point ? point.offset : 0) || 0)
+      };
+    }
+    __name(now, "now");
+    function warning(code, offset) {
+      let position;
+      if (settings.warning) {
+        position = now();
+        position.column += offset;
+        position.offset += offset;
+        settings.warning.call(
+          settings.warningContext || void 0,
+          messages[code],
+          position,
+          code
+        );
+      }
+    }
+    __name(warning, "warning");
+    function flush() {
+      if (queue) {
+        result.push(queue);
+        if (settings.text) {
+          settings.text.call(settings.textContext || void 0, queue, {
+            start: previous,
+            end: now()
+          });
+        }
+        queue = "";
+      }
+    }
+    __name(flush, "flush");
+  }
+  __name(parseEntities, "parseEntities");
+  function prohibited(code) {
+    return code >= 55296 && code <= 57343 || code > 1114111;
+  }
+  __name(prohibited, "prohibited");
+  function disallowed(code) {
+    return code >= 1 && code <= 8 || code === 11 || code >= 13 && code <= 31 || code >= 127 && code <= 159 || code >= 64976 && code <= 65007 || (code & 65535) === 65535 || (code & 65535) === 65534;
+  }
+  __name(disallowed, "disallowed");
+
+  // node_modules/refractor/lib/prism-core.js
+  var uniqueId = 0;
+  var plainTextGrammar = {};
+  var _ = {
+    /**
+     * A namespace for utility methods.
+     *
+     * All function in this namespace that are not explicitly marked as _public_ are for __internal use only__ and may
+     * change or disappear at any time.
+     *
+     * @namespace
+     * @memberof Prism
+     */
+    util: {
+      /**
+       * Returns the name of the type of the given value.
+       *
+       * @param {any} o
+       * @returns {string}
+       * @example
+       * type(null)      === 'Null'
+       * type(undefined) === 'Undefined'
+       * type(123)       === 'Number'
+       * type('foo')     === 'String'
+       * type(true)      === 'Boolean'
+       * type([1, 2])    === 'Array'
+       * type({})        === 'Object'
+       * type(String)    === 'Function'
+       * type(/abc+/)    === 'RegExp'
+       */
+      type: /* @__PURE__ */ __name(function(o) {
+        return Object.prototype.toString.call(o).slice(8, -1);
+      }, "type"),
+      /**
+       * Returns a unique number for the given object. Later calls will still return the same number.
+       *
+       * @param {Object} obj
+       * @returns {number}
+       */
+      objId: /* @__PURE__ */ __name(function(obj) {
+        if (!obj["__id"]) {
+          Object.defineProperty(obj, "__id", { value: ++uniqueId });
+        }
+        return obj["__id"];
+      }, "objId"),
+      /**
+       * Creates a deep clone of the given object.
+       *
+       * The main intended use of this function is to clone language definitions.
+       *
+       * @param {T} o
+       * @param {Record<number, any>} [visited]
+       * @returns {T}
+       * @template T
+       */
+      clone: /* @__PURE__ */ __name(function deepClone(o, visited) {
+        visited = visited || {};
+        var clone;
+        var id;
+        switch (_.util.type(o)) {
+          case "Object":
+            id = _.util.objId(o);
+            if (visited[id]) {
+              return visited[id];
+            }
+            clone = /** @type {Record<string, any>} */
+            {};
+            visited[id] = clone;
+            for (var key in o) {
+              if (o.hasOwnProperty(key)) {
+                clone[key] = deepClone(o[key], visited);
+              }
+            }
+            return (
+              /** @type {any} */
+              clone
+            );
+          case "Array":
+            id = _.util.objId(o);
+            if (visited[id]) {
+              return visited[id];
+            }
+            clone = [];
+            visited[id] = clone;
+            /** @type {any} */
+            o.forEach(
+              function(v, i) {
+                clone[i] = deepClone(v, visited);
+              }
+            );
+            return (
+              /** @type {any} */
+              clone
+            );
+          default:
+            return o;
+        }
+      }, "deepClone")
+    },
+    /**
+     * This namespace contains all currently loaded languages and the some helper functions to create and modify languages.
+     *
+     * @namespace
+     * @memberof Prism
+     * @public
+     */
+    languages: {
+      /**
+       * The grammar for plain, unformatted text.
+       */
+      plain: plainTextGrammar,
+      plaintext: plainTextGrammar,
+      text: plainTextGrammar,
+      txt: plainTextGrammar,
+      /**
+       * Creates a deep copy of the language with the given id and appends the given tokens.
+       *
+       * If a token in `redef` also appears in the copied language, then the existing token in the copied language
+       * will be overwritten at its original position.
+       *
+       * ## Best practices
+       *
+       * Since the position of overwriting tokens (token in `redef` that overwrite tokens in the copied language)
+       * doesn't matter, they can technically be in any order. However, this can be confusing to others that trying to
+       * understand the language definition because, normally, the order of tokens matters in Prism grammars.
+       *
+       * Therefore, it is encouraged to order overwriting tokens according to the positions of the overwritten tokens.
+       * Furthermore, all non-overwriting tokens should be placed after the overwriting ones.
+       *
+       * @param {string} id The id of the language to extend. This has to be a key in `Prism.languages`.
+       * @param {Grammar} redef The new tokens to append.
+       * @returns {Grammar} The new language created.
+       * @public
+       * @example
+       * Prism.languages['css-with-colors'] = Prism.languages.extend('css', {
+       *     // Prism.languages.css already has a 'comment' token, so this token will overwrite CSS' 'comment' token
+       *     // at its original position
+       *     'comment': { ... },
+       *     // CSS doesn't have a 'color' token, so this token will be appended
+       *     'color': /\b(?:red|green|blue)\b/
+       * });
+       */
+      extend: /* @__PURE__ */ __name(function(id, redef) {
+        var lang = _.util.clone(_.languages[id]);
+        for (var key in redef) {
+          lang[key] = redef[key];
+        }
+        return lang;
+      }, "extend"),
+      /**
+       * Inserts tokens _before_ another token in a language definition or any other grammar.
+       *
+       * ## Usage
+       *
+       * This helper method makes it easy to modify existing languages. For example, the CSS language definition
+       * not only defines CSS highlighting for CSS documents, but also needs to define highlighting for CSS embedded
+       * in HTML through `<style>` elements. To do this, it needs to modify `Prism.languages.markup` and add the
+       * appropriate tokens. However, `Prism.languages.markup` is a regular JavaScript object literal, so if you do
+       * this:
+       *
+       * ```js
+       * Prism.languages.markup.style = {
+       *     // token
+       * };
+       * ```
+       *
+       * then the `style` token will be added (and processed) at the end. `insertBefore` allows you to insert tokens
+       * before existing tokens. For the CSS example above, you would use it like this:
+       *
+       * ```js
+       * Prism.languages.insertBefore('markup', 'cdata', {
+       *     'style': {
+       *         // token
+       *     }
+       * });
+       * ```
+       *
+       * ## Special cases
+       *
+       * If the grammars of `inside` and `insert` have tokens with the same name, the tokens in `inside`'s grammar
+       * will be ignored.
+       *
+       * This behavior can be used to insert tokens after `before`:
+       *
+       * ```js
+       * Prism.languages.insertBefore('markup', 'comment', {
+       *     'comment': Prism.languages.markup.comment,
+       *     // tokens after 'comment'
+       * });
+       * ```
+       *
+       * ## Limitations
+       *
+       * The main problem `insertBefore` has to solve is iteration order. Since ES2015, the iteration order for object
+       * properties is guaranteed to be the insertion order (except for integer keys) but some browsers behave
+       * differently when keys are deleted and re-inserted. So `insertBefore` can't be implemented by temporarily
+       * deleting properties which is necessary to insert at arbitrary positions.
+       *
+       * To solve this problem, `insertBefore` doesn't actually insert the given tokens into the target object.
+       * Instead, it will create a new object and replace all references to the target object with the new one. This
+       * can be done without temporarily deleting properties, so the iteration order is well-defined.
+       *
+       * However, only references that can be reached from `Prism.languages` or `insert` will be replaced. I.e. if
+       * you hold the target object in a variable, then the value of the variable will not change.
+       *
+       * ```js
+       * var oldMarkup = Prism.languages.markup;
+       * var newMarkup = Prism.languages.insertBefore('markup', 'comment', { ... });
+       *
+       * assert(oldMarkup !== Prism.languages.markup);
+       * assert(newMarkup === Prism.languages.markup);
+       * ```
+       *
+       * @param {string} inside The property of `root` (e.g. a language id in `Prism.languages`) that contains the
+       * object to be modified.
+       * @param {string} before The key to insert before.
+       * @param {Grammar} insert An object containing the key-value pairs to be inserted.
+       * @param {Object<string, any>} [root] The object containing `inside`, i.e. the object that contains the
+       * object to be modified.
+       *
+       * Defaults to `Prism.languages`.
+       * @returns {Grammar} The new grammar object.
+       * @public
+       */
+      insertBefore: /* @__PURE__ */ __name(function(inside, before, insert, root) {
+        root = root || /** @type {any} */
+        _.languages;
+        var grammar = root[inside];
+        var ret = {};
+        for (var token in grammar) {
+          if (grammar.hasOwnProperty(token)) {
+            if (token == before) {
+              for (var newToken in insert) {
+                if (insert.hasOwnProperty(newToken)) {
+                  ret[newToken] = insert[newToken];
+                }
+              }
+            }
+            if (!insert.hasOwnProperty(token)) {
+              ret[token] = grammar[token];
+            }
+          }
+        }
+        var old = root[inside];
+        root[inside] = ret;
+        _.languages.DFS(_.languages, function(key, value) {
+          if (value === old && key != inside) {
+            this[key] = ret;
+          }
+        });
+        return ret;
+      }, "insertBefore"),
+      // Traverse a language definition with Depth First Search
+      DFS: /* @__PURE__ */ __name(function DFS(o, callback, type, visited) {
+        visited = visited || {};
+        var objId = _.util.objId;
+        for (var i in o) {
+          if (o.hasOwnProperty(i)) {
+            callback.call(o, i, o[i], type || i);
+            var property = o[i];
+            var propertyType = _.util.type(property);
+            if (propertyType === "Object" && !visited[objId(property)]) {
+              visited[objId(property)] = true;
+              DFS(property, callback, null, visited);
+            } else if (propertyType === "Array" && !visited[objId(property)]) {
+              visited[objId(property)] = true;
+              DFS(property, callback, i, visited);
+            }
+          }
+        }
+      }, "DFS")
+    },
+    plugins: {},
+    /**
+     * Low-level function, only use if you know what you’re doing. It accepts a string of text as input
+     * and the language definitions to use, and returns a string with the HTML produced.
+     *
+     * The following hooks will be run:
+     * 1. `before-tokenize`
+     * 2. `after-tokenize`
+     * 3. `wrap`: On each {@link Token}.
+     *
+     * @param {string} text A string with the code to be highlighted.
+     * @param {Grammar} grammar An object containing the tokens to use.
+     *
+     * Usually a language definition like `Prism.languages.markup`.
+     * @param {string} language The name of the language definition passed to `grammar`.
+     * @returns {string} The highlighted HTML.
+     * @memberof Prism
+     * @public
+     * @example
+     * Prism.highlight('var foo = true;', Prism.languages.javascript, 'javascript');
+     */
+    highlight: /* @__PURE__ */ __name(function(text, grammar, language) {
+      var env = {
+        code: text,
+        grammar,
+        language
+      };
+      _.hooks.run("before-tokenize", env);
+      if (!env.grammar) {
+        throw new Error('The language "' + env.language + '" has no grammar.');
+      }
+      env.tokens = _.tokenize(env.code, env.grammar);
+      _.hooks.run("after-tokenize", env);
+      return Token.stringify(_.util.encode(env.tokens), env.language);
+    }, "highlight"),
+    /**
+     * This is the heart of Prism, and the most low-level function you can use. It accepts a string of text as input
+     * and the language definitions to use, and returns an array with the tokenized code.
+     *
+     * When the language definition includes nested tokens, the function is called recursively on each of these tokens.
+     *
+     * This method could be useful in other contexts as well, as a very crude parser.
+     *
+     * @param {string} text A string with the code to be highlighted.
+     * @param {Grammar} grammar An object containing the tokens to use.
+     *
+     * Usually a language definition like `Prism.languages.markup`.
+     * @returns {TokenStream} An array of strings and tokens, a token stream.
+     * @memberof Prism
+     * @public
+     * @example
+     * let code = `var foo = 0;`;
+     * let tokens = Prism.tokenize(code, Prism.languages.javascript);
+     * tokens.forEach(token => {
+     *     if (token instanceof Prism.Token && token.type === 'number') {
+     *         console.log(`Found numeric literal: ${token.content}`);
+     *     }
+     * });
+     */
+    tokenize: /* @__PURE__ */ __name(function(text, grammar) {
+      var rest = grammar.rest;
+      if (rest) {
+        for (var token in rest) {
+          grammar[token] = rest[token];
+        }
+        delete grammar.rest;
+      }
+      var tokenList = new LinkedList();
+      addAfter(tokenList, tokenList.head, text);
+      matchGrammar(text, tokenList, grammar, tokenList.head, 0);
+      return toArray(tokenList);
+    }, "tokenize"),
+    /**
+     * @namespace
+     * @memberof Prism
+     * @public
+     */
+    hooks: {
+      all: {},
+      /**
+       * Adds the given callback to the list of callbacks for the given hook.
+       *
+       * The callback will be invoked when the hook it is registered for is run.
+       * Hooks are usually directly run by a highlight function but you can also run hooks yourself.
+       *
+       * One callback function can be registered to multiple hooks and the same hook multiple times.
+       *
+       * @param {string} name The name of the hook.
+       * @param {HookCallback} callback The callback function which is given environment variables.
+       * @public
+       */
+      add: /* @__PURE__ */ __name(function(name, callback) {
+        var hooks = _.hooks.all;
+        hooks[name] = hooks[name] || [];
+        hooks[name].push(callback);
+      }, "add"),
+      /**
+       * Runs a hook invoking all registered callbacks with the given environment variables.
+       *
+       * Callbacks will be invoked synchronously and in the order in which they were registered.
+       *
+       * @param {string} name The name of the hook.
+       * @param {Object<string, any>} env The environment variables of the hook passed to all callbacks registered.
+       * @public
+       */
+      run: /* @__PURE__ */ __name(function(name, env) {
+        var callbacks = _.hooks.all[name];
+        if (!callbacks || !callbacks.length) {
+          return;
+        }
+        for (var i = 0, callback; callback = callbacks[i++]; ) {
+          callback(env);
+        }
+      }, "run")
+    },
+    Token
+  };
+  function Token(type, content, alias2, matchedStr) {
+    this.type = type;
+    this.content = content;
+    this.alias = alias2;
+    this.length = (matchedStr || "").length | 0;
+  }
+  __name(Token, "Token");
+  function matchPattern(pattern, pos, text, lookbehind) {
+    pattern.lastIndex = pos;
+    var match = pattern.exec(text);
+    if (match && lookbehind && match[1]) {
+      var lookbehindLength = match[1].length;
+      match.index += lookbehindLength;
+      match[0] = match[0].slice(lookbehindLength);
+    }
+    return match;
+  }
+  __name(matchPattern, "matchPattern");
+  function matchGrammar(text, tokenList, grammar, startNode, startPos, rematch) {
+    for (var token in grammar) {
+      if (!grammar.hasOwnProperty(token) || !grammar[token]) {
+        continue;
+      }
+      var patterns = grammar[token];
+      patterns = Array.isArray(patterns) ? patterns : [patterns];
+      for (var j = 0; j < patterns.length; ++j) {
+        if (rematch && rematch.cause == token + "," + j) {
+          return;
+        }
+        var patternObj = patterns[j];
+        var inside = patternObj.inside;
+        var lookbehind = !!patternObj.lookbehind;
+        var greedy = !!patternObj.greedy;
+        var alias2 = patternObj.alias;
+        if (greedy && !patternObj.pattern.global) {
+          var flags = patternObj.pattern.toString().match(/[imsuy]*$/)[0];
+          patternObj.pattern = RegExp(patternObj.pattern.source, flags + "g");
+        }
+        var pattern = patternObj.pattern || patternObj;
+        for (var currentNode = startNode.next, pos = startPos; currentNode !== tokenList.tail; pos += currentNode.value.length, currentNode = currentNode.next) {
+          if (rematch && pos >= rematch.reach) {
+            break;
+          }
+          var str = currentNode.value;
+          if (tokenList.length > text.length) {
+            return;
+          }
+          if (str instanceof Token) {
+            continue;
+          }
+          var removeCount = 1;
+          var match;
+          if (greedy) {
+            match = matchPattern(pattern, pos, text, lookbehind);
+            if (!match || match.index >= text.length) {
+              break;
+            }
+            var from = match.index;
+            var to = match.index + match[0].length;
+            var p = pos;
+            p += currentNode.value.length;
+            while (from >= p) {
+              currentNode = currentNode.next;
+              p += currentNode.value.length;
+            }
+            p -= currentNode.value.length;
+            pos = p;
+            if (currentNode.value instanceof Token) {
+              continue;
+            }
+            for (var k = currentNode; k !== tokenList.tail && (p < to || typeof k.value === "string"); k = k.next) {
+              removeCount++;
+              p += k.value.length;
+            }
+            removeCount--;
+            str = text.slice(pos, p);
+            match.index -= pos;
+          } else {
+            match = matchPattern(pattern, 0, str, lookbehind);
+            if (!match) {
+              continue;
+            }
+          }
+          var from = match.index;
+          var matchStr = match[0];
+          var before = str.slice(0, from);
+          var after = str.slice(from + matchStr.length);
+          var reach = pos + str.length;
+          if (rematch && reach > rematch.reach) {
+            rematch.reach = reach;
+          }
+          var removeFrom = currentNode.prev;
+          if (before) {
+            removeFrom = addAfter(tokenList, removeFrom, before);
+            pos += before.length;
+          }
+          removeRange(tokenList, removeFrom, removeCount);
+          var wrapped = new Token(
+            token,
+            inside ? _.tokenize(matchStr, inside) : matchStr,
+            alias2,
+            matchStr
+          );
+          currentNode = addAfter(tokenList, removeFrom, wrapped);
+          if (after) {
+            addAfter(tokenList, currentNode, after);
+          }
+          if (removeCount > 1) {
+            var nestedRematch = {
+              cause: token + "," + j,
+              reach
+            };
+            matchGrammar(
+              text,
+              tokenList,
+              grammar,
+              currentNode.prev,
+              pos,
+              nestedRematch
+            );
+            if (rematch && nestedRematch.reach > rematch.reach) {
+              rematch.reach = nestedRematch.reach;
+            }
+          }
+        }
+      }
+    }
+  }
+  __name(matchGrammar, "matchGrammar");
+  function LinkedList() {
+    var head = { value: null, prev: null, next: null };
+    var tail = { value: null, prev: head, next: null };
+    head.next = tail;
+    this.head = head;
+    this.tail = tail;
+    this.length = 0;
+  }
+  __name(LinkedList, "LinkedList");
+  function addAfter(list, node, value) {
+    var next = node.next;
+    var newNode = { value, prev: node, next };
+    node.next = newNode;
+    next.prev = newNode;
+    list.length++;
+    return newNode;
+  }
+  __name(addAfter, "addAfter");
+  function removeRange(list, node, count) {
+    var next = node.next;
+    for (var i = 0; i < count && next !== list.tail; i++) {
+      next = next.next;
+    }
+    node.next = next;
+    next.prev = node;
+    list.length -= i;
+  }
+  __name(removeRange, "removeRange");
+  function toArray(list) {
+    var array = [];
+    var node = list.head.next;
+    while (node !== list.tail) {
+      array.push(node.value);
+      node = node.next;
+    }
+    return array;
+  }
+  __name(toArray, "toArray");
+  var Prism = _;
+
+  // node_modules/refractor/lib/core.js
+  function Refractor() {
+  }
+  __name(Refractor, "Refractor");
+  Refractor.prototype = Prism;
+  var refractor = new Refractor();
+  refractor.highlight = highlight;
+  refractor.register = register;
+  refractor.alias = alias;
+  refractor.registered = registered;
+  refractor.listLanguages = listLanguages;
+  refractor.util.encode = encode;
+  refractor.Token.stringify = stringify;
+  function highlight(value, language) {
+    if (typeof value !== "string") {
+      throw new TypeError("Expected `string` for `value`, got `" + value + "`");
+    }
+    let grammar;
+    let name;
+    if (language && typeof language === "object") {
+      grammar = language;
+    } else {
+      name = language;
+      if (typeof name !== "string") {
+        throw new TypeError("Expected `string` for `name`, got `" + name + "`");
+      }
+      if (Object.hasOwn(refractor.languages, name)) {
+        grammar = refractor.languages[name];
+      } else {
+        throw new Error("Unknown language: `" + name + "` is not registered");
+      }
+    }
+    return {
+      type: "root",
+      // @ts-expect-error: we hacked Prism to accept and return the things we want.
+      children: Prism.highlight.call(refractor, value, grammar, name)
+    };
+  }
+  __name(highlight, "highlight");
+  function register(syntax) {
+    if (typeof syntax !== "function" || !syntax.displayName) {
+      throw new Error("Expected `function` for `syntax`, got `" + syntax + "`");
+    }
+    if (!Object.hasOwn(refractor.languages, syntax.displayName)) {
+      syntax(refractor);
+    }
+  }
+  __name(register, "register");
+  function alias(language, alias2) {
+    const languages = refractor.languages;
+    let map = {};
+    if (typeof language === "string") {
+      if (alias2) {
+        map[language] = alias2;
+      }
+    } else {
+      map = language;
+    }
+    let key;
+    for (key in map) {
+      if (Object.hasOwn(map, key)) {
+        const value = map[key];
+        const list = typeof value === "string" ? [value] : value;
+        let index = -1;
+        while (++index < list.length) {
+          languages[list[index]] = languages[key];
+        }
+      }
+    }
+  }
+  __name(alias, "alias");
+  function registered(aliasOrLanguage) {
+    if (typeof aliasOrLanguage !== "string") {
+      throw new TypeError(
+        "Expected `string` for `aliasOrLanguage`, got `" + aliasOrLanguage + "`"
+      );
+    }
+    return Object.hasOwn(refractor.languages, aliasOrLanguage);
+  }
+  __name(registered, "registered");
+  function listLanguages() {
+    const languages = refractor.languages;
+    const list = [];
+    let language;
+    for (language in languages) {
+      if (Object.hasOwn(languages, language) && typeof languages[language] === "object") {
+        list.push(language);
+      }
+    }
+    return list;
+  }
+  __name(listLanguages, "listLanguages");
+  function stringify(value, language) {
+    if (typeof value === "string") {
+      return { type: "text", value };
+    }
+    if (Array.isArray(value)) {
+      const result = [];
+      let index = -1;
+      while (++index < value.length) {
+        if (value[index] !== null && value[index] !== void 0 && value[index] !== "") {
+          result.push(
+            /** @type {Element | Text} */
+            stringify(value[index], language)
+          );
+        }
+      }
+      return result;
+    }
+    const env = {
+      attributes: {},
+      classes: ["token", value.type],
+      content: stringify(value.content, language),
+      language,
+      tag: "span",
+      type: value.type
+    };
+    if (value.alias) {
+      env.classes.push(
+        ...typeof value.alias === "string" ? [value.alias] : value.alias
+      );
+    }
+    refractor.hooks.run("wrap", env);
+    return h(
+      env.tag + "." + env.classes.join("."),
+      attributes(env.attributes),
+      env.content
+    );
+  }
+  __name(stringify, "stringify");
+  function encode(tokens) {
+    return tokens;
+  }
+  __name(encode, "encode");
+  function attributes(record) {
+    let key;
+    for (key in record) {
+      if (Object.hasOwn(record, key)) {
+        record[key] = parseEntities(record[key]);
+      }
+    }
+    return record;
+  }
+  __name(attributes, "attributes");
+
+  // node_modules/refractor/lib/common.js
+  refractor.register(clike);
+  refractor.register(c);
+  refractor.register(cpp);
+  refractor.register(arduino);
+  refractor.register(bash);
+  refractor.register(csharp);
+  refractor.register(markup);
+  refractor.register(css);
+  refractor.register(diff);
+  refractor.register(go);
+  refractor.register(ini);
+  refractor.register(java);
+  refractor.register(regex);
+  refractor.register(javascript);
+  refractor.register(json);
+  refractor.register(kotlin);
+  refractor.register(less);
+  refractor.register(lua);
+  refractor.register(makefile);
+  refractor.register(yaml);
+  refractor.register(markdown);
+  refractor.register(objectivec);
+  refractor.register(perl);
+  refractor.register(markupTemplating);
+  refractor.register(php);
+  refractor.register(python);
+  refractor.register(r);
+  refractor.register(ruby);
+  refractor.register(rust);
+  refractor.register(sass);
+  refractor.register(scss);
+  refractor.register(sql);
+  refractor.register(swift);
+  refractor.register(typescript);
+  refractor.register(basic);
+  refractor.register(vbnet);
+
   // ui/markdown.js
+  var CODE_FENCE = /^\s{0,3}(```+|~~~+)\s*([^\s`]*)\s*$/;
+  var QUOTE_PREFIX = /^\s{0,3}>\s?/;
+  function codeFenceEnd(marker) {
+    return new RegExp(`^\\s{0,3}${marker[0]}{${marker.length},}\\s*$`);
+  }
+  __name(codeFenceEnd, "codeFenceEnd");
+  function markdownLines(source) {
+    let closingFence;
+    const lines = [];
+    for (const line of String(source || "").replace(/\r\n?/g, "\n").split("\n")) {
+      if (closingFence) {
+        if (closingFence.test(line)) closingFence = void 0;
+        lines.push(line);
+      } else if (QUOTE_PREFIX.test(line)) {
+        lines.push(line);
+      } else {
+        const fence = CODE_FENCE.exec(line);
+        if (fence) {
+          closingFence = codeFenceEnd(fence[1]);
+          lines.push(line);
+          continue;
+        }
+        const normalized = line.replace(/\\r\\n/g, "\n").replace(/\\[nr](?!\w)/g, "\n").replace(/\\t(?!\w)/g, " ");
+        lines.push(...normalized.split("\n"));
+      }
+    }
+    return lines;
+  }
+  __name(markdownLines, "markdownLines");
   function createMarkdown(React, { window = globalThis.window } = {}) {
-    const { createElement: h, useState, useEffect, useMemo } = React;
+    const { createElement: h2, useState, useEffect, useMemo } = React;
     let uid = 0;
     const nextKey = /* @__PURE__ */ __name((prefix) => prefix + ++uid, "nextKey");
     const MATHJAX_PATH = "/api/daily-question/vendor/mathjax-4.1.3";
@@ -884,7 +9596,7 @@ var DailyQuestionClient = (() => {
     }
     __name(normalizeTeX, "normalizeTeX");
     function MathFormula({ tex, display }) {
-      const [html, setHtml] = useState(null);
+      const [html3, setHtml] = useState(null);
       useEffect(() => {
         let active = true;
         window.MathJax.tex2svgPromise(tex, { display }).then(
@@ -901,11 +9613,11 @@ var DailyQuestionClient = (() => {
       }, [tex, display]);
       const tag = display ? "div" : "span";
       const className = display ? "kd-mathblock" : "kd-math";
-      return html ? h(tag, { className, dangerouslySetInnerHTML: { __html: html } }) : h(tag, { className }, mathFallback(tex, html === "" ? "公式无法渲染" : ""));
+      return html3 ? h2(tag, { className, dangerouslySetInnerHTML: { __html: html3 } }) : h2(tag, { className }, mathFallback(tex, html3 === "" ? "公式无法渲染" : ""));
     }
     __name(MathFormula, "MathFormula");
     function mathFallback(tex, error, key) {
-      return h("span", {
+      return h2("span", {
         className: error ? "kd-math-error" : "kd-math-pending",
         title: error || "公式引擎正在加载",
         key
@@ -915,7 +9627,7 @@ var DailyQuestionClient = (() => {
     function renderMath(source, display) {
       const tex = normalizeTeX(source, display);
       const key = nextKey("math");
-      return mathState.status === "ready" ? h(MathFormula, { tex, display: Boolean(display), key }) : mathFallback(tex, mathState.status === "failed" ? "公式引擎加载失败。若刚更新插件，请重启 DSH 应用和宿主。" : "", key);
+      return mathState.status === "ready" ? h2(MathFormula, { tex, display: Boolean(display), key }) : mathFallback(tex, mathState.status === "failed" ? "公式引擎加载失败。若刚更新插件，请重启 DSH 应用和宿主。" : "", key);
     }
     __name(renderMath, "renderMath");
     function markdownUrl(value, image = false) {
@@ -945,9 +9657,9 @@ var DailyQuestionClient = (() => {
     function MarkdownImage({ alt, url, raw }) {
       const [broken, setBroken] = useState(false);
       if (broken) {
-        return h("span", { className: "kd-image-fallback", title: "图片无法加载" }, raw);
+        return h2("span", { className: "kd-image-fallback", title: "图片无法加载" }, raw);
       }
-      return h("img", {
+      return h2("img", {
         className: "kd-image",
         src: url,
         alt,
@@ -991,8 +9703,8 @@ var DailyQuestionClient = (() => {
         }
       }, "flush");
       while (index < text.length) {
-        const c = text[index];
-        if (c === "\\" && (text[index + 1] === "(" || text[index + 1] === "[")) {
+        const c2 = text[index];
+        if (c2 === "\\" && (text[index + 1] === "(" || text[index + 1] === "[")) {
           const display = text[index + 1] === "[";
           const closing = display ? "\\]" : "\\)";
           const end = text.indexOf(closing, index + 2);
@@ -1003,27 +9715,27 @@ var DailyQuestionClient = (() => {
             continue;
           }
         }
-        if (c === "\\" && index + 1 < text.length) {
+        if (c2 === "\\" && index + 1 < text.length) {
           const next = text[index + 1];
           if (MD_ESCAPABLE.has(next)) {
             buffer += next;
             index += 2;
             continue;
           }
-          buffer += c;
+          buffer += c2;
           index += 1;
           continue;
         }
-        if (c === "`") {
+        if (c2 === "`") {
           const end = text.indexOf("`", index + 1);
           if (end > index + 1) {
             flush();
-            out.push(h("code", { className: "kd-inline-code", key: nextKey("ic") }, text.slice(index + 1, end)));
+            out.push(h2("code", { className: "kd-inline-code", key: nextKey("ic") }, text.slice(index + 1, end)));
             index = end + 1;
             continue;
           }
         }
-        if (c === "$") {
+        if (c2 === "$") {
           const display = text[index + 1] === "$";
           const marker = display ? "$$" : "$";
           const from = index + marker.length;
@@ -1035,12 +9747,12 @@ var DailyQuestionClient = (() => {
             continue;
           }
         }
-        if (c === "!" && text[index + 1] === "[") {
+        if (c2 === "!" && text[index + 1] === "[") {
           const link = matchLink(text, index + 1);
           if (link) {
             flush();
             const url = markdownUrl(link.url, true);
-            out.push(url ? h(MarkdownImage, {
+            out.push(url ? h2(MarkdownImage, {
               key: nextKey("img"),
               alt: link.text,
               url,
@@ -1050,13 +9762,13 @@ var DailyQuestionClient = (() => {
             continue;
           }
         }
-        if (c === "[") {
+        if (c2 === "[") {
           const link = matchLink(text, index);
           if (link) {
             flush();
             const url = markdownUrl(link.url);
             const label = inlineNodes(link.text);
-            if (url) out.push(h("a", {
+            if (url) out.push(h2("a", {
               className: "kd-link",
               key: nextKey("a"),
               href: url,
@@ -1068,45 +9780,45 @@ var DailyQuestionClient = (() => {
             continue;
           }
         }
-        if (c === "*" && text[index + 1] === "*" || c === "_" && text[index + 1] === "_") {
-          const marker = c + c;
+        if (c2 === "*" && text[index + 1] === "*" || c2 === "_" && text[index + 1] === "_") {
+          const marker = c2 + c2;
           const end = text.indexOf(marker, index + 2);
           if (end > index + 2) {
             flush();
-            out.push(h("strong", { key: nextKey("b") }, inlineNodes(text.slice(index + 2, end))));
+            out.push(h2("strong", { key: nextKey("b") }, inlineNodes(text.slice(index + 2, end))));
             index = end + 2;
             continue;
           }
         }
-        if (c === "~" && text[index + 1] === "~") {
+        if (c2 === "~" && text[index + 1] === "~") {
           const end = text.indexOf("~~", index + 2);
           if (end > index + 2) {
             flush();
-            out.push(h("del", { key: nextKey("del") }, inlineNodes(text.slice(index + 2, end))));
+            out.push(h2("del", { key: nextKey("del") }, inlineNodes(text.slice(index + 2, end))));
             index = end + 2;
             continue;
           }
         }
-        if (c === "*" || c === "_") {
+        if (c2 === "*" || c2 === "_") {
           const previous = index === 0 ? "" : text[index - 1];
-          const allowed = c === "*" || !/[A-Za-z0-9\u4e00-\u9fa5]/.test(previous);
+          const allowed = c2 === "*" || !/[A-Za-z0-9\u4e00-\u9fa5]/.test(previous);
           if (allowed) {
-            const end = text.indexOf(c, index + 1);
-            if (end > index + 1 && text[end + 1] !== c) {
+            const end = text.indexOf(c2, index + 1);
+            if (end > index + 1 && text[end + 1] !== c2) {
               flush();
-              out.push(h("em", { key: nextKey("em") }, inlineNodes(text.slice(index + 1, end))));
+              out.push(h2("em", { key: nextKey("em") }, inlineNodes(text.slice(index + 1, end))));
               index = end + 1;
               continue;
             }
           }
         }
-        if (c === "\n") {
+        if (c2 === "\n") {
           flush();
-          out.push(h("br", { key: nextKey("br") }));
+          out.push(h2("br", { key: nextKey("br") }));
           index += 1;
           continue;
         }
-        buffer += c;
+        buffer += c2;
         index += 1;
       }
       flush();
@@ -1118,23 +9830,23 @@ var DailyQuestionClient = (() => {
     }
     __name(isFence, "isFence");
     function isBlockStart(line) {
-      return isFence(line) || /^\s{0,3}#{1,6}\s+/.test(line) || /^\s{0,3}>\s?/.test(line) || /^\s{0,3}(-{3,}|\*{3,}|_{3,})\s*$/.test(line) || /^\s{0,3}([-*+]|\d{1,3}[.)])\s+/.test(line) || /^\s{0,3}\|/.test(line);
+      return isFence(line) || /^\s{0,3}#{1,6}\s+/.test(line) || QUOTE_PREFIX.test(line) || /^\s{0,3}(-{3,}|\*{3,}|_{3,})\s*$/.test(line) || /^\s{0,3}([-*+]|\d{1,3}[.)])\s+/.test(line) || /^\s{0,3}\|/.test(line);
     }
     __name(isBlockStart, "isBlockStart");
     function renderTable(rows) {
       const header = rows[0].map((cell) => inlineNodes(cell));
       const body = rows.slice(1).map((row) => row.map((cell) => inlineNodes(cell)));
-      return h(
+      return h2(
         "div",
         { className: "kd-table-wrap", key: nextKey("tb") },
-        h(
+        h2(
           "table",
           { className: "kd-table" },
-          h("thead", null, h("tr", null, header.map((cell, index) => h("th", { key: index }, cell)))),
-          h("tbody", null, body.map((row, rowIndex) => h(
+          h2("thead", null, h2("tr", null, header.map((cell, index) => h2("th", { key: index }, cell)))),
+          h2("tbody", null, body.map((row, rowIndex) => h2(
             "tr",
             { key: rowIndex },
-            row.map((cell, cellIndex) => h("td", { key: cellIndex }, cell))
+            row.map((cell, cellIndex) => h2("td", { key: cellIndex }, cell))
           )))
         )
       );
@@ -1147,9 +9859,22 @@ var DailyQuestionClient = (() => {
       return text.split("|").map((cell) => cell.trim());
     }
     __name(splitRow, "splitRow");
+    function codeTokens(nodes) {
+      return nodes.map((node, index) => node.type === "text" ? node.value : h2("span", { key: index, className: node.properties.className.join(" ") }, codeTokens(node.children)));
+    }
+    __name(codeTokens, "codeTokens");
+    function highlightCode(body, language) {
+      const lang = language.toLowerCase();
+      if (!lang || !refractor.registered(lang)) return body;
+      try {
+        return codeTokens(refractor.highlight(body, lang).children);
+      } catch {
+        return body;
+      }
+    }
+    __name(highlightCode, "highlightCode");
     function renderBlocks(source) {
-      const normalized = String(source || "").replace(/\\r\\n/g, "\n").replace(/\\n(?!\w)/g, "\n").replace(/\\r(?!\w)/g, "\n").replace(/\\t(?!\w)/g, " ").replace(/\r\n?/g, "\n");
-      const lines = normalized.split("\n");
+      const lines = markdownLines(source);
       const out = [];
       let index = 0;
       while (index < lines.length) {
@@ -1158,22 +9883,23 @@ var DailyQuestionClient = (() => {
           index += 1;
           continue;
         }
-        const fence = /^\s{0,3}(```+|~~~+)\s*([^\s`]*)\s*$/.exec(line);
+        const fence = CODE_FENCE.exec(line);
         if (fence) {
           const marker = fence[1];
           const lang = fence[2] || "";
+          const closingFence = codeFenceEnd(marker);
           const body = [];
           index += 1;
-          while (index < lines.length && !new RegExp(`^\\s{0,3}${marker[0]}{${marker.length},}\\s*$`).test(lines[index])) {
+          while (index < lines.length && !closingFence.test(lines[index])) {
             body.push(lines[index]);
             index += 1;
           }
           index += 1;
-          out.push(h(
+          out.push(h2(
             "div",
             { className: "kd-code-wrap", key: nextKey("code") },
-            lang ? h("div", { className: "kd-code-lang" }, lang) : null,
-            h("pre", { className: "kd-code" }, h("code", null, body.join("\n")))
+            lang ? h2("div", { className: "kd-code-lang" }, lang) : null,
+            h2("pre", { className: "kd-code" }, h2("code", null, highlightCode(body.join("\n"), lang)))
           ));
           continue;
         }
@@ -1192,7 +9918,7 @@ ${lines[index]}`;
         const heading = /^\s{0,3}(#{1,6})\s+(.*)$/.exec(line);
         if (heading) {
           const level = Math.min(6, heading[1].length + 2);
-          out.push(h(
+          out.push(h2(
             `h${level}`,
             { className: `kd-h kd-h${heading[1].length}`, key: nextKey("hd") },
             inlineNodes(heading[2].trim())
@@ -1201,17 +9927,17 @@ ${lines[index]}`;
           continue;
         }
         if (/^\s{0,3}(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
-          out.push(h("hr", { className: "kd-hr", key: nextKey("hr") }));
+          out.push(h2("hr", { className: "kd-hr", key: nextKey("hr") }));
           index += 1;
           continue;
         }
-        if (/^\s{0,3}>\s?/.test(line)) {
+        if (QUOTE_PREFIX.test(line)) {
           const body = [];
-          while (index < lines.length && /^\s{0,3}>\s?/.test(lines[index])) {
-            body.push(lines[index].replace(/^\s{0,3}>\s?/, ""));
+          while (index < lines.length && QUOTE_PREFIX.test(lines[index])) {
+            body.push(lines[index].replace(QUOTE_PREFIX, ""));
             index += 1;
           }
-          out.push(h("blockquote", { className: "kd-quote", key: nextKey("q") }, renderBlocks(body.join("\n"))));
+          out.push(h2("blockquote", { className: "kd-quote", key: nextKey("q") }, renderBlocks(body.join("\n"))));
           continue;
         }
         if (/^\s{0,3}\|/.test(line) && index + 1 < lines.length && /^\s{0,3}\|?[\s:|-]*-[\s:|-]*$/.test(lines[index + 1]) && lines[index + 1].includes("-")) {
@@ -1237,9 +9963,9 @@ ${lines[index]}`;
               parts.push(lines[index].trim());
               index += 1;
             }
-            items.push(h("li", { key: nextKey("li") }, inlineNodes(parts.join("\n"))));
+            items.push(h2("li", { key: nextKey("li") }, inlineNodes(parts.join("\n"))));
           }
-          out.push(h(ordered ? "ol" : "ul", { className: "kd-list", key: nextKey("ls") }, items));
+          out.push(h2(ordered ? "ol" : "ul", { className: "kd-list", key: nextKey("ls") }, items));
           continue;
         }
         const paragraph = [];
@@ -1251,7 +9977,7 @@ ${lines[index]}`;
           index += 1;
           continue;
         }
-        out.push(h("p", { className: "kd-p", key: nextKey("p") }, inlineNodes(paragraph.join("\n"))));
+        out.push(h2("p", { className: "kd-p", key: nextKey("p") }, inlineNodes(paragraph.join("\n"))));
       }
       return out;
     }
@@ -1262,10 +9988,10 @@ ${lines[index]}`;
         try {
           return renderBlocks(text);
         } catch (error) {
-          return [h("pre", { className: "kd-code", key: "raw" }, String(text || ""))];
+          return [h2("pre", { className: "kd-code", key: "raw" }, String(text || ""))];
         }
       }, [text, mathStatus]);
-      return h("div", { className: `kd-md ${className || ""}` }, nodes);
+      return h2("div", { className: `kd-md ${className || ""}` }, nodes);
     }
     __name(Markdown, "Markdown");
     return { Markdown, useMathJaxStatus, inlineNodes, renderBlocks, MathFormula, ensureMathJax, mathState };
@@ -1392,8 +10118,8 @@ ${lines[index]}`;
   __name(typeLabel, "typeLabel");
 
   // ui/fullscreen.js
-  function fullscreen(h, Icon, { title, onClose, detail, settings = false, locked, dialog }, content) {
-    return h(
+  function fullscreen(h2, Icon, { title, onClose, detail, settings = false, locked, dialog }, content) {
+    return h2(
       "section",
       {
         className: settings ? "kd-fullscreen kd-settings-screen" : "kd-fullscreen",
@@ -1401,13 +10127,13 @@ ${lines[index]}`;
         "aria-modal": true,
         "aria-label": title
       },
-      h(
+      h2(
         "header",
         { className: "kd-stats-header", inert: dialog ? true : void 0 },
-        h(
+        h2(
           "div",
           { className: "kd-stats-heading" },
-          h(
+          h2(
             "button",
             {
               type: "button",
@@ -1418,9 +10144,9 @@ ${lines[index]}`;
               "aria-label": "返回练习",
               title: "返回练习"
             },
-            h(Icon, { name: "chevron-left", size: 20 })
+            h2(Icon, { name: "chevron-left", size: 20 })
           ),
-          h("h1", null, title)
+          h2("h1", null, title)
         ),
         detail
       ),
@@ -1432,7 +10158,7 @@ ${lines[index]}`;
 
   // ui/components.js
   function createComponents(React, { window, rpc, Markdown, useMathJaxStatus }) {
-    const { createElement: h, useState, useEffect, useRef, useMemo, useCallback, useId } = React;
+    const { createElement: h2, useState, useEffect, useRef, useMemo, useCallback, useId } = React;
     const ICON_PATHS = {
       close: "M6 6l12 12M18 6L6 18",
       star: "M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z",
@@ -1460,7 +10186,7 @@ ${lines[index]}`;
     function Icon({ name, size = 15 }) {
       const path = ICON_PATHS[name];
       if (!path) return null;
-      return h("svg", {
+      return h2("svg", {
         width: size,
         height: size,
         viewBox: "0 0 24 24",
@@ -1470,11 +10196,11 @@ ${lines[index]}`;
         strokeLinecap: "round",
         strokeLinejoin: "round",
         "aria-hidden": true
-      }, h("path", { d: path }));
+      }, h2("path", { d: path }));
     }
     __name(Icon, "Icon");
     function Btn({ children, onClick, variant = "default", disabled, title, small, type = "button", ariaLabel }) {
-      return h("button", {
+      return h2("button", {
         type,
         className: `kd-btn kd-btn-${variant}${small ? " kd-btn-sm" : ""}`,
         onClick,
@@ -1485,17 +10211,17 @@ ${lines[index]}`;
     }
     __name(Btn, "Btn");
     function Badge({ children, tone = "neutral", title }) {
-      return h("span", { className: `kd-badge kd-badge-${tone}`, title }, children);
+      return h2("span", { className: `kd-badge kd-badge-${tone}`, title }, children);
     }
     __name(Badge, "Badge");
     function EmptyState({ icon = "spark", title, body, actions }) {
-      return h(
+      return h2(
         "div",
         { className: "kd-empty" },
-        h("div", { className: "kd-empty-icon" }, h(Icon, { name: icon, size: 20 })),
-        title ? h("div", { className: "kd-empty-title" }, title) : null,
-        body ? h("div", { className: "kd-empty-body" }, body) : null,
-        actions ? h("div", { className: "kd-actions" }, actions) : null
+        h2("div", { className: "kd-empty-icon" }, h2(Icon, { name: icon, size: 20 })),
+        title ? h2("div", { className: "kd-empty-title" }, title) : null,
+        body ? h2("div", { className: "kd-empty-body" }, body) : null,
+        actions ? h2("div", { className: "kd-actions" }, actions) : null
       );
     }
     __name(EmptyState, "EmptyState");
@@ -1510,7 +10236,7 @@ ${lines[index]}`;
         const timer = setTimeout(() => setRetained([]), 160);
         return () => clearTimeout(timer);
       }, [children, active]);
-      return h(
+      return h2(
         "div",
         { className: "kd-presence" + (active ? "" : " is-leaving"), inert: !active || void 0 },
         active ? children : retained
@@ -1533,27 +10259,27 @@ ${lines[index]}`;
         };
       }, [phase, hovering]);
       if (phase === "hidden") return null;
-      return h(
+      return h2(
         "div",
         { className: "kd-notification-slot" + (floating ? " is-floating" : "") },
-        h(
+        h2(
           "div",
           {
             className: `kd-notification kd-notification-${tone}${phase === "leaving" ? " is-leaving" : ""}`,
             onMouseEnter: phase === "visible" ? () => setHovering(true) : void 0,
             onMouseLeave: phase === "visible" ? () => setHovering(false) : void 0
           },
-          h("span", { role: tone === "bad" ? "alert" : "status" }, message),
-          onUndo ? h(Btn, { small: true, disabled: phase === "leaving", onClick: /* @__PURE__ */ __name(() => {
+          h2("span", { role: tone === "bad" ? "alert" : "status" }, message),
+          onUndo ? h2(Btn, { small: true, disabled: phase === "leaving", onClick: /* @__PURE__ */ __name(() => {
             setPhase("leaving");
             onUndo();
-          }, "onClick") }, "撤销") : h("button", {
+          }, "onClick") }, "撤销") : h2("button", {
             type: "button",
             className: "kd-iconbtn",
             "aria-label": "关闭通知",
             disabled: phase === "leaving",
             onClick: /* @__PURE__ */ __name(() => setPhase("leaving"), "onClick")
-          }, h(Icon, { name: "close" }))
+          }, h2(Icon, { name: "close" }))
         )
       );
     }
@@ -1567,28 +10293,28 @@ ${lines[index]}`;
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
       }, [onClose, embedded, explicitClose, locked, dialog]);
-      const body = h("div", { className: "kd-modal-body", inert: dialog ? true : void 0 }, children);
-      const actions = footer ? h("div", { className: "kd-modal-foot" }, footer) : null;
-      if (embedded) return h(
+      const body = h2("div", { className: "kd-modal-body", inert: dialog ? true : void 0 }, children);
+      const actions = footer ? h2("div", { className: "kd-modal-foot" }, footer) : null;
+      if (embedded) return h2(
         "section",
         { className: "kd-settings-section", "aria-label": title },
-        h(
+        h2(
           "div",
           { className: "kd-modal-head", inert: dialog ? true : void 0 },
-          h("h2", { className: "kd-modal-title" }, title),
-          headerActions ? h("div", { className: "kd-settings-header-actions" }, headerActions) : null
+          h2("h2", { className: "kd-modal-title" }, title),
+          headerActions ? h2("div", { className: "kd-settings-header-actions" }, headerActions) : null
         ),
         body,
         actions,
         notification,
         dialog
       );
-      return h("div", {
+      return h2("div", {
         className: "kd-overlay",
         onMouseDown: explicitClose || dialog ? void 0 : (event) => {
           if (!locked && event.target === event.currentTarget) onClose();
         }
-      }, h(
+      }, h2(
         "div",
         {
           className: `kd-modal${wide ? " kd-modal-wide" : ""}`,
@@ -1596,11 +10322,11 @@ ${lines[index]}`;
           "aria-modal": "true",
           "aria-label": title
         },
-        h(
+        h2(
           "div",
           { className: "kd-modal-head" },
-          h("div", { className: "kd-modal-title" }, title),
-          h("button", { className: "kd-iconbtn", onClick: onClose, disabled: locked || Boolean(dialog), "aria-label": T.close }, h(Icon, { name: "close" }))
+          h2("div", { className: "kd-modal-title" }, title),
+          h2("button", { className: "kd-iconbtn", onClick: onClose, disabled: locked || Boolean(dialog), "aria-label": T.close }, h2(Icon, { name: "close" }))
         ),
         body,
         actions,
@@ -1629,13 +10355,13 @@ ${lines[index]}`;
       const showDays = Number.isInteger(days) && days >= 0;
       const duration = days === 0 ? "今日开考" : lines.secondary;
       const spaceDigits = /* @__PURE__ */ __name((line = "") => line.replace(/\p{Script=Han}(?=\d)|\d(?=\p{Script=Han})/gu, "$& "), "spaceDigits");
-      return h(
+      return h2(
         "div",
         { className: "kd-cd-lines" },
-        h("div", { className: "kd-cd-primary" }, showDays ? `距离 ${year} 考研还剩` : spaceDigits(lines.primary)),
-        showDays ? h("div", { className: "kd-cd-days" }, approx ? "约 " : null, h("strong", null, String(days)), " 天") : null,
-        duration ? h("div", { className: "kd-cd-secondary" }, spaceDigits(duration)) : null,
-        h("div", { className: "kd-cd-target" }, spaceDigits(lines.target))
+        h2("div", { className: "kd-cd-primary" }, showDays ? `距离 ${year} 考研还剩` : spaceDigits(lines.primary)),
+        showDays ? h2("div", { className: "kd-cd-days" }, approx ? "约 " : null, h2("strong", null, String(days)), " 天") : null,
+        duration ? h2("div", { className: "kd-cd-secondary" }, spaceDigits(duration)) : null,
+        h2("div", { className: "kd-cd-target" }, spaceDigits(lines.target))
       );
     }
     __name(CountdownLines, "CountdownLines");
@@ -1646,38 +10372,38 @@ ${lines[index]}`;
       const statusText = cd.status === "official" ? "官方公布" : cd.status === "estimated" ? "官方未公布 · 估算" : "尚未核实";
       const sourceUrl = cd.sourceUrl || basis && basis.sourceUrl || "";
       const sourceLabel = cd.status === "official" ? `来源 ${hostOf(sourceUrl) || "官方"}` : basis ? `依据 ${basis.year} 官方（${hostOf(basis.sourceUrl) || "官方"}）` : "无来源记录";
-      return h(
+      return h2(
         "div",
         { className: "kd-exam-strip" },
-        h(
+        h2(
           "label",
           { className: "kd-strip-item" },
-          h("select", {
+          h2("select", {
             className: "kd-select kd-select-sm",
             value: boot.settings.targetYear,
             "aria-label": T.year,
             onChange: /* @__PURE__ */ __name((event) => onYearChange(Number(event.target.value)), "onChange")
-          }, (boot.yearOptions || []).map((year) => h("option", { key: year, value: year }, `${year} 考研`)))
+          }, (boot.yearOptions || []).map((year) => h2("option", { key: year, value: year }, `${year} 考研`)))
         ),
-        h("span", { className: "kd-strip-item" }, h(Badge, { tone: statusTone }, statusText)),
-        h("span", {
+        h2("span", { className: "kd-strip-item" }, h2(Badge, { tone: statusTone }, statusText)),
+        h2("span", {
           className: "kd-strip-item",
           title: cd.source ? `${cd.source}${sourceUrl ? `
 ${sourceUrl}` : ""}` : ""
-        }, sourceUrl ? h("a", { className: "kd-link", href: sourceUrl, target: "_blank", rel: "noreferrer noopener" }, sourceLabel) : h("span", null, sourceLabel)),
-        cd.verifiedAt ? h(
+        }, sourceUrl ? h2("a", { className: "kd-link", href: sourceUrl, target: "_blank", rel: "noreferrer noopener" }, sourceLabel) : h2("span", null, sourceLabel)),
+        cd.verifiedAt ? h2(
           "span",
           { className: "kd-strip-item", title: formatDateTime(cd.verifiedAt) },
           `核验成功 ${formatShort(cd.verifiedAt)}`
         ) : null,
-        h(Btn, {
+        h2(Btn, {
           small: true,
           variant: "ghost",
           disabled: busy,
           title: "联网核验官方公布的考试日期",
           onClick: onRefresh
-        }, busy ? h("span", { className: "kd-spinner" }) : h(Icon, { name: "refresh", size: 13 }), "核验"),
-        cd.expired ? h("span", { className: "kd-strip-item kd-strip-warn" }, "目标日期已过，请重新选择考研年份") : cd.status === "unverified" ? h("span", { className: "kd-strip-item kd-strip-warn", title: cd.note || "" }, "官方日期尚未核实") : null
+        }, busy ? h2("span", { className: "kd-spinner" }) : h2(Icon, { name: "refresh", size: 13 }), "核验"),
+        cd.expired ? h2("span", { className: "kd-strip-item kd-strip-warn" }, "目标日期已过，请重新选择考研年份") : cd.status === "unverified" ? h2("span", { className: "kd-strip-item kd-strip-warn", title: cd.note || "" }, "官方日期尚未核实") : null
       );
     }
     __name(ExamStrip, "ExamStrip");
@@ -1712,27 +10438,27 @@ ${sourceUrl}` : ""}` : ""
           window.removeEventListener("focus", automatic);
         };
       }, []);
-      return h(
+      return h2(
         "div",
         { className: "kd-update" },
-        h(
+        h2(
           "div",
           { className: "kd-update-info" },
-          h("div", { className: "kd-update-version" }, "当前版本 ", h("strong", null, `v${currentVersion || state.result?.currentVersion || "—"}`)),
-          h(
+          h2("div", { className: "kd-update-version" }, "当前版本 ", h2("strong", null, `v${currentVersion || state.result?.currentVersion || "—"}`)),
+          h2(
             "div",
             { className: "kd-update-status", role: "status", "aria-live": "polite", title: state.error || "" },
-            state.error ? "暂时无法检查，请重试" : state.result?.updateAvailable ? h(
+            state.error ? "暂时无法检查，请重试" : state.result?.updateAvailable ? h2(
               "a",
               { className: "kd-link", href: state.result.packageUrl, target: "_blank", rel: "noreferrer noopener" },
               `发现新版本 v${state.result.latestVersion} ↗`
             ) : state.result ? "已是最新版本" : null
           )
         ),
-        h(
+        h2(
           Btn,
           { disabled: state.busy, onClick: /* @__PURE__ */ __name(() => check(true), "onClick") },
-          state.busy ? h("span", { className: "kd-spinner" }) : h(Icon, { name: "refresh" }),
+          state.busy ? h2("span", { className: "kd-spinner" }) : h2(Icon, { name: "refresh" }),
           state.busy ? "正在检查…" : "检查更新"
         )
       );
@@ -1748,16 +10474,16 @@ ${sourceUrl}` : ""}` : ""
         ["about", "关于", "info"]
       ];
       return fullscreen(
-        h,
+        h2,
         Icon,
         { title: "设置", onClose, settings: true, locked, dialog },
-        h(
+        h2(
           "div",
           { className: "kd-settings-layout", inert: dialog ? true : void 0 },
-          h(
+          h2(
             "nav",
             { className: "kd-settings-nav", "aria-label": "设置选项" },
-            ...sections.map(([id, label, icon]) => h("button", {
+            ...sections.map(([id, label, icon]) => h2("button", {
               key: id,
               type: "button",
               className: "kd-settings-option",
@@ -1766,27 +10492,27 @@ ${sourceUrl}` : ""}` : ""
               onClick: /* @__PURE__ */ __name(() => {
                 if (active !== id) onPick(id);
               }, "onClick")
-            }, h(Icon, { name: icon }), label))
+            }, h2(Icon, { name: icon }), label))
           ),
-          h("div", { className: "kd-settings-content" }, children)
+          h2("div", { className: "kd-settings-content" }, children)
         )
       );
     }
     __name(SettingsModal, "SettingsModal");
     function AboutPanel({ currentVersion }) {
-      return h(
+      return h2(
         Modal,
         { title: "关于", embedded: true },
-        h(
+        h2(
           "div",
           { className: "kd-about" },
-          h(
+          h2(
             "div",
             { className: "kd-about-brand" },
-            h(PluginLogo, { size: 44 }),
-            h("div", null, h("h3", null, T.title), h("p", null, "面向 DeepSeek Harness 的考研练习插件。支持每日出题、错题复习、收藏和逐题追问。"))
+            h2(PluginLogo, { size: 44 }),
+            h2("div", null, h2("h3", null, T.title), h2("p", null, "面向 DeepSeek Harness 的考研练习插件。支持每日出题、错题复习、收藏和逐题追问。"))
           ),
-          h(
+          h2(
             "a",
             {
               className: "kd-btn kd-about-github",
@@ -1795,15 +10521,15 @@ ${sourceUrl}` : ""}` : ""
               rel: "noopener noreferrer",
               title: "打开 GitHub 仓库"
             },
-            h(
+            h2(
               "svg",
               { width: 16, height: 16, viewBox: "0 0 16 16", fill: "currentColor", "aria-hidden": true },
-              h("path", { d: "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z" })
+              h2("path", { d: "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z" })
             ),
             "Github"
           ),
-          h(UpdateCheck, { currentVersion }),
-          h("p", { className: "kd-meta" }, "界面使用 HarmonyOS Sans SC 字体，© 2021 Huawei Device Co., Ltd.")
+          h2(UpdateCheck, { currentVersion }),
+          h2("p", { className: "kd-meta" }, "界面使用 HarmonyOS Sans SC 字体，© 2021 Huawei Device Co., Ltd.")
         )
       );
     }
@@ -1812,7 +10538,7 @@ ${sourceUrl}` : ""}` : ""
       const enabled = (boot.subjects || []).filter((subject) => subject.enabled);
       const subjectButton = /* @__PURE__ */ __name((subject) => {
         const done = Boolean(boot.todayMap?.[subject.id]);
-        return h(
+        return h2(
           "button",
           {
             key: subject.id,
@@ -1821,30 +10547,30 @@ ${sourceUrl}` : ""}` : ""
             onClick: /* @__PURE__ */ __name(() => onPick(subject.id), "onClick"),
             title: subject.name
           },
-          h("span", null, subject.name),
-          h(
+          h2("span", null, subject.name),
+          h2(
             "span",
             { className: "kd-nav-status" },
-            h("span", { className: `kd-dot${done ? "" : " kd-dot-idle"}` }),
+            h2("span", { className: `kd-dot${done ? "" : " kd-dot-idle"}` }),
             done ? "今日已出" : "待出题"
           )
         );
       }, "subjectButton");
-      return h(
+      return h2(
         "div",
         { className: "kd-nav" },
-        h(
+        h2(
           "div",
           { className: "kd-nav-group" },
-          enabled.length ? enabled.map(subjectButton) : h("div", { className: "kd-msg-meta", style: { padding: "4px 8px" } }, "还没有启用科目")
+          enabled.length ? enabled.map(subjectButton) : h2("div", { className: "kd-msg-meta", style: { padding: "4px 8px" } }, "还没有启用科目")
         ),
-        h("div", { className: "kd-nav-spacer" }),
-        h(
+        h2("div", { className: "kd-nav-spacer" }),
+        h2(
           "div",
           { className: "kd-nav-group" },
-          h(Btn, { variant: "ghost", onClick: onMemory }, h(Icon, { name: "spark" }), "记忆与建议"),
-          h(Btn, { variant: "ghost", onClick: onStats }, h(Icon, { name: "stats" }), "统计"),
-          h(Btn, { variant: "ghost", onClick: onSettings }, h(Icon, { name: "settings" }), "设置")
+          h2(Btn, { variant: "ghost", onClick: onMemory }, h2(Icon, { name: "spark" }), "记忆与建议"),
+          h2(Btn, { variant: "ghost", onClick: onStats }, h2(Icon, { name: "stats" }), "统计"),
+          h2(Btn, { variant: "ghost", onClick: onSettings }, h2(Icon, { name: "settings" }), "设置")
         )
       );
     }
@@ -1857,24 +10583,24 @@ ${sourceUrl}` : ""}` : ""
         ["favorite", T.tabs.favorite, counts?.favorite],
         ["wrong", T.tabs.wrong, counts?.wrong]
       ];
-      return h(
+      return h2(
         "div",
         { className: "kd-tabs" },
-        h(
+        h2(
           "div",
           { className: "kd-tab-strip" },
-          items.map(([value, label, count]) => h("button", {
+          items.map(([value, label, count]) => h2("button", {
             key: value,
             type: "button",
             className: `kd-tab${kind === value ? " is-active" : ""}`,
             disabled: value === "today" && todayDisabled,
             onClick: /* @__PURE__ */ __name(() => onPick(value), "onClick")
-          }, label, count ? h("span", { className: "kd-tab-count" }, String(count)) : null))
+          }, label, count ? h2("span", { className: "kd-tab-count" }, String(count)) : null))
         ),
-        h(
+        h2(
           "div",
           { className: "kd-tab-return" + (onBack ? " is-open" : ""), "aria-hidden": onBack ? void 0 : true },
-          h(
+          h2(
             "button",
             {
               type: "button",
@@ -1887,7 +10613,7 @@ ${sourceUrl}` : ""}` : ""
                 onBack?.();
               }, "onClick")
             },
-            h(Icon, { name: "chevron-left", size: 16 })
+            h2(Icon, { name: "chevron-left", size: 16 })
           )
         )
       );
@@ -1896,10 +10622,10 @@ ${sourceUrl}` : ""}` : ""
     function MobileBar({ boot, subjectId, onPick, onSettings, onStats, onMemory }) {
       const enabled = (boot.subjects || []).filter((subject) => subject.enabled);
       const active = enabled.some((subject) => subject.id === subjectId) ? subjectId : "";
-      return h(
+      return h2(
         "div",
         { className: "kd-mobilebar" },
-        h(
+        h2(
           "select",
           {
             className: "kd-select",
@@ -1907,12 +10633,12 @@ ${sourceUrl}` : ""}` : ""
             "aria-label": "切换科目",
             onChange: /* @__PURE__ */ __name((event) => onPick(event.target.value), "onChange")
           },
-          !active ? h("option", { value: "", disabled: true }, "选择科目") : null,
-          enabled.map((subject) => h("option", { key: subject.id, value: subject.id }, subject.name))
+          !active ? h2("option", { value: "", disabled: true }, "选择科目") : null,
+          enabled.map((subject) => h2("option", { key: subject.id, value: subject.id }, subject.name))
         ),
-        h(Btn, { small: true, variant: "ghost", onClick: onMemory }, h(Icon, { name: "spark", size: 13 }), "记忆与建议"),
-        h(Btn, { small: true, variant: "ghost", onClick: onStats }, h(Icon, { name: "stats", size: 13 }), "统计"),
-        h(Btn, { small: true, variant: "ghost", onClick: onSettings }, h(Icon, { name: "settings", size: 13 }), "设置")
+        h2(Btn, { small: true, variant: "ghost", onClick: onMemory }, h2(Icon, { name: "spark", size: 13 }), "记忆与建议"),
+        h2(Btn, { small: true, variant: "ghost", onClick: onStats }, h2(Icon, { name: "stats", size: 13 }), "统计"),
+        h2(Btn, { small: true, variant: "ghost", onClick: onSettings }, h2(Icon, { name: "settings", size: 13 }), "设置")
       );
     }
     __name(MobileBar, "MobileBar");
@@ -1920,24 +10646,24 @@ ${sourceUrl}` : ""}` : ""
       if (!attempt) return null;
       const status = statusLabel(attempt.result);
       const text = attempt.result === "correct" ? "本题作答正确" : attempt.result === "wrong" ? attempt.mode === "giveup" ? "本题标记为未能作答，已进入错题本" : "本题作答错误，已进入错题本" : "已查看答案，等待你判定「作答正确 / 作答错误」";
-      return h(
+      return h2(
         "div",
         { className: "kd-actions", style: { marginTop: "0", marginBottom: "10px" } },
-        h(Badge, { tone: status.tone }, status.text),
-        h("span", { className: "kd-meta" }, text)
+        h2(Badge, { tone: status.tone }, status.text),
+        h2("span", { className: "kd-meta" }, text)
       );
     }
     __name(ResultBanner, "ResultBanner");
     function AttemptHistory({ attempts, onInspect }) {
-      return h(
+      return h2(
         "div",
         { className: "kd-answer-block" },
-        h("div", { className: "kd-answer-label" }, "作答历史"),
-        ...attempts.map((attempt, index) => h(
+        h2("div", { className: "kd-answer-label" }, "作答历史"),
+        ...attempts.map((attempt, index) => h2(
           "div",
           { className: "kd-row", key: attempt.id },
-          h("span", { className: "kd-meta" }, `${index + 1}. ${formatDateTime(attempt.at)} · ${statusLabel(attempt.result).text}${attempt.mode === "giveup" ? " · 未能作答" : attempt.mode === "done" ? " · 作答完毕" : ""}${attempt.choice ? ` · 选择 ${attempt.choice}` : ""}`),
-          onInspect ? h(Btn, { small: true, variant: "ghost", onClick: /* @__PURE__ */ __name(() => onInspect(attempt.id), "onClick") }, "查看当时答案") : null
+          h2("span", { className: "kd-meta" }, `${index + 1}. ${formatDateTime(attempt.at)} · ${statusLabel(attempt.result).text}${attempt.mode === "giveup" ? " · 未能作答" : attempt.mode === "done" ? " · 作答完毕" : ""}${attempt.choice ? ` · 选择 ${attempt.choice}` : ""}`),
+          onInspect ? h2(Btn, { small: true, variant: "ghost", onClick: /* @__PURE__ */ __name(() => onInspect(attempt.id), "onClick") }, "查看当时答案") : null
         ))
       );
     }
@@ -1946,54 +10672,54 @@ ${sourceUrl}` : ""}` : ""
       const answer = question.answer;
       if (!answer) {
         if (focused || question.answerState !== "revealed") return null;
-        return h(
+        return h2(
           "div",
           { className: "kd-answer" },
-          h("div", { className: "kd-verify" }, question.answerVersionUnknown ? "这条旧作答无法确认当时的答案版本。" : "这次作答没有可用的参考答案与解析。"),
-          h(AttemptHistory, { attempts: question.attempts || [], onInspect })
+          h2("div", { className: "kd-verify" }, question.answerVersionUnknown ? "这条旧作答无法确认当时的答案版本。" : "这次作答没有可用的参考答案与解析。"),
+          h2(AttemptHistory, { attempts: question.attempts || [], onInspect })
         );
       }
-      return h(
+      return h2(
         "div",
         { className: "kd-answer" },
-        h(
+        h2(
           "div",
           { className: "kd-answer-panel" },
-          h(
+          h2(
             "div",
             { className: "kd-answer-panel-head" },
-            h("span", null, question.historicalAnswer ? "本次作答的答案与解析" : "答案与解析"),
-            focused ? null : h("span", { className: "kd-tag" }, `版本 ${answer.versionId}`)
+            h2("span", null, question.historicalAnswer ? "本次作答的答案与解析" : "答案与解析"),
+            focused ? null : h2("span", { className: "kd-tag" }, `版本 ${answer.versionId}`)
           ),
-          h(
+          h2(
             "div",
             { className: "kd-answer-panel-body" },
-            focused || answer.verified ? null : h(
+            focused || answer.verified ? null : h2(
               "div",
               { className: "kd-verify", style: { marginTop: 0 } },
-              h(Badge, { tone: "warn" }, answer.basis === "imported" ? T.unverified : T.missing),
+              h2(Badge, { tone: "warn" }, answer.basis === "imported" ? T.unverified : T.missing),
               " 这份答案来自导入题库，尚未经过独立校验，请自行核对。"
             ),
-            h(
+            h2(
               "div",
               { className: "kd-answer-block kd-answer-copy" },
-              h("div", { className: "kd-answer-label" }, T.answer),
-              h(Markdown, { text: answer.answer || "（题库未提供参考答案）" })
+              h2("div", { className: "kd-answer-label" }, T.answer),
+              h2(Markdown, { text: answer.answer || "（题库未提供参考答案）" })
             ),
-            h(
+            h2(
               "div",
               { className: "kd-answer-block kd-answer-copy" },
-              h("div", { className: "kd-answer-label" }, T.explanation),
-              h(Markdown, { text: answer.explanation || "（题库未提供解析）" })
+              h2("div", { className: "kd-answer-label" }, T.explanation),
+              h2(Markdown, { text: answer.explanation || "（题库未提供解析）" })
             ),
-            focused ? null : h(
+            focused ? null : h2(
               "div",
               { className: "kd-answer-block" },
-              h(AttemptHistory, { attempts: question.attempts || [], onInspect }),
-              question.wrongEver ? h(
+              h2(AttemptHistory, { attempts: question.attempts || [], onInspect }),
+              question.wrongEver ? h2(
                 "div",
                 { className: "kd-actions", style: { marginTop: "10px" } },
-                h(Btn, {
+                h2(Btn, {
                   small: true,
                   variant: "ghost",
                   title: "只把这道题移出错题本，历史上的错误作答记录仍然保留",
@@ -2001,16 +10727,16 @@ ${sourceUrl}` : ""}` : ""
                 }, "移出错题本")
               ) : null
             ),
-            focused ? null : h(
+            focused ? null : h2(
               "div",
               { className: "kd-verify" },
-              h(
+              h2(
                 "div",
                 { className: "kd-row-between" },
-                h(
+                h2(
                   "span",
                   null,
-                  h(
+                  h2(
                     Badge,
                     { tone: answer.verified ? "ok" : "warn", title: answer.verified ? T.verified : T.unverified },
                     answer.verified ? "✓ 独立校验" : "× 独立校验"
@@ -2018,27 +10744,27 @@ ${sourceUrl}` : ""}` : ""
                   ` 首次展示 ${answer.firstShownAt ? formatDateTime(answer.firstShownAt) : "—"}`,
                   answer.superseded ? ` · 已有 ${answer.superseded} 个历史版本` : ""
                 ),
-                h(Btn, {
+                h2(Btn, {
                   small: true,
                   variant: "ghost",
                   disabled: revising,
                   title: "生成候选新版本并重新做独立校验；只有校验通过才能替换正式版本",
                   onClick: onRevise
-                }, revising ? h("span", { className: "kd-spinner" }) : null, T.revision)
+                }, revising ? h2("span", { className: "kd-spinner" }) : null, T.revision)
               ),
-              answer.verification?.summary ? h("div", null, `校验：${answer.verification.summary}（${methodLabel(answer.verification.method)}${answer.verification.at ? `，${formatDateTime(answer.verification.at)}` : ""}）`) : null,
+              answer.verification?.summary ? h2("div", null, `校验：${answer.verification.summary}（${methodLabel(answer.verification.method)}${answer.verification.at ? `，${formatDateTime(answer.verification.at)}` : ""}）`) : null,
               (() => {
                 const trail = answer.verification?.trail;
                 if (!Array.isArray(trail)) return null;
                 const passes = trail.filter((entry) => entry && entry.independentAnswer);
                 if (!passes.length) return null;
-                return h("div", null, passes.map((entry, index) => h(
+                return h2("div", null, passes.map((entry, index) => h2(
                   "div",
                   { key: index },
                   `校验视角独立求解：${entry.independentAnswer}${entry.attempt ? `（第 ${entry.attempt} 次命题）` : ""}`
                 )));
               })(),
-              answer.verification?.issues?.length ? h("ul", null, answer.verification.issues.map((issue, index) => h("li", { key: index }, issue))) : null
+              answer.verification?.issues?.length ? h2("ul", null, answer.verification.issues.map((issue, index) => h2("li", { key: index }, issue))) : null
             )
           )
         )
@@ -2077,36 +10803,36 @@ ${sourceUrl}` : ""}` : ""
       const selected = revealed ? last?.choice || "" : choice;
       const difficultyUnverified = q.examAlignment?.status === "difficulty-unverified";
       const focusLabel = focused ? "退出全屏阅读" : "全屏阅读";
-      return h(
+      return h2(
         "div",
         null,
-        h(
+        h2(
           "div",
           { className: "kd-card kd-question-card" },
-          h(
+          h2(
             "div",
             { className: "kd-question-tools" },
-            focused ? null : h(
+            focused ? null : h2(
               "div",
               { className: "kd-chips" },
-              h("span", { className: "kd-tag kd-tag-brand" }, q.typeLabel),
-              h("span", { className: "kd-tag" }, q.subjectName),
-              difficultyUnverified ? h(Badge, { tone: "warn", title: "未进行真题难度校验" }, "× 真题难度校验") : null,
-              ["built-in", "custom", "subject-only"].includes(q.examAlignment?.scopeBasis) ? h(Badge, { tone: "warn", title: "未进行考试大纲校验" }, "× 考试大纲校验") : null,
-              q.answerStatus === "verified" ? h(Badge, { tone: "ok", title: T.verified }, "✓ 独立校验") : h(
+              h2("span", { className: "kd-tag kd-tag-brand" }, q.typeLabel),
+              h2("span", { className: "kd-tag" }, q.subjectName),
+              difficultyUnverified ? h2(Badge, { tone: "warn", title: "未进行真题难度校验" }, "× 真题难度校验") : null,
+              ["built-in", "custom", "subject-only"].includes(q.examAlignment?.scopeBasis) ? h2(Badge, { tone: "warn", title: "未进行考试大纲校验" }, "× 考试大纲校验") : null,
+              q.answerStatus === "verified" ? h2(Badge, { tone: "ok", title: T.verified }, "✓ 独立校验") : h2(
                 Badge,
                 { tone: "warn", title: q.answerStatus === "missing" ? void 0 : T.unverified },
                 q.answerStatus === "missing" ? T.missing : "× 独立校验"
               ),
-              q.repeated ? h(Badge, { tone: "warn" }, "本题此前出过") : null,
-              q.favorite ? h(Badge, { tone: "brand", title: "已收藏" }, "☆ 收藏") : null,
-              q.wrongEver ? h(Badge, { tone: "bad", title: "位于错题本" }, "◨ 错题本") : null,
-              !difficultyUnverified ? h("span", { className: "kd-tag", title: q.examAlignment ? "独立评审参考历年真题给出的难度" : "原始难度标签，尚无真题对照评审" }, `难度 ${q.difficulty}/5`) : null,
-              h("span", { className: "kd-tag" }, formatDate(q.assignedDate)),
-              h("span", { className: "kd-tag" }, `累计作答 ${q.attemptCount} 次`),
-              h("span", { className: "kd-tag" }, q.source?.kind === "bank" ? q.source.label : "在线出题")
+              q.repeated ? h2(Badge, { tone: "warn" }, "本题此前出过") : null,
+              q.favorite ? h2(Badge, { tone: "brand", title: "已收藏" }, "☆ 收藏") : null,
+              q.wrongEver ? h2(Badge, { tone: "bad", title: "位于错题本" }, "◨ 错题本") : null,
+              !difficultyUnverified ? h2("span", { className: "kd-tag", title: q.examAlignment ? "独立评审参考历年真题给出的难度" : "原始难度标签，尚无真题对照评审" }, `难度 ${q.difficulty}/5`) : null,
+              h2("span", { className: "kd-tag" }, formatDate(q.assignedDate)),
+              h2("span", { className: "kd-tag" }, `累计作答 ${q.attemptCount} 次`),
+              h2("span", { className: "kd-tag" }, q.source?.kind === "bank" ? q.source.label : "在线出题")
             ),
-            onToggleFocus ? h(
+            onToggleFocus ? h2(
               "button",
               {
                 type: "button",
@@ -2115,46 +10841,46 @@ ${sourceUrl}` : ""}` : ""
                 title: focused ? "退出全屏阅读（Esc）" : focusLabel,
                 onClick: onToggleFocus
               },
-              h(Icon, { name: focused ? "collapse" : "expand", size: 18 })
+              h2(Icon, { name: focused ? "collapse" : "expand", size: 18 })
             ) : null
           ),
-          !focused && q.knowledge?.length ? h(
+          !focused && q.knowledge?.length ? h2(
             "div",
             { className: "kd-meta", style: { marginTop: "10px" } },
-            h("span", null, `${T.knowledge}：${q.knowledge.join("、")}`)
+            h2("span", null, `${T.knowledge}：${q.knowledge.join("、")}`)
           ) : null,
-          !focused && q.examAlignment ? h(
+          !focused && q.examAlignment ? h2(
             "details",
             { className: "kd-verify" },
-            h("summary", null, `${q.examAlignment.scopeBasis === "subject-only" ? "出题依据" : "范围校验依据"} · ${q.examAlignment.scopeLabel || "大纲 " + q.examAlignment.outlineYear}${difficultyUnverified ? "" : " · 独立真题对照"}`),
-            h("div", null, q.examAlignment.note?.replace("未通过真题难度校验。", "未进行真题难度校验。").replace("未导入考试大纲，", "未进行考试大纲校验，")),
-            h(
+            h2("summary", null, `${q.examAlignment.scopeBasis === "subject-only" ? "出题依据" : "范围校验依据"} · ${q.examAlignment.scopeLabel || "大纲 " + q.examAlignment.outlineYear}${difficultyUnverified ? "" : " · 独立真题对照"}`),
+            h2("div", null, q.examAlignment.note?.replace("未通过真题难度校验。", "未进行真题难度校验。").replace("未导入考试大纲，", "未进行考试大纲校验，")),
+            h2(
               "div",
               null,
               q.examAlignment.basisSubject?.name || q.subjectName,
               q.examAlignment.checkedAt ? ` · 核验时间：${formatDateTime(q.examAlignment.checkedAt)}` : null
             ),
-            ...(q.examAlignment.sources || []).map((source) => h(
+            ...(q.examAlignment.sources || []).map((source) => h2(
               "div",
               { key: source.id },
-              source.url ? h(
+              source.url ? h2(
                 "a",
                 { className: "kd-link", href: source.url, target: "_blank", rel: "noreferrer noopener" },
                 `${source.year} ${source.title}（${source.official ? "官方来源" : source.kind === "outline" ? source.verificationLabel || "非官方大纲转载" : "非官方真题转载"}）`
               ) : source.manual && source.kind === "paper" ? `${source.year} 年 · ${source.title}（手动导入）` : null,
-              source.coverage ? h("div", null, source.coverage) : null,
-              source.publisherUrl ? h("a", { className: "kd-link", href: source.publisherUrl, target: "_blank", rel: "noreferrer noopener" }, `出版社版本记录 · ISBN ${source.isbn}`) : null
+              source.coverage ? h2("div", null, source.coverage) : null,
+              source.publisherUrl ? h2("a", { className: "kd-link", href: source.publisherUrl, target: "_blank", rel: "noreferrer noopener" }, `出版社版本记录 · ISBN ${source.isbn}`) : null
             )),
-            revealed ? h(
+            revealed ? h2(
               "div",
               null,
               q.examAlignment.rationale,
-              ...(q.examAlignment.warnings || []).map((warning, i) => h("div", { key: i, className: "kd-meta" }, warning))
+              ...(q.examAlignment.warnings || []).map((warning, i) => h2("div", { key: i, className: "kd-meta" }, warning))
             ) : null
           ) : null,
-          h("div", { className: "kd-stem" }, h(Markdown, { text: q.stem })),
-          isChoice && !canSelect ? h("div", { className: "kd-msg-meta" }, "本题选项不完整，可跳过或查看答案后自行判定。") : null,
-          canSelect ? h("div", { className: "kd-options" }, q.options.map((option) => {
+          h2("div", { className: "kd-stem" }, h2(Markdown, { text: q.stem })),
+          isChoice && !canSelect ? h2("div", { className: "kd-msg-meta" }, "本题选项不完整，可跳过或查看答案后自行判定。") : null,
+          canSelect ? h2("div", { className: "kd-options" }, q.options.map((option) => {
             const isSelected = selected.split("").includes(option.key);
             const isRight = revealed && answerKey.split("").includes(option.key);
             const isWrongPick = revealed && answerKey && isSelected && !isRight;
@@ -2162,7 +10888,7 @@ ${sourceUrl}` : ""}` : ""
             if (isSelected && !revealed) cls.push("is-selected");
             if (isRight) cls.push("is-correct");
             if (isWrongPick) cls.push("is-wrong");
-            return h(
+            return h2(
               "button",
               {
                 key: option.key,
@@ -2171,49 +10897,49 @@ ${sourceUrl}` : ""}` : ""
                 disabled: revealed || busy === "reveal",
                 onClick: /* @__PURE__ */ __name(() => onSelect(option.key), "onClick")
               },
-              h("span", { className: "kd-option-key" }, option.key),
-              h("div", { className: "kd-option-text" }, h(Markdown, { text: option.text }))
+              h2("span", { className: "kd-option-key" }, option.key),
+              h2("div", { className: "kd-option-text" }, h2(Markdown, { text: option.text }))
             );
           })) : null,
-          revealed && !focused ? h(ResultBanner, { attempt: last }) : null,
-          !focused || !revealed ? h(
+          revealed && !focused ? h2(ResultBanner, { attempt: last }) : null,
+          !focused || !revealed ? h2(
             "div",
             { className: "kd-actions" },
-            !revealed && canSelect ? h(
+            !revealed && canSelect ? h2(
               Btn,
               { variant: "primary", disabled: busy === "reveal" || !choice, onClick: /* @__PURE__ */ __name(() => onReveal("submit"), "onClick") },
-              busy === "reveal" ? h("span", { className: "kd-spinner" }) : null,
+              busy === "reveal" ? h2("span", { className: "kd-spinner" }) : null,
               T.submit
             ) : null,
             !revealed && !canSelect ? [
-              h(Btn, { key: "done", variant: "primary", disabled: busy === "reveal", onClick: /* @__PURE__ */ __name(() => onReveal("done"), "onClick") }, T.done),
-              isChoice ? h(Btn, { key: "skip", disabled: busy === "reveal", onClick: onSkip }, "跳过本题") : h(Btn, { key: "giveup", variant: "danger", disabled: busy === "reveal", onClick: /* @__PURE__ */ __name(() => onReveal("giveup"), "onClick") }, T.giveup)
+              h2(Btn, { key: "done", variant: "primary", disabled: busy === "reveal", onClick: /* @__PURE__ */ __name(() => onReveal("done"), "onClick") }, T.done),
+              isChoice ? h2(Btn, { key: "skip", disabled: busy === "reveal", onClick: onSkip }, "跳过本题") : h2(Btn, { key: "giveup", variant: "danger", disabled: busy === "reveal", onClick: /* @__PURE__ */ __name(() => onReveal("giveup"), "onClick") }, T.giveup)
             ] : null,
-            revealed && last?.result === "pending" ? h(Btn, { key: "wait", variant: "ghost", disabled: true }, "待判定：请在下方向答案区域做判定") : null,
-            !focused ? h(
+            revealed && last?.result === "pending" ? h2(Btn, { key: "wait", variant: "ghost", disabled: true }, "待判定：请在下方向答案区域做判定") : null,
+            !focused ? h2(
               Btn,
               { onClick: onFavorite, disabled: favoritePending },
-              h(Icon, { name: "star" }),
+              h2(Icon, { name: "star" }),
               q.favorite ? T.unfavorite : T.favorite
             ) : null,
-            revealed ? h(Btn, { variant: "ghost", onClick: onRedo, disabled: busy === "reveal" }, h(Icon, { name: "refresh", size: 13 }), T.redo) : null,
-            revealed ? h(Btn, { variant: "ghost", onClick: onToggleThread }, h(Icon, { name: "book" }), threadOpen ? "收起追问" : T.followup) : null
+            revealed ? h2(Btn, { variant: "ghost", onClick: onRedo, disabled: busy === "reveal" }, h2(Icon, { name: "refresh", size: 13 }), T.redo) : null,
+            revealed ? h2(Btn, { variant: "ghost", onClick: onToggleThread }, h2(Icon, { name: "book" }), threadOpen ? "收起追问" : T.followup) : null
           ) : null,
-          revealed ? h(AnswerBlock, { question: q, focused, onRevise, revising, onRemoveWrong, onInspect: onInspectAttempt }) : null,
-          !focused && revealed && last && last.result !== "pending" && onNextReview ? h(Btn, { variant: "primary", disabled: Boolean(busy), onClick: onNextReview }, "下一道复习") : null,
-          !focused && revising && onCancel ? h(Btn, { variant: "ghost", onClick: onCancel }, "取消修订") : null,
-          revealed && last?.result === "pending" ? h(
+          revealed ? h2(AnswerBlock, { question: q, focused, onRevise, revising, onRemoveWrong, onInspect: onInspectAttempt }) : null,
+          !focused && revealed && last && last.result !== "pending" && onNextReview ? h2(Btn, { variant: "primary", disabled: Boolean(busy), onClick: onNextReview }, "下一道复习") : null,
+          !focused && revising && onCancel ? h2(Btn, { variant: "ghost", onClick: onCancel }, "取消修订") : null,
+          revealed && last?.result === "pending" ? h2(
             "div",
             { className: "kd-actions", style: { marginTop: "12px" } },
-            h("span", { className: "kd-meta" }, focused ? "请判定本次作答：" : "这道题由你自己判定（系统不会替你把“作答完毕”当成答对）："),
-            h(Btn, { variant: "primary", disabled: busy === "judge", onClick: /* @__PURE__ */ __name(() => onJudge("correct"), "onClick") }, T.correct),
-            h(Btn, { variant: "danger", disabled: busy === "judge", onClick: /* @__PURE__ */ __name(() => onJudge("wrong"), "onClick") }, T.wrong)
+            h2("span", { className: "kd-meta" }, focused ? "请判定本次作答：" : "这道题由你自己判定（系统不会替你把“作答完毕”当成答对）："),
+            h2(Btn, { variant: "primary", disabled: busy === "judge", onClick: /* @__PURE__ */ __name(() => onJudge("correct"), "onClick") }, T.correct),
+            h2(Btn, { variant: "danger", disabled: busy === "judge", onClick: /* @__PURE__ */ __name(() => onJudge("wrong"), "onClick") }, T.wrong)
           ) : null
         ),
-        !focused && q.publishVerification ? h(
+        !focused && q.publishVerification ? h2(
           "div",
           { className: "kd-verify", style: { marginTop: "12px" } },
-          h(
+          h2(
             Badge,
             { tone: q.publishVerification.status === "passed" ? "ok" : "warn" },
             q.publishVerification.status === "passed" ? "试题发布前已通过独立校验" : "试题发布状态：待核验"
@@ -2228,9 +10954,9 @@ ${sourceUrl}` : ""}` : ""
     function previewFadePosition(element, lineHeight) {
       const bounds = element.getBoundingClientRect();
       const rects = [];
-      const document = element.ownerDocument;
-      const walker = document.createTreeWalker(element, 4);
-      const range = document.createRange();
+      const document2 = element.ownerDocument;
+      const walker = document2.createTreeWalker(element, 4);
+      const range = document2.createRange();
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         if (!node.textContent.trim() || node.parentElement.closest("mjx-container,.kd-code-lang")) continue;
         range.setStart(node, 0);
@@ -2255,7 +10981,7 @@ ${sourceUrl}` : ""}` : ""
         if (!element) return void 0;
         const measure = /* @__PURE__ */ __name(() => {
           let lineHeight = 28;
-          for (const svg of element.querySelectorAll("svg")) lineHeight = Math.max(lineHeight, Math.ceil(svg.getBoundingClientRect().height + 16));
+          for (const svg3 of element.querySelectorAll("svg")) lineHeight = Math.max(lineHeight, Math.ceil(svg3.getBoundingClientRect().height + 16));
           element.style.setProperty("--kd-preview-line-height", `${lineHeight}px`);
           const content = element.firstElementChild;
           const clipped = element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1 || content && content.scrollHeight > content.clientHeight + 1;
@@ -2276,53 +11002,53 @@ ${sourceUrl}` : ""}` : ""
           mutations.disconnect();
         };
       }, [text, mathStatus]);
-      return h("div", { ref, className: "kd-list-summary" + (truncated ? " is-truncated" : "") }, h(Markdown, { text }));
+      return h2("div", { ref, className: "kd-list-summary" + (truncated ? " is-truncated" : "") }, h2(Markdown, { text }));
     }
     __name(QuestionPreview, "QuestionPreview");
     function ListPane({ list, kind, subjectName, onOpen, managing, selected, onManage, onToggle, onSelectAll, onBulk, onPage, busy, filtered }) {
-      if (!list) return h("div", { className: "kd-loading" }, h("span", { className: "kd-spinner" }), "加载中…");
+      if (!list) return h2("div", { className: "kd-loading" }, h2("span", { className: "kd-spinner" }), "加载中…");
       if (!list.items.length) {
         const icon = kind === "favorite" ? "star" : kind === "wrong" ? "check" : kind === "all" ? "book" : "spark";
-        return h(EmptyState, {
+        return h2(EmptyState, {
           icon,
           title: `${subjectName} · ${T.tabs[kind]}`,
           body: filtered ? "没有符合搜索或筛选条件的题目。" : T.tabEmpty[kind] || "暂无内容"
         });
       }
       const total = list.total ?? list.items.length;
-      return h(
+      return h2(
         "div",
         null,
-        h(
+        h2(
           "div",
           { className: "kd-meta", style: { marginBottom: "10px" } },
-          h("span", null, `${subjectName} · ${T.tabs[kind]} · 共 ${total} 道`),
-          kind === "review" ? null : h(Btn, { small: true, onClick: onManage, disabled: busy }, managing ? "完成管理" : "批量管理")
+          h2("span", null, `${subjectName} · ${T.tabs[kind]} · 共 ${total} 道`),
+          kind === "review" ? null : h2(Btn, { small: true, onClick: onManage, disabled: busy }, managing ? "完成管理" : "批量管理")
         ),
-        list.totalPages > 1 ? h(
+        list.totalPages > 1 ? h2(
           "div",
           { className: "kd-row", style: { marginBottom: "12px" }, "aria-label": "题目分页" },
-          h(Btn, { small: true, disabled: busy || list.page <= 1, onClick: /* @__PURE__ */ __name(() => onPage(list.page - 1), "onClick") }, "上一页"),
-          h("span", { className: "kd-meta" }, `第 ${list.page} / ${list.totalPages} 页`),
-          h(Btn, { small: true, disabled: busy || list.page >= list.totalPages, onClick: /* @__PURE__ */ __name(() => onPage(list.page + 1), "onClick") }, "下一页")
+          h2(Btn, { small: true, disabled: busy || list.page <= 1, onClick: /* @__PURE__ */ __name(() => onPage(list.page - 1), "onClick") }, "上一页"),
+          h2("span", { className: "kd-meta" }, `第 ${list.page} / ${list.totalPages} 页`),
+          h2(Btn, { small: true, disabled: busy || list.page >= list.totalPages, onClick: /* @__PURE__ */ __name(() => onPage(list.page + 1), "onClick") }, "下一页")
         ) : null,
-        managing ? h(
+        managing ? h2(
           "div",
           { className: "kd-bulkbar", "aria-label": "批量管理" },
-          h(
+          h2(
             "div",
             { className: "kd-row" },
-            h("strong", { "aria-live": "polite" }, `已选 ${selected.length} 道`),
-            h(Btn, { small: true, disabled: busy || selected.length === total, onClick: /* @__PURE__ */ __name(() => onSelectAll(true), "onClick") }, "全选"),
-            h(Btn, { small: true, disabled: busy || !selected.length, onClick: /* @__PURE__ */ __name(() => onSelectAll(false), "onClick") }, "全不选")
+            h2("strong", { "aria-live": "polite" }, `已选 ${selected.length} 道`),
+            h2(Btn, { small: true, disabled: busy || selected.length === total, onClick: /* @__PURE__ */ __name(() => onSelectAll(true), "onClick") }, "全选"),
+            h2(Btn, { small: true, disabled: busy || !selected.length, onClick: /* @__PURE__ */ __name(() => onSelectAll(false), "onClick") }, "全不选")
           ),
-          h(
+          h2(
             "div",
             { className: "kd-row" },
-            ...[["favorite", "收藏"], ["unfavorite", "取消收藏"], ["wrong", "加入错题本"], ["unwrong", "移出错题本"], ["delete", "删除题目"]].map(([action, label]) => h(Btn, { key: action, small: true, variant: action === "delete" ? "danger" : "default", disabled: busy || !selected.length, onClick: /* @__PURE__ */ __name(() => onBulk(action), "onClick") }, label))
+            ...[["favorite", "收藏"], ["unfavorite", "取消收藏"], ["wrong", "加入错题本"], ["unwrong", "移出错题本"], ["delete", "删除题目"]].map(([action, label]) => h2(Btn, { key: action, small: true, variant: action === "delete" ? "danger" : "default", disabled: busy || !selected.length, onClick: /* @__PURE__ */ __name(() => onBulk(action), "onClick") }, label))
           )
         ) : null,
-        list.items.map((item) => h(
+        list.items.map((item) => h2(
           "div",
           {
             key: item.id,
@@ -2344,44 +11070,44 @@ ${sourceUrl}` : ""}` : ""
               }
             }
           },
-          managing ? h("input", {
+          managing ? h2("input", {
             type: "checkbox",
             checked: selected.includes(item.id),
             disabled: busy,
             "aria-label": "选择题目：" + (item.summary || item.id),
             onChange: /* @__PURE__ */ __name(() => onToggle(item.id), "onChange")
           }) : null,
-          h(
+          h2(
             "div",
             { className: "kd-list-body" },
-            h(
+            h2(
               "div",
               { className: "kd-list-heading" },
-              h(QuestionPreview, { text: item.stem || item.summary || "(无题干)" }),
-              !managing ? h("span", { className: "kd-list-open", "aria-hidden": true }, "查看题目", h(Icon, { name: "chevron" })) : null
+              h2(QuestionPreview, { text: item.stem || item.summary || "(无题干)" }),
+              !managing ? h2("span", { className: "kd-list-open", "aria-hidden": true }, "查看题目", h2(Icon, { name: "chevron" })) : null
             ),
-            h(
+            h2(
               "div",
               { className: "kd-list-meta" },
-              h(
+              h2(
                 "div",
                 { className: "kd-list-tags" },
-                h(Badge, null, item.typeLabel),
-                item.favorite ? h(Badge, { tone: "brand", title: "已收藏" }, "☆ 收藏") : null,
-                item.wrongEver ? h(Badge, { tone: "bad", title: "位于错题本" }, item.mastered ? "◨ 错题本 · 已掌握" : "◨ 错题本") : null,
-                item.answerStatus !== "verified" ? h(
+                h2(Badge, null, item.typeLabel),
+                item.favorite ? h2(Badge, { tone: "brand", title: "已收藏" }, "☆ 收藏") : null,
+                item.wrongEver ? h2(Badge, { tone: "bad", title: "位于错题本" }, item.mastered ? "◨ 错题本 · 已掌握" : "◨ 错题本") : null,
+                item.answerStatus !== "verified" ? h2(
                   Badge,
                   { tone: "warn", title: item.answerStatus === "missing" ? void 0 : T.unverified },
                   item.answerStatus === "missing" ? T.missing : "× 独立校验"
                 ) : null,
-                item.difficultyUnverified ? h(Badge, { tone: "warn", title: "未进行真题难度校验" }, "× 真题难度校验") : h("span", null, `难度 ${item.difficulty}/5`)
+                item.difficultyUnverified ? h2(Badge, { tone: "warn", title: "未进行真题难度校验" }, "× 真题难度校验") : h2("span", null, `难度 ${item.difficulty}/5`)
               ),
-              h(
+              h2(
                 "div",
                 { className: "kd-list-timing" },
-                h("span", null, formatDate(item.assignedDate)),
-                item.reviewDue ? h("span", null, `复习日期 ${formatDate(item.reviewDue)}`) : null,
-                h("span", null, `作答 ${item.attemptCount} 次`)
+                h2("span", null, formatDate(item.assignedDate)),
+                item.reviewDue ? h2("span", null, `复习日期 ${formatDate(item.reviewDue)}`) : null,
+                h2("span", null, `作答 ${item.attemptCount} 次`)
               )
             )
           )
@@ -2397,11 +11123,11 @@ ${sourceUrl}` : ""}` : ""
       const scrollRef = useRef(null);
       const sendingRef = useRef(false);
       const sendingMessage = useRef(null);
-      const messages = thread?.messages || [];
+      const messages2 = thread?.messages || [];
       useEffect(() => {
         const node = scrollRef.current;
         if (node) node.scrollTop = node.scrollHeight;
-      }, [messages.length, pending?.id]);
+      }, [messages2.length, pending?.id]);
       const send = useCallback(async (text, messageId) => {
         const value = String(text || "").trim();
         if (!value || sendingRef.current) return;
@@ -2423,22 +11149,22 @@ ${sourceUrl}` : ""}` : ""
         }
       }, [onSend]);
       const rows = [];
-      for (const message of messages) {
+      for (const message of messages2) {
         const failed = message.status === "failed";
-        rows.push(h(
+        rows.push(h2(
           "div",
           {
             key: message.id,
             className: `kd-msg kd-msg-${message.role}${failed ? " kd-msg-failed" : ""}`
           },
-          h(Markdown, { text: message.text }),
-          h(
+          h2(Markdown, { text: message.text }),
+          h2(
             "div",
             { className: "kd-msg-meta" },
             `${message.role === "user" ? "我" : "老师"} · ${formatClock(message.createdAt)}`,
             failed ? " · 回复失败" : ""
           ),
-          failed ? h(Btn, {
+          failed ? h2(Btn, {
             small: true,
             variant: "ghost",
             disabled: sending,
@@ -2447,27 +11173,27 @@ ${sourceUrl}` : ""}` : ""
         ));
       }
       if (pending) {
-        rows.push(h(
+        rows.push(h2(
           "div",
           { key: "pending", className: "kd-msg kd-msg-user kd-msg-failed" },
-          h(Markdown, { text: pending.text }),
-          h("div", { className: "kd-msg-meta" }, "我 · 尚未送达"),
-          h(Btn, { small: true, variant: "ghost", disabled: sending, onClick: /* @__PURE__ */ __name(() => send(pending.text, pending.id), "onClick") }, "重试")
+          h2(Markdown, { text: pending.text }),
+          h2("div", { className: "kd-msg-meta" }, "我 · 尚未送达"),
+          h2(Btn, { small: true, variant: "ghost", disabled: sending, onClick: /* @__PURE__ */ __name(() => send(pending.text, pending.id), "onClick") }, "重试")
         ));
       }
       if (sending) {
-        rows.push(h(
+        rows.push(h2(
           "div",
           { key: "sending", className: "kd-msg kd-msg-assistant" },
-          h("span", { className: "kd-spinner" }),
+          h2("span", { className: "kd-spinner" }),
           T.sending
         ));
       }
       const resize = /* @__PURE__ */ __name((value) => onRatioChange(Math.max(20, Math.min(55, value))), "resize");
-      return h(
+      return h2(
         "aside",
         { className: "kd-thread", "aria-label": T.followup, style: { "--kd-thread-ratio": ratio / 100 } },
-        !narrow ? h("div", {
+        !narrow ? h2("div", {
           className: "kd-thread-resize",
           role: "separator",
           tabIndex: 0,
@@ -2497,42 +11223,42 @@ ${sourceUrl}` : ""}` : ""
             }
           }, "onKeyDown")
         }) : null,
-        h(
+        h2(
           "div",
           { className: "kd-thread-head" },
-          h(
+          h2(
             "div",
             null,
-            h("div", { className: "kd-thread-title" }, T.followup),
-            h("div", { className: "kd-msg-meta" }, "围绕当前题目，一起理清思路")
+            h2("div", { className: "kd-thread-title" }, T.followup),
+            h2("div", { className: "kd-msg-meta" }, "围绕当前题目，一起理清思路")
           ),
-          h(
+          h2(
             "div",
             { className: "kd-row" },
-            h(Btn, {
+            h2(Btn, {
               small: true,
               variant: "ghost",
-              disabled: !messages.length || sending,
+              disabled: !messages2.length || sending,
               onClick: onClear,
               title: "只清空本题的追问记录"
             }, T.clearThread),
-            h("button", { className: "kd-iconbtn", onClick: onClose, "aria-label": T.close }, h(Icon, { name: "close" }))
+            h2("button", { className: "kd-iconbtn", onClick: onClose, "aria-label": T.close }, h2(Icon, { name: "close" }))
           )
         ),
-        h("div", { className: "kd-thread-hint" }, T.followupHint),
-        h(
+        h2("div", { className: "kd-thread-hint" }, T.followupHint),
+        h2(
           "div",
           { className: "kd-thread-scroll", ref: scrollRef },
-          rows.length ? rows : h("div", { className: "kd-empty-body" }, "还没有追问。可以问某一步推导为什么成立、某个知识点怎么理解，或有没有别的解法。")
+          rows.length ? rows : h2("div", { className: "kd-empty-body" }, "还没有追问。可以问某一步推导为什么成立、某个知识点怎么理解，或有没有别的解法。")
         ),
-        localError ? h("div", { className: "kd-error-text", style: { padding: "0 14px" } }, localError) : null,
-        h(
+        localError ? h2("div", { className: "kd-error-text", style: { padding: "0 14px" } }, localError) : null,
+        h2(
           "div",
           { className: "kd-thread-foot" },
-          h(
+          h2(
             "div",
             { className: "kd-composer" },
-            h("textarea", {
+            h2("textarea", {
               className: "kd-textarea",
               value: draft,
               placeholder: "围绕这道题继续追问…（Enter 发送，Shift+Enter 换行）",
@@ -2545,16 +11271,16 @@ ${sourceUrl}` : ""}` : ""
                 }
               }, "onKeyDown")
             }),
-            h(
+            h2(
               "div",
               { className: "kd-row", style: { justifyContent: "flex-end", marginTop: "2px" } },
-              sending && onCancel ? h(Btn, { small: true, variant: "ghost", onClick: /* @__PURE__ */ __name(() => onCancel(sendingMessage.current), "onClick") }, "取消回复") : null,
-              h(Btn, {
+              sending && onCancel ? h2(Btn, { small: true, variant: "ghost", onClick: /* @__PURE__ */ __name(() => onCancel(sendingMessage.current), "onClick") }, "取消回复") : null,
+              h2(Btn, {
                 variant: "primary",
                 small: true,
                 disabled: sending || !draft.trim(),
                 onClick: /* @__PURE__ */ __name(() => send(draft, newAttemptId()), "onClick")
-              }, h(Icon, { name: "send", size: 13 }), T.send)
+              }, h2(Icon, { name: "send", size: 13 }), T.send)
             )
           )
         )
@@ -2562,30 +11288,30 @@ ${sourceUrl}` : ""}` : ""
     }
     __name(ThreadPane, "ThreadPane");
     function ManageSection({ title, hint, children }) {
-      return h(
+      return h2(
         "section",
         { className: "kd-manage-section", "aria-label": title },
-        h(
+        h2(
           "header",
           { className: "kd-manage-section-head" },
-          h("h3", null, title),
-          hint ? h("p", { className: "kd-meta" }, hint) : null
+          h2("h3", null, title),
+          hint ? h2("p", { className: "kd-meta" }, hint) : null
         ),
         children
       );
     }
     __name(ManageSection, "ManageSection");
     function ManageFileRow({ icon, name, meta, badges, action }) {
-      return h(
+      return h2(
         "div",
         { className: "kd-manage-card kd-manage-file" },
-        h("span", { className: "kd-manage-file-icon" }, h(Icon, { name: icon, size: 18 })),
-        h(
+        h2("span", { className: "kd-manage-file-icon" }, h2(Icon, { name: icon, size: 18 })),
+        h2(
           "div",
           { className: "kd-manage-file-info" },
-          h("strong", null, name),
-          meta ? h("div", { className: "kd-meta" }, meta) : null,
-          badges?.length ? h("div", { className: "kd-row kd-manage-badges" }, badges.map((label) => h(Badge, { key: label }, label))) : null
+          h2("strong", null, name),
+          meta ? h2("div", { className: "kd-meta" }, meta) : null,
+          badges?.length ? h2("div", { className: "kd-row kd-manage-badges" }, badges.map((label) => h2(Badge, { key: label }, label))) : null
         ),
         action
       );
@@ -2611,17 +11337,17 @@ ${sourceUrl}` : ""}` : ""
       const [outlineDraft, setOutlineDraft] = useState("");
       const [deletion, setDeletion] = useState(null);
       const [undoOpen, setUndoOpen] = useState(false);
-      const outlineEditor = /* @__PURE__ */ __name((value, onChange, label) => h(
+      const outlineEditor = /* @__PURE__ */ __name((value, onChange, label) => h2(
         "label",
         { className: "kd-field" },
-        h("span", { className: "kd-field-label" }, label),
-        h("textarea", { className: "kd-input kd-outline-input", rows: 3, value, maxLength: 2400, placeholder: "每行填写一个知识点，例如：链表、栈与队列", onChange: /* @__PURE__ */ __name((event) => onChange(event.target.value), "onChange") })
+        h2("span", { className: "kd-field-label" }, label),
+        h2("textarea", { className: "kd-input kd-outline-input", rows: 3, value, maxLength: 2400, placeholder: "每行填写一个知识点，例如：链表、栈与队列", onChange: /* @__PURE__ */ __name((event) => onChange(event.target.value), "onChange") })
       ), "outlineEditor");
-      const referenceExams = boot.referenceExams || (boot.subjects || []).filter((s) => !s.custom);
-      const referenceEditor = /* @__PURE__ */ __name((value, change, label) => h(
+      const referenceExams = boot.referenceExams || (boot.subjects || []).filter((s2) => !s2.custom);
+      const referenceEditor = /* @__PURE__ */ __name((value, change, label) => h2(
         "div",
         { className: "kd-field", style: { marginBottom: 0 } },
-        h(
+        h2(
           "select",
           {
             className: "kd-select",
@@ -2629,11 +11355,11 @@ ${sourceUrl}` : ""}` : ""
             value: value.referenceSubjectId || "auto",
             onChange: /* @__PURE__ */ __name((event) => change({ referenceSubjectId: event.target.value }), "onChange")
           },
-          h("option", { value: "auto" }, "使用当前科目信息"),
-          ...referenceExams.map((exam) => h("option", { key: exam.id, value: exam.id }, `${exam.name}${exam.code ? `（${exam.code}）` : ""}`)),
-          h("option", { value: "independent" }, "手动填写参考考试…")
+          h2("option", { value: "auto" }, "使用当前科目信息"),
+          ...referenceExams.map((exam) => h2("option", { key: exam.id, value: exam.id }, `${exam.name}${exam.code ? `（${exam.code}）` : ""}`)),
+          h2("option", { value: "independent" }, "手动填写参考考试…")
         ),
-        !value.referenceSubjectId || value.referenceSubjectId === "auto" ? h("input", {
+        !value.referenceSubjectId || value.referenceSubjectId === "auto" ? h2("input", {
           className: "kd-input",
           "aria-label": `${label}代码（考试科目或专业）`,
           placeholder: "考试科目或专业代码（选填）",
@@ -2642,10 +11368,10 @@ ${sourceUrl}` : ""}` : ""
           onChange: /* @__PURE__ */ __name((event) => change({ code: event.target.value }), "onChange")
         }) : null,
         value.referenceSubjectId === "independent" ? [
-          h(
+          h2(
             "div",
             { className: "kd-row", key: "exam-fields" },
-            h("input", {
+            h2("input", {
               className: "kd-input kd-reference-name",
               "aria-label": `${label}名称`,
               placeholder: "参考考试名称（必填）",
@@ -2653,7 +11379,7 @@ ${sourceUrl}` : ""}` : ""
               maxLength: 100,
               onChange: /* @__PURE__ */ __name((event) => change({ referenceExamName: event.target.value }), "onChange")
             }),
-            h("input", {
+            h2("input", {
               className: "kd-input",
               "aria-label": `${label}代码`,
               placeholder: "科目代码（选填）",
@@ -2663,11 +11389,11 @@ ${sourceUrl}` : ""}` : ""
               onChange: /* @__PURE__ */ __name((event) => change({ referenceExamCode: event.target.value }), "onChange")
             })
           ),
-          h("div", { className: "kd-meta", key: "exam-hint" }, "院校自命题请在参考考试名称中写明院校，例如「某大学数据结构」。")
+          h2("div", { className: "kd-meta", key: "exam-hint" }, "院校自命题请在参考考试名称中写明院校，例如「某大学数据结构」。")
         ] : null
       ), "referenceEditor");
       const enabled = new Set(draft.subjects);
-      const subjects = [...boot.subjects || [], ...draft.customSubjects.filter((item) => !(boot.subjects || []).some((s) => s.id === item.id)).map((item) => ({
+      const subjects = [...boot.subjects || [], ...draft.customSubjects.filter((item) => !(boot.subjects || []).some((s2) => s2.id === item.id)).map((item) => ({
         ...item,
         custom: true,
         typeLabels: item.types.map((type) => ({ single: "单项选择题", multiple: "多项选择题", fill: "填空题", solution: "解答题" })[type] || type),
@@ -2739,7 +11465,7 @@ ${sourceUrl}` : ""}` : ""
           return;
         }
         const next = canAdd ? withCustomSubject(draft) : draft;
-        if (next.customSubjects.some((s) => s.referenceSubjectId === "independent" && !s.referenceExamName?.trim())) {
+        if (next.customSubjects.some((s2) => s2.referenceSubjectId === "independent" && !s2.referenceExamName?.trim())) {
           showSaveError("独立参考考试请填写准确的考试名称（院校自命题请包含院校名称）。");
           return;
         }
@@ -2769,7 +11495,7 @@ ${sourceUrl}` : ""}` : ""
       }, "submit");
       if (deletion) {
         const { subject, final } = deletion;
-        return h(ConfirmModal, {
+        return h2(ConfirmModal, {
           embedded,
           key: final ? "final" : "first",
           title: final ? "再次确认删除科目" : "删除科目",
@@ -2797,11 +11523,11 @@ ${sourceUrl}` : ""}` : ""
         onBusyChange?.(open);
       }, "setUndoDialog");
       const subjectActions = [
-        h(Btn, { key: "undo", onClick: /* @__PURE__ */ __name(() => setUndoDialog(true), "onClick"), disabled: saving || !hasChanges }, "撤销"),
-        h(Btn, { key: "save", variant: "primary", onClick: finish, disabled: saving || !hasChanges }, saving ? "保存中…" : "保存")
+        h2(Btn, { key: "undo", onClick: /* @__PURE__ */ __name(() => setUndoDialog(true), "onClick"), disabled: saving || !hasChanges }, "撤销"),
+        h2(Btn, { key: "save", variant: "primary", onClick: finish, disabled: saving || !hasChanges }, saving ? "保存中…" : "保存")
       ];
       const errorMessage = saveError?.validation ? customInputError : saveError?.message;
-      return h(
+      return h2(
         Modal,
         {
           embedded,
@@ -2810,8 +11536,8 @@ ${sourceUrl}` : ""}` : ""
           wide: true,
           headerActions: embedded ? subjectActions : null,
           footer: embedded ? null : subjectActions,
-          notification: errorMessage ? h(NotificationBanner, { key: saveError.id, message: errorMessage, tone: "bad" }) : !saveError && savedNotice ? h(NotificationBanner, { key: "saved", message: savedNotice }) : null,
-          dialog: undoOpen ? h(ConfirmModal, {
+          notification: errorMessage ? h2(NotificationBanner, { key: saveError.id, message: errorMessage, tone: "bad" }) : !saveError && savedNotice ? h2(NotificationBanner, { key: "saved", message: savedNotice }) : null,
+          dialog: undoOpen ? h2(ConfirmModal, {
             title: "撤销本次更改",
             explicitClose: true,
             message: "确定撤销本次的全部更改吗？已保存的科目设置会保留。",
@@ -2823,59 +11549,59 @@ ${sourceUrl}` : ""}` : ""
             }, "onConfirm")
           }) : null
         },
-        draft.deleteSubjectIds.length ? h(
+        draft.deleteSubjectIds.length ? h2(
           "div",
           { className: "kd-error-text", role: "status" },
           `有 ${draft.deleteSubjectIds.length} 个科目待删除，点击「保存」后生效。`
         ) : null,
-        h(
+        h2(
           "fieldset",
           { disabled: saving, className: "kd-manage-stack kd-manage-fieldset" },
-          h(
+          h2(
             ManageSection,
             {
               title: `科目列表 · ${enabled.size} 门已启用`,
               hint: "勾选要练习的科目，点击「保存」统一生效。停用科目会保留历史记录。"
             },
-            !subjects.length ? h("p", { className: "kd-manage-empty" }, "暂无科目，可在下方添加自定义科目。") : null,
-            subjects.map((subject) => h(
+            !subjects.length ? h2("p", { className: "kd-manage-empty" }, "暂无科目，可在下方添加自定义科目。") : null,
+            subjects.map((subject) => h2(
               "div",
               {
                 key: subject.id,
                 className: "kd-manage-card kd-manage-subject" + (enabled.has(subject.id) ? " is-enabled" : "")
               },
-              h(
+              h2(
                 "div",
                 { className: "kd-row-between kd-manage-subject-head" },
-                h(
+                h2(
                   "label",
                   { className: "kd-checkline kd-manage-subject-label" },
-                  h("input", {
+                  h2("input", {
                     type: "checkbox",
                     checked: enabled.has(subject.id),
                     onChange: /* @__PURE__ */ __name(() => toggleSubject(subject.id), "onChange")
                   }),
-                  h(
+                  h2(
                     "span",
                     null,
-                    h("strong", null, subject.name),
-                    subject.code ? h("span", { className: "kd-manage-subject-code" }, subject.code) : null,
-                    h("span", { className: "kd-meta kd-manage-types" }, subject.typeLabels.join(" / "))
+                    h2("strong", null, subject.name),
+                    subject.code ? h2("span", { className: "kd-manage-subject-code" }, subject.code) : null,
+                    h2("span", { className: "kd-meta kd-manage-types" }, subject.typeLabels.join(" / "))
                   )
                 ),
-                h(Btn, { small: true, variant: "danger", ariaLabel: `删除${subject.name}`, onClick: /* @__PURE__ */ __name(() => setDeletion({ subject, final: false }), "onClick") }, "删除")
+                h2(Btn, { small: true, variant: "danger", ariaLabel: `删除${subject.name}`, onClick: /* @__PURE__ */ __name(() => setDeletion({ subject, final: false }), "onClick") }, "删除")
               ),
-              enabled.has(subject.id) ? h(
+              enabled.has(subject.id) ? h2(
                 "div",
                 { className: "kd-manage-subject-options" },
-                h(
+                h2(
                   "div",
                   { className: "kd-row" },
-                  h(
+                  h2(
                     "label",
                     { className: "kd-row" },
-                    h("span", { className: "kd-meta" }, "出题来源"),
-                    h(
+                    h2("span", { className: "kd-meta" }, "出题来源"),
+                    h2(
                       "select",
                       {
                         className: "kd-select",
@@ -2886,38 +11612,38 @@ ${sourceUrl}` : ""}` : ""
                           setDraft((current) => ({ ...current, subjectSource: { ...current.subjectSource, [subject.id]: source } }));
                         }, "onChange")
                       },
-                      h("option", { value: "auto" }, "自动（优先题库）"),
-                      h("option", { value: "online" }, "在线出题"),
-                      h("option", { value: "bank" }, "题库出题")
+                      h2("option", { value: "auto" }, "自动（优先题库）"),
+                      h2("option", { value: "online" }, "在线出题"),
+                      h2("option", { value: "bank" }, "题库出题")
                     )
                   ),
-                  h(Badge, null, subject.bankItemCount ? `题库 ${subject.bankItemCount} 题` : "题库为空")
+                  h2(Badge, null, subject.bankItemCount ? `题库 ${subject.bankItemCount} 题` : "题库为空")
                 ),
-                subject.custom ? h("span", { className: "kd-field-label" }, "参考考试") : null,
+                subject.custom ? h2("span", { className: "kd-field-label" }, "参考考试") : null,
                 subject.custom ? referenceEditor(
-                  draft.customSubjects.find((s) => s.id === subject.id) || subject,
-                  (patch) => setDraft((current) => ({ ...current, customSubjects: current.customSubjects.map((s) => s.id === subject.id ? { ...s, ...patch } : s) })),
+                  draft.customSubjects.find((s2) => s2.id === subject.id) || subject,
+                  (patch) => setDraft((current) => ({ ...current, customSubjects: current.customSubjects.map((s2) => s2.id === subject.id ? { ...s2, ...patch } : s2) })),
                   `${subject.name} 参考考试科目`
                 ) : null,
                 subject.custom ? outlineEditor(
-                  (draft.customSubjects.find((s) => s.id === subject.id)?.outline || []).join("\n"),
-                  (text) => setDraft((current) => ({ ...current, customSubjects: current.customSubjects.map((s) => s.id === subject.id ? { ...s, outline: text.split("\n") } : s) })),
+                  (draft.customSubjects.find((s2) => s2.id === subject.id)?.outline || []).join("\n"),
+                  (text) => setDraft((current) => ({ ...current, customSubjects: current.customSubjects.map((s2) => s2.id === subject.id ? { ...s2, outline: text.split("\n") } : s2) })),
                   `${subject.name} 练习范围`
                 ) : null
               ) : null
             ))
           ),
-          h(
+          h2(
             ManageSection,
             { title: "添加自定义科目" },
-            h(
+            h2(
               "div",
               { className: "kd-field kd-custom-subject" },
-              h(
+              h2(
                 "label",
                 { className: "kd-field" },
-                h("span", { className: "kd-field-label" }, "科目名称（必填）"),
-                h("input", {
+                h2("span", { className: "kd-field-label" }, "科目名称（必填）"),
+                h2("input", {
                   className: "kd-input",
                   value: name,
                   "aria-required": true,
@@ -2928,49 +11654,49 @@ ${sourceUrl}` : ""}` : ""
                   }, "onKeyDown")
                 })
               ),
-              h("div", { className: "kd-field-label" }, "练习题型（至少选一种）"),
-              h(
+              h2("div", { className: "kd-field-label" }, "练习题型（至少选一种）"),
+              h2(
                 "div",
                 { className: "kd-row kd-manage-types-options" },
-                [["single", "单项选择题"], ["multiple", "多项选择题"], ["fill", "填空题"], ["solution", "解答题"]].map(([value, label]) => h(
+                [["single", "单项选择题"], ["multiple", "多项选择题"], ["fill", "填空题"], ["solution", "解答题"]].map(([value, label]) => h2(
                   "label",
                   { key: value, className: "kd-checkline", style: { cursor: "pointer" } },
-                  h("input", {
+                  h2("input", {
                     type: "checkbox",
                     checked: types.includes(value),
                     onChange: /* @__PURE__ */ __name(() => toggleType(value), "onChange")
                   }),
-                  h("span", null, label)
+                  h2("span", null, label)
                 ))
               ),
-              customTypes.length ? h(
+              customTypes.length ? h2(
                 "div",
                 { className: "kd-row", style: { marginTop: "6px" } },
-                customTypes.map((value) => h(
+                customTypes.map((value) => h2(
                   "span",
                   { key: value, className: "kd-chip" },
-                  h(
+                  h2(
                     "label",
                     { className: "kd-checkline", style: { cursor: "pointer" } },
-                    h("input", {
+                    h2("input", {
                       type: "checkbox",
                       checked: types.includes(value),
                       onChange: /* @__PURE__ */ __name(() => toggleType(value), "onChange")
                     }),
-                    h("span", null, value)
+                    h2("span", null, value)
                   ),
-                  h("button", {
+                  h2("button", {
                     type: "button",
                     className: "kd-iconbtn",
                     title: "删除这个自定义题型",
                     onClick: /* @__PURE__ */ __name(() => dropCustomType(value), "onClick")
-                  }, h(Icon, { name: "close", size: 12 }))
+                  }, h2(Icon, { name: "close", size: 12 }))
                 ))
               ) : null,
-              h(
+              h2(
                 "div",
                 { className: "kd-row", style: { marginTop: "8px" } },
-                h("input", {
+                h2("input", {
                   className: "kd-input",
                   style: { flex: "1 1 160px" },
                   value: typeDraft,
@@ -2981,11 +11707,11 @@ ${sourceUrl}` : ""}` : ""
                     if (event.key === "Enter") addCustomType();
                   }, "onKeyDown")
                 }),
-                h(Btn, { small: true, disabled: !typeDraft.trim(), onClick: addCustomType }, "添加题型")
+                h2(Btn, { small: true, disabled: !typeDraft.trim(), onClick: addCustomType }, "添加题型")
               ),
-              h("div", { className: "kd-divider" }),
-              h("div", { className: "kd-field-label" }, "参考考试（选填）"),
-              h("div", { className: "kd-meta" }, "例如可选 408 作为参考考试，科目名称仍由上方的输入框决定。"),
+              h2("div", { className: "kd-divider" }),
+              h2("div", { className: "kd-field-label" }, "参考考试（选填）"),
+              h2("div", { className: "kd-meta" }, "例如可选 408 作为参考考试，科目名称仍由上方的输入框决定。"),
               referenceEditor({ referenceSubjectId, referenceExamName, referenceExamCode, code: subjectCode }, (patch) => {
                 if (patch.referenceSubjectId !== void 0) setReferenceSubjectId(patch.referenceSubjectId);
                 if (patch.referenceExamName !== void 0) setReferenceExamName(patch.referenceExamName);
@@ -2993,12 +11719,12 @@ ${sourceUrl}` : ""}` : ""
                 if (patch.code !== void 0) setSubjectCode(patch.code);
               }, "自定义科目的参考考试"),
               outlineEditor(outlineDraft, setOutlineDraft, "练习范围（选填）"),
-              h("div", { className: "kd-meta" }, "考试大纲和用于难度校验的真题，可分别在「大纲管理」和「真题管理」中导入。"),
-              h(
+              h2("div", { className: "kd-meta" }, "考试大纲和用于难度校验的真题，可分别在「大纲管理」和「真题管理」中导入。"),
+              h2(
                 "div",
                 { className: "kd-row-between kd-custom-subject-actions" },
-                h("span", { className: "kd-meta" }, "可以直接点「保存」。要继续添加其他科目，可先加入列表，再统一保存。"),
-                h(Btn, { disabled: !canAdd, onClick: submit }, "加入科目列表")
+                h2("span", { className: "kd-meta" }, "可以直接点「保存」。要继续添加其他科目，可先加入列表，再统一保存。"),
+                h2(Btn, { disabled: !canAdd, onClick: submit }, "加入科目列表")
               )
             )
           )
@@ -3012,31 +11738,31 @@ ${sourceUrl}` : ""}` : ""
       const failed = pages.filter((entry) => entry.source === "failed");
       const labels2 = { text: "文字层提取", ocr: "模型识别", blank: "空白页", failed: "识别失败" };
       const current = pages[selected] || pages[0];
-      return h(
+      return h2(
         "section",
         { className: "kd-pdf-preview", "aria-label": "PDF 逐页预览" },
-        failed.length ? h(
+        failed.length ? h2(
           "div",
           { className: "kd-manage-feedback is-error", role: "alert" },
-          h("strong", null, `识别失败页：${failed.map((entry) => entry.page).join("、")}。请修复这些页面后重新导入。`),
-          h("ul", null, failed.map((entry) => h("li", { key: entry.page }, `第 ${entry.page} 页 · ${entry.reason}`)))
+          h2("strong", null, `识别失败页：${failed.map((entry) => entry.page).join("、")}。请修复这些页面后重新导入。`),
+          h2("ul", null, failed.map((entry) => h2("li", { key: entry.page }, `第 ${entry.page} 页 · ${entry.reason}`)))
         ) : null,
-        h(
+        h2(
           "label",
           { className: "kd-row" },
-          h("strong", null, "逐页预览"),
-          h(
+          h2("strong", null, "逐页预览"),
+          h2(
             "select",
             { className: "kd-select", value: selected, onChange: /* @__PURE__ */ __name((event) => setSelected(Number(event.target.value)), "onChange") },
-            ...pages.map((entry, index) => h("option", { key: entry.page, value: index }, `第 ${entry.page} 页 · ${labels2[entry.source]}`))
+            ...pages.map((entry, index) => h2("option", { key: entry.page, value: index }, `第 ${entry.page} 页 · ${labels2[entry.source]}`))
           )
         ),
-        current.text ? h("pre", { className: "kd-import-text", tabIndex: 0 }, current.text) : h("p", { className: "kd-meta" }, current.reason || "此页没有正文。")
+        current.text ? h2("pre", { className: "kd-import-text", tabIndex: 0 }, current.text) : h2("p", { className: "kd-meta" }, current.reason || "此页没有正文。")
       );
     }
     __name(PdfImportPreview, "PdfImportPreview");
     function StudyImportPreview({ preview, title, busy, error, embedded, onCancel, onConfirm }) {
-      return h(
+      return h2(
         Modal,
         {
           title,
@@ -3045,56 +11771,56 @@ ${sourceUrl}` : ""}` : ""
           locked: busy,
           onClose: onCancel,
           footer: [
-            h(Btn, { key: "cancel", disabled: busy, onClick: onCancel }, "返回"),
-            h(Btn, { key: "confirm", variant: "primary", disabled: busy || !preview.canSave, onClick: onConfirm }, busy ? "正在保存…" : "确认导入")
+            h2(Btn, { key: "cancel", disabled: busy, onClick: onCancel }, "返回"),
+            h2(Btn, { key: "confirm", variant: "primary", disabled: busy || !preview.canSave, onClick: onConfirm }, busy ? "正在保存…" : "确认导入")
           ]
         },
-        h(
+        h2(
           "div",
           { className: "kd-manage-stack" },
-          h(ManageFileRow, {
+          h2(ManageFileRow, {
             icon: preview.year ? "papers" : "syllabus",
             name: preview.fileName,
             meta: [preview.subjectName, preview.year ? `${preview.year} 年` : null].filter(Boolean).join(" · ")
           }),
-          preview.issue || error ? h("p", { role: "alert", className: "kd-manage-feedback is-error" }, error || preview.issue) : null,
-          preview.recognition ? h(
+          preview.issue || error ? h2("p", { role: "alert", className: "kd-manage-feedback is-error" }, error || preview.issue) : null,
+          preview.recognition ? h2(
             ManageSection,
             { title: "模型识别结果", hint: "核对识别内容后再确认导入。" },
-            preview.recognition.warnings?.length ? h(
+            preview.recognition.warnings?.length ? h2(
               "ul",
               { className: "kd-manage-feedback is-warning" },
-              preview.recognition.warnings.map((warning, index) => h("li", { key: index }, warning))
+              preview.recognition.warnings.map((warning, index) => h2("li", { key: index }, warning))
             ) : null,
-            preview.recognition.scopeText ? h(
+            preview.recognition.scopeText ? h2(
               "details",
               { open: true },
-              h("summary", null, "模型识别的考试范围"),
-              h("pre", { className: "kd-import-text", tabIndex: 0 }, preview.recognition.scopeText)
+              h2("summary", null, "模型识别的考试范围"),
+              h2("pre", { className: "kd-import-text", tabIndex: 0 }, preview.recognition.scopeText)
             ) : null,
-            Object.entries(preview.recognition.typeExcerpts || {}).map(([type, text]) => h(
+            Object.entries(preview.recognition.typeExcerpts || {}).map(([type, text]) => h2(
               "details",
               { key: type },
-              h("summary", null, `识别题型 · ${typeLabel(type)}`),
-              h("pre", { className: "kd-import-text", tabIndex: 0 }, text)
+              h2("summary", null, `识别题型 · ${typeLabel(type)}`),
+              h2("pre", { className: "kd-import-text", tabIndex: 0 }, text)
             ))
           ) : null,
-          h(ManageSection, { title: "原文核对" }, preview.pages?.length ? h(PdfImportPreview, { pages: preview.pages }) : h("pre", { className: "kd-import-text", tabIndex: 0 }, preview.text))
+          h2(ManageSection, { title: "原文核对" }, preview.pages?.length ? h2(PdfImportPreview, { pages: preview.pages }) : h2("pre", { className: "kd-import-text", tabIndex: 0 }, preview.text))
         )
       );
     }
     __name(StudyImportPreview, "StudyImportPreview");
     function BankItemPreview({ item }) {
       const [open, setOpen] = useState(false);
-      return h(
+      return h2(
         "details",
         { className: "kd-bank-preview-stem", onToggle: /* @__PURE__ */ __name((event) => setOpen(event.currentTarget.open), "onToggle") },
-        h("summary", { className: "kd-meta" }, "核对完整题目"),
+        h2("summary", { className: "kd-meta" }, "核对完整题目"),
         open ? [
-          h(Markdown, { key: "stem", text: item.stem }),
-          ...item.options.map(({ key, text }, index) => h(Markdown, { key: index, text: `${key}. ${text}` })),
-          item.answer ? h("div", { key: "answer" }, h("strong", null, "参考答案"), h(Markdown, { text: item.answer })) : null,
-          item.explanation ? h("div", { key: "explanation" }, h("strong", null, "解析"), h(Markdown, { text: item.explanation })) : null
+          h2(Markdown, { key: "stem", text: item.stem }),
+          ...item.options.map(({ key, text }, index) => h2(Markdown, { key: index, text: `${key}. ${text}` })),
+          item.answer ? h2("div", { key: "answer" }, h2("strong", null, "参考答案"), h2(Markdown, { text: item.answer })) : null,
+          item.explanation ? h2("div", { key: "explanation" }, h2("strong", null, "解析"), h2(Markdown, { text: item.explanation })) : null
         ] : null
       );
     }
@@ -3106,7 +11832,7 @@ ${sourceUrl}` : ""}` : ""
         const pageSize = 60;
         const pageCount = Math.ceil(importResult.items.length / pageSize);
         const selectedCount = importResult.usable - excluded.length;
-        return h(
+        return h2(
           Modal,
           {
             embedded,
@@ -3114,8 +11840,8 @@ ${sourceUrl}` : ""}` : ""
             onClose: onCancelImport,
             wide: true,
             footer: [
-              h(Btn, { key: "cancel", onClick: onCancelImport, disabled: committing }, T.cancel),
-              h(Btn, {
+              h2(Btn, { key: "cancel", onClick: onCancelImport, disabled: committing }, T.cancel),
+              h2(Btn, {
                 key: "ok",
                 variant: "primary",
                 disabled: !selectedCount || committing || Boolean(importResult.incomplete),
@@ -3123,44 +11849,44 @@ ${sourceUrl}` : ""}` : ""
               }, T.commit)
             ]
           },
-          h(
+          h2(
             "div",
             { className: "kd-manage-stack" },
-            h(
+            h2(
               "div",
               { className: "kd-manage-metrics" },
-              [["识别题目", importResult.stats.total], ["可用题目", importResult.usable], ["已选入库", selectedCount]].map(([label, value]) => h("div", { key: label }, h("strong", null, value), h("span", null, label)))
+              [["识别题目", importResult.stats.total], ["可用题目", importResult.usable], ["已选入库", selectedCount]].map(([label, value]) => h2("div", { key: label }, h2("strong", null, value), h2("span", null, label)))
             ),
-            importResult.pages?.length ? h(PdfImportPreview, { pages: importResult.pages }) : null,
-            importResult.sourceText ? h(
+            importResult.pages?.length ? h2(PdfImportPreview, { pages: importResult.pages }) : null,
+            importResult.sourceText ? h2(
               "details",
               { className: "kd-pdf-preview" },
-              h("summary", null, "查看文件原文"),
-              h("pre", { className: "kd-import-text", tabIndex: 0 }, importResult.sourceText)
+              h2("summary", null, "查看文件原文"),
+              h2("pre", { className: "kd-import-text", tabIndex: 0 }, importResult.sourceText)
             ) : null,
-            importResult.warnings.length ? h(
+            importResult.warnings.length ? h2(
               "div",
               { className: "kd-manage-feedback is-warning" },
-              h("strong", null, "解析提示"),
-              h("ul", null, importResult.warnings.map((item, index) => h("li", { key: index }, item)))
+              h2("strong", null, "解析提示"),
+              h2("ul", null, importResult.warnings.map((item, index) => h2("li", { key: index }, item)))
             ) : null,
-            pageCount > 1 ? h(
+            pageCount > 1 ? h2(
               "div",
               { className: "kd-actions" },
-              h(Btn, { small: true, disabled: previewPage === 0, onClick: /* @__PURE__ */ __name(() => setPreviewPage(previewPage - 1), "onClick") }, "上一页"),
-              h("span", { className: "kd-meta" }, `${previewPage + 1} / ${pageCount}`),
-              h(Btn, { small: true, disabled: previewPage + 1 === pageCount, onClick: /* @__PURE__ */ __name(() => setPreviewPage(previewPage + 1), "onClick") }, "下一页")
+              h2(Btn, { small: true, disabled: previewPage === 0, onClick: /* @__PURE__ */ __name(() => setPreviewPage(previewPage - 1), "onClick") }, "上一页"),
+              h2("span", { className: "kd-meta" }, `${previewPage + 1} / ${pageCount}`),
+              h2(Btn, { small: true, disabled: previewPage + 1 === pageCount, onClick: /* @__PURE__ */ __name(() => setPreviewPage(previewPage + 1), "onClick") }, "下一页")
             ) : null,
-            h(
+            h2(
               ManageSection,
               { title: "选择入库题目", hint: "可取消勾选不想导入的题目，展开后可核对选项、答案和解析。" },
-              importResult.items.slice(previewPage * pageSize, (previewPage + 1) * pageSize).map((item) => h(
+              importResult.items.slice(previewPage * pageSize, (previewPage + 1) * pageSize).map((item) => h2(
                 "div",
                 { key: item.index, className: "kd-preview-item" },
-                h(
+                h2(
                   "div",
                   { className: "kd-row" },
-                  h("input", {
+                  h2("input", {
                     type: "checkbox",
                     "aria-label": `第 ${item.index} 题入库`,
                     disabled: !item.usable || committing,
@@ -3170,26 +11896,26 @@ ${sourceUrl}` : ""}` : ""
                       setExcluded((items) => checked ? items.filter((index) => index !== item.index) : [...items, item.index]);
                     }, "onChange")
                   }),
-                  h(Badge, null, `第 ${item.index} 题`),
-                  h(Badge, null, item.typeLabel),
-                  item.usable === false ? h(Badge, { tone: "warn" }, "不入库") : null,
-                  item.answerStatus === "missing" ? h(Badge, { tone: "warn" }, T.missing) : h(Badge, { tone: "ok" }, "含参考答案（待核验）"),
-                  item.options.length ? h(Badge, null, `${item.options.length} 个选项`) : null
+                  h2(Badge, null, `第 ${item.index} 题`),
+                  h2(Badge, null, item.typeLabel),
+                  item.usable === false ? h2(Badge, { tone: "warn" }, "不入库") : null,
+                  item.answerStatus === "missing" ? h2(Badge, { tone: "warn" }, T.missing) : h2(Badge, { tone: "ok" }, "含参考答案（待核验）"),
+                  item.options.length ? h2(Badge, null, `${item.options.length} 个选项`) : null
                 ),
-                h(
+                h2(
                   "div",
                   { className: "kd-bank-preview-stem", style: { marginTop: "6px", fontSize: "13px" } },
-                  h(Markdown, { text: (item.stem || "(未识别到题干)").slice(0, 400) })
+                  h2(Markdown, { text: (item.stem || "(未识别到题干)").slice(0, 400) })
                 ),
-                h(BankItemPreview, { item }),
-                item.issues.length ? h("div", { className: "kd-warn-text", style: { marginTop: "6px" } }, `问题：${item.issues.join("；")}`) : null
+                h2(BankItemPreview, { item }),
+                item.issues.length ? h2("div", { className: "kd-warn-text", style: { marginTop: "6px" } }, `问题：${item.issues.join("；")}`) : null
               ))
             )
           )
         );
       }
-      const importButton = h(Btn, { key: "import", variant: "primary", onClick: onPickFile }, h(Icon, { name: "upload", size: 13 }), T.import);
-      return h(
+      const importButton = h2(Btn, { key: "import", variant: "primary", onClick: onPickFile }, h2(Icon, { name: "upload", size: 13 }), T.import);
+      return h2(
         Modal,
         {
           embedded,
@@ -3197,12 +11923,12 @@ ${sourceUrl}` : ""}` : ""
           onClose,
           wide: true,
           headerActions: embedded ? importButton : null,
-          footer: embedded ? null : [importButton, h(Btn, { key: "close", onClick: onClose }, T.close)]
+          footer: embedded ? null : [importButton, h2(Btn, { key: "close", onClick: onClose }, T.close)]
         },
-        h(
+        h2(
           ManageSection,
           { title: `已导入题库 · ${(boot.banks || []).length} 份`, hint: T.importHint },
-          (boot.banks || []).length ? boot.banks.map((bank) => h(ManageFileRow, {
+          (boot.banks || []).length ? boot.banks.map((bank) => h2(ManageFileRow, {
             key: bank.id,
             icon: "book",
             name: bank.name,
@@ -3212,8 +11938,8 @@ ${sourceUrl}` : ""}` : ""
               bank.kind === "pdf" ? "PDF" : "文本文档",
               ...bank.pendingAnswers ? [`${bank.pendingAnswers} 道答案待核验`] : []
             ],
-            action: h(Btn, { small: true, variant: "danger", onClick: /* @__PURE__ */ __name(() => onDelete(bank), "onClick") }, h(Icon, { name: "trash", size: 13 }), T.deleteBank)
-          })) : h(EmptyState, {
+            action: h2(Btn, { small: true, variant: "danger", onClick: /* @__PURE__ */ __name(() => onDelete(bank), "onClick") }, h2(Icon, { name: "trash", size: 13 }), T.deleteBank)
+          })) : h2(EmptyState, {
             icon: "upload",
             title: "还没有导入题库",
             body: "导入并核对题目后，即可在科目管理中将题库设为出题来源。"
@@ -3258,7 +11984,7 @@ ${sourceUrl}` : ""}` : ""
         if (!file || !selected) return;
         await save("importSyllabus", () => readStudyFile(file));
       }, "onFile");
-      if (preview) return h(StudyImportPreview, {
+      if (preview) return h2(StudyImportPreview, {
         title: "大纲导入预览",
         preview,
         busy,
@@ -3270,7 +11996,7 @@ ${sourceUrl}` : ""}` : ""
         }, "onCancel"),
         onConfirm: /* @__PURE__ */ __name(() => save("commitStudyImport", () => ({ importId: preview.importId })), "onConfirm")
       });
-      return h(
+      return h2(
         Modal,
         {
           title: T.manageSyllabuses,
@@ -3279,53 +12005,53 @@ ${sourceUrl}` : ""}` : ""
           onClose: /* @__PURE__ */ __name(() => {
             if (!busy) onClose();
           }, "onClose"),
-          footer: embedded ? null : h(Btn, { disabled: busy, onClick: onClose }, T.close)
+          footer: embedded ? null : h2(Btn, { disabled: busy, onClick: onClose }, T.close)
         },
-        h(
+        h2(
           "div",
           { className: "kd-manage-stack" },
-          h(
+          h2(
             ManageSection,
             {
               title: "导入考试大纲",
               hint: "每科可保存一份 PDF、TXT 或 Markdown 大纲。模型识别考试范围后，先核对预览再保存。"
             },
-            h("div", { className: "kd-manage-fields" }, h(
+            h2("div", { className: "kd-manage-fields" }, h2(
               "label",
               { className: "kd-field" },
-              h("span", { className: "kd-field-label" }, "科目"),
-              h(
+              h2("span", { className: "kd-field-label" }, "科目"),
+              h2(
                 "select",
                 { className: selected ? "kd-select" : "kd-select is-placeholder", value: selected, disabled: busy || !subjects.length, onChange: /* @__PURE__ */ __name((event) => {
                   setSelected(event.target.value);
                   setError("");
                   setMessage("");
                 }, "onChange") },
-                h("option", { value: "", disabled: true }, "选择一门科目"),
-                ...subjects.map((subject) => h("option", { key: subject.id, value: subject.id }, subject.name))
+                h2("option", { value: "", disabled: true }, "选择一门科目"),
+                ...subjects.map((subject) => h2("option", { key: subject.id, value: subject.id }, subject.name))
               )
             )),
-            !subjects.length ? h("p", { className: "kd-manage-empty" }, "请先在科目管理添加科目。") : null,
-            h("input", { type: "file", accept: STUDY_FILE_ACCEPT, ref: fileInput, hidden: true, onChange: onFile }),
-            h(
+            !subjects.length ? h2("p", { className: "kd-manage-empty" }, "请先在科目管理添加科目。") : null,
+            h2("input", { type: "file", accept: STUDY_FILE_ACCEPT, ref: fileInput, hidden: true, onChange: onFile }),
+            h2(
               "div",
               { className: "kd-actions" },
-              h(Btn, { variant: "primary", disabled: busy || !selected, onClick: /* @__PURE__ */ __name(() => fileInput.current?.click(), "onClick") }, h(Icon, { name: "upload" }), current ? "替换大纲" : "导入大纲")
+              h2(Btn, { variant: "primary", disabled: busy || !selected, onClick: /* @__PURE__ */ __name(() => fileInput.current?.click(), "onClick") }, h2(Icon, { name: "upload" }), current ? "替换大纲" : "导入大纲")
             ),
-            busy ? h("p", { className: "kd-manage-feedback", role: "status" }, "正在读取文件并让模型识别考试范围…") : null,
-            error ? h("p", { className: "kd-manage-feedback is-error", role: "alert" }, error) : null,
-            message ? h("p", { className: "kd-manage-feedback", role: "status" }, message) : null
+            busy ? h2("p", { className: "kd-manage-feedback", role: "status" }, "正在读取文件并让模型识别考试范围…") : null,
+            error ? h2("p", { className: "kd-manage-feedback is-error", role: "alert" }, error) : null,
+            message ? h2("p", { className: "kd-manage-feedback", role: "status" }, message) : null
           ),
-          h(
+          h2(
             ManageSection,
             { title: "已导入大纲" },
-            current ? h(ManageFileRow, {
+            current ? h2(ManageFileRow, {
               icon: "syllabus",
               name: current.fileName,
               meta: `导入于 ${formatDateTime(current.importedAt)}`,
               badges: [`${current.characters} 字符`],
-              action: h(Btn, { small: true, variant: "danger", disabled: busy, onClick: /* @__PURE__ */ __name(() => save("removeSyllabus", async () => ({})), "onClick") }, "移除大纲")
-            }) : h("p", { className: "kd-manage-empty" }, selected ? "这个科目尚未导入大纲。" : "选择科目后查看已导入的大纲。")
+              action: h2(Btn, { small: true, variant: "danger", disabled: busy, onClick: /* @__PURE__ */ __name(() => save("removeSyllabus", async () => ({})), "onClick") }, "移除大纲")
+            }) : h2("p", { className: "kd-manage-empty" }, selected ? "这个科目尚未导入大纲。" : "选择科目后查看已导入的大纲。")
           )
         )
       );
@@ -3373,7 +12099,7 @@ ${sourceUrl}` : ""}` : ""
         if (!file || !subject || !validYear || busy) return;
         await save("importPastPaper", async () => ({ year: Number(year), type, ...await readStudyFile(file) }));
       }, "onFile");
-      if (preview) return h(StudyImportPreview, {
+      if (preview) return h2(StudyImportPreview, {
         title: "真题导入预览",
         preview,
         busy,
@@ -3385,7 +12111,7 @@ ${sourceUrl}` : ""}` : ""
         }, "onCancel"),
         onConfirm: /* @__PURE__ */ __name(() => save("commitStudyImport", () => ({ importId: preview.importId }), "真题已保存，可供后续出题校验难度。"), "onConfirm")
       });
-      return h(
+      return h2(
         Modal,
         {
           title: T.managePastPapers,
@@ -3394,25 +12120,25 @@ ${sourceUrl}` : ""}` : ""
           onClose: /* @__PURE__ */ __name(() => {
             if (!busy) onClose();
           }, "onClose"),
-          footer: embedded ? null : h(Btn, { disabled: busy, onClick: onClose }, T.close)
+          footer: embedded ? null : h2(Btn, { disabled: busy, onClick: onClose }, T.close)
         },
-        h(
+        h2(
           "div",
           { className: "kd-manage-stack" },
-          h(
+          h2(
             ManageSection,
             {
               title: "导入历年真题",
               hint: "支持 PDF、TXT 和 Markdown。同一科目每年保存一份真题，导入前可核对模型识别的题型。"
             },
-            h(
+            h2(
               "div",
               { className: "kd-manage-fields kd-paper-fields" },
-              h(
+              h2(
                 "label",
                 { className: "kd-field" },
-                h("span", { className: "kd-field-label" }, "科目"),
-                h(
+                h2("span", { className: "kd-field-label" }, "科目"),
+                h2(
                   "select",
                   { className: selected ? "kd-select" : "kd-select is-placeholder", value: selected, disabled: busy || !subjects.length, onChange: /* @__PURE__ */ __name((event) => {
                     setSelected(event.target.value);
@@ -3420,60 +12146,60 @@ ${sourceUrl}` : ""}` : ""
                     setError("");
                     setMessage("");
                   }, "onChange") },
-                  h("option", { value: "", disabled: true }, "选择一门科目"),
-                  ...subjects.map((item) => h("option", { key: item.id, value: item.id }, item.name))
+                  h2("option", { value: "", disabled: true }, "选择一门科目"),
+                  ...subjects.map((item) => h2("option", { key: item.id, value: item.id }, item.name))
                 )
               ),
-              h(
+              h2(
                 "label",
                 { className: "kd-field" },
-                h("span", { className: "kd-field-label" }, "年份"),
-                h("input", { className: "kd-input", type: "number", min: 1900, max: maxYear, step: 1, placeholder: "例如 2025", value: year, disabled: busy, onChange: /* @__PURE__ */ __name((event) => setYear(event.target.value), "onChange") })
+                h2("span", { className: "kd-field-label" }, "年份"),
+                h2("input", { className: "kd-input", type: "number", min: 1900, max: maxYear, step: 1, placeholder: "例如 2025", value: year, disabled: busy, onChange: /* @__PURE__ */ __name((event) => setYear(event.target.value), "onChange") })
               ),
-              h(
+              h2(
                 "label",
                 { className: "kd-field" },
-                h("span", { className: "kd-field-label" }, "题型提示（选填）"),
-                h(
+                h2("span", { className: "kd-field-label" }, "题型提示（选填）"),
+                h2(
                   "select",
                   { className: "kd-select", value: type, disabled: busy, onChange: /* @__PURE__ */ __name((event) => setType(event.target.value), "onChange") },
-                  h("option", { value: "" }, "由模型识别"),
-                  ...(subject?.types || []).map((value) => h("option", { key: value, value }, typeName(value)))
+                  h2("option", { value: "" }, "由模型识别"),
+                  ...(subject?.types || []).map((value) => h2("option", { key: value, value }, typeName(value)))
                 )
               )
             ),
-            h("p", { className: "kd-meta" }, "至少两个年份的可核对同题型真题才能用于难度校验。"),
-            h("input", { type: "file", accept: STUDY_FILE_ACCEPT, ref: fileInput, hidden: true, onChange: onFile }),
-            h(
+            h2("p", { className: "kd-meta" }, "至少两个年份的可核对同题型真题才能用于难度校验。"),
+            h2("input", { type: "file", accept: STUDY_FILE_ACCEPT, ref: fileInput, hidden: true, onChange: onFile }),
+            h2(
               "div",
               { className: "kd-actions" },
-              h(
+              h2(
                 Btn,
                 { variant: "primary", disabled: busy || !subject || !validYear, onClick: /* @__PURE__ */ __name(() => fileInput.current?.click(), "onClick") },
-                h(Icon, { name: "upload" }),
+                h2(Icon, { name: "upload" }),
                 existing ? "替换该年份真题" : "导入真题"
               )
             ),
-            busy ? h("p", { className: "kd-manage-feedback", role: "status" }, "正在读取文件并让模型识别真题题型…") : null,
-            error ? h("p", { className: "kd-manage-feedback is-error", role: "alert" }, error) : null,
-            message ? h("p", { className: "kd-manage-feedback", role: "status" }, message) : null
+            busy ? h2("p", { className: "kd-manage-feedback", role: "status" }, "正在读取文件并让模型识别真题题型…") : null,
+            error ? h2("p", { className: "kd-manage-feedback is-error", role: "alert" }, error) : null,
+            message ? h2("p", { className: "kd-manage-feedback", role: "status" }, message) : null
           ),
-          h(
+          h2(
             ManageSection,
             { title: subject ? `已导入真题 · ${papers.length} 份` : "已导入真题" },
-            papers.length ? papers.map((paper) => h(ManageFileRow, {
+            papers.length ? papers.map((paper) => h2(ManageFileRow, {
               key: paper.year,
               icon: "papers",
               name: paper.fileName,
               meta: `${paper.year} 年`,
               badges: paper.types?.length ? paper.types.map(typeName) : ["未识别题型"],
-              action: h(Btn, {
+              action: h2(Btn, {
                 small: true,
                 variant: "danger",
                 disabled: busy,
                 onClick: /* @__PURE__ */ __name(() => save("removePastPaper", async () => ({ year: paper.year }), "真题已移除。"), "onClick")
               }, "移除")
-            })) : h("p", { className: "kd-manage-empty" }, subject ? "这个科目尚未导入真题。" : "选择科目后查看已导入的真题。")
+            })) : h2("p", { className: "kd-manage-empty" }, subject ? "这个科目尚未导入真题。" : "选择科目后查看已导入的真题。")
           )
         )
       );
@@ -3547,7 +12273,7 @@ ${sourceUrl}` : ""}` : ""
         chooseRestore(null);
         onRestored(result.warning);
       }), "restore");
-      const dialog = pending ? h(ConfirmModal, {
+      const dialog = pending ? h2(ConfirmModal, {
         title: "确认恢复学习数据",
         confirmLabel: "确认恢复",
         danger: true,
@@ -3557,17 +12283,17 @@ ${sourceUrl}` : ""}` : ""
           if (!busy) chooseRestore(null);
         }, "onClose"),
         onConfirm: restore,
-        message: h(
+        message: h2(
           "div",
           { className: "kd-backup-confirm" },
-          h("p", null, pending.file ? "备份文件" : "本机恢复点"),
-          h("strong", null, pending.label),
-          pending.at ? h("p", { className: "kd-meta" }, formatDateTime(pending.at)) : null,
-          h("p", null, "恢复会替换当前全部学习数据。当前数据会先保存为恢复点。"),
-          error ? h("p", { role: "alert", className: "kd-error-text" }, error) : null
+          h2("p", null, pending.file ? "备份文件" : "本机恢复点"),
+          h2("strong", null, pending.label),
+          pending.at ? h2("p", { className: "kd-meta" }, formatDateTime(pending.at)) : null,
+          h2("p", null, "恢复会替换当前全部学习数据。当前数据会先保存为恢复点。"),
+          error ? h2("p", { role: "alert", className: "kd-error-text" }, error) : null
         )
       }) : null;
-      return h(
+      return h2(
         Modal,
         {
           title: "备份与恢复",
@@ -3576,51 +12302,51 @@ ${sourceUrl}` : ""}` : ""
           onClose: /* @__PURE__ */ __name(() => {
             if (!busy) onClose();
           }, "onClose"),
-          footer: embedded ? null : h(Btn, { onClick: onClose, disabled: busy || Boolean(dialog) }, "关闭"),
-          notification: !pending && error ? h(NotificationBanner, { message: error, tone: "bad" }) : null
+          footer: embedded ? null : h2(Btn, { onClick: onClose, disabled: busy || Boolean(dialog) }, "关闭"),
+          notification: !pending && error ? h2(NotificationBanner, { message: error, tone: "bad" }) : null
         },
-        h(
+        h2(
           "div",
           { className: "kd-backup-layout" },
-          h(
+          h2(
             "div",
             { className: "kd-backup-actions" },
-            h(
+            h2(
               "section",
               { className: "kd-backup-card" },
-              h("h3", null, "导出备份"),
-              h("p", { className: "kd-meta" }, "将科目设置、题库和学习记录保存为 JSON 文件。"),
-              h(Btn, { variant: "primary", onClick: download, disabled: busy }, "下载备份")
+              h2("h3", null, "导出备份"),
+              h2("p", { className: "kd-meta" }, "将科目设置、题库和学习记录保存为 JSON 文件。"),
+              h2(Btn, { variant: "primary", onClick: download, disabled: busy }, "下载备份")
             ),
-            h(
+            h2(
               "section",
               { className: "kd-backup-card" },
-              h("h3", null, "从备份文件恢复"),
-              h("p", { className: "kd-meta" }, "选择之前导出的 JSON 文件，确认后恢复学习数据。"),
-              h("input", { ref: fileInput, type: "file", accept: ".json,application/json", disabled: busy, hidden: true, onChange: pick }),
-              h(Btn, { onClick: /* @__PURE__ */ __name(() => fileInput.current?.click(), "onClick"), disabled: busy }, h(Icon, { name: "upload" }), "选择备份文件")
+              h2("h3", null, "从备份文件恢复"),
+              h2("p", { className: "kd-meta" }, "选择之前导出的 JSON 文件，确认后恢复学习数据。"),
+              h2("input", { ref: fileInput, type: "file", accept: ".json,application/json", disabled: busy, hidden: true, onChange: pick }),
+              h2(Btn, { onClick: /* @__PURE__ */ __name(() => fileInput.current?.click(), "onClick"), disabled: busy }, h2(Icon, { name: "upload" }), "选择备份文件")
             )
           ),
-          h(
+          h2(
             "section",
             { className: "kd-backup-card kd-backup-recovery" },
-            h("h3", null, "本机恢复点"),
-            h("p", { className: "kd-meta" }, "删除科目和恢复数据前，插件会分别保留最近一次操作前的数据。"),
-            pointsError ? h("p", { role: "alert", className: "kd-error-text" }, pointsError) : !points ? h("p", { role: "status", className: "kd-meta kd-backup-empty" }, "正在读取恢复点…") : points.length ? h(
+            h2("h3", null, "本机恢复点"),
+            h2("p", { className: "kd-meta" }, "删除科目和恢复数据前，插件会分别保留最近一次操作前的数据。"),
+            pointsError ? h2("p", { role: "alert", className: "kd-error-text" }, pointsError) : !points ? h2("p", { role: "status", className: "kd-meta kd-backup-empty" }, "正在读取恢复点…") : points.length ? h2(
               "ul",
               { className: "kd-recovery-list" },
-              ...points.map((point) => h(
+              ...points.map((point) => h2(
                 "li",
                 { key: point.kind, className: "kd-row-between" },
-                h(
+                h2(
                   "div",
                   null,
-                  h("strong", null, labels2[point.kind]),
-                  h("div", { className: "kd-meta" }, formatDateTime(point.at))
+                  h2("strong", null, labels2[point.kind]),
+                  h2("div", { className: "kd-meta" }, formatDateTime(point.at))
                 ),
-                h(Btn, { small: true, disabled: busy, onClick: /* @__PURE__ */ __name(() => chooseRestore({ ...point, label: labels2[point.kind] }), "onClick") }, "使用此恢复点")
+                h2(Btn, { small: true, disabled: busy, onClick: /* @__PURE__ */ __name(() => chooseRestore({ ...point, label: labels2[point.kind] }), "onClick") }, "使用此恢复点")
               ))
-            ) : h("p", { className: "kd-meta kd-backup-empty" }, "暂无恢复点。")
+            ) : h2("p", { className: "kd-meta kd-backup-empty" }, "暂无恢复点。")
           )
         )
       );
@@ -3628,36 +12354,36 @@ ${sourceUrl}` : ""}` : ""
     __name(BackupModal, "BackupModal");
     function AttemptModal({ record, onClose }) {
       const { lastAttempt, answer, answerVersionUnknown } = record;
-      return h(
+      return h2(
         Modal,
         {
           title: "当时的答案与解析",
           onClose,
-          footer: h(Btn, { onClick: onClose }, "关闭")
+          footer: h2(Btn, { onClick: onClose }, "关闭")
         },
-        h("p", { className: "kd-meta" }, `${formatDateTime(lastAttempt.at)} · ${statusLabel(lastAttempt.result).text}` + (lastAttempt.choice ? ` · 选择 ${lastAttempt.choice}` : "")),
-        answer ? h(
+        h2("p", { className: "kd-meta" }, `${formatDateTime(lastAttempt.at)} · ${statusLabel(lastAttempt.result).text}` + (lastAttempt.choice ? ` · 选择 ${lastAttempt.choice}` : "")),
+        answer ? h2(
           "div",
           { className: "kd-answer-copy" },
-          answer.versionId ? h("p", { className: "kd-meta" }, `版本 ${answer.versionId}`) : null,
-          h(Markdown, { text: answer.answer || "（无参考答案）" }),
-          h(Markdown, { text: answer.explanation || "（无解析）" })
-        ) : h("p", null, answerVersionUnknown ? "这条旧作答无法确认当时的答案版本。" : "这次作答没有可用的参考答案。")
+          answer.versionId ? h2("p", { className: "kd-meta" }, `版本 ${answer.versionId}`) : null,
+          h2(Markdown, { text: answer.answer || "（无参考答案）" }),
+          h2(Markdown, { text: answer.explanation || "（无解析）" })
+        ) : h2("p", null, answerVersionUnknown ? "这条旧作答无法确认当时的答案版本。" : "这次作答没有可用的参考答案。")
       );
     }
     __name(AttemptModal, "AttemptModal");
     function RevisionModal({ question, onClose, onConfirm, onDiscard, busy }) {
       const candidate = question?.pendingRevision;
       if (!candidate) return null;
-      return h(
+      return h2(
         Modal,
         {
           title: T.revision,
           onClose,
           wide: true,
           footer: [
-            h(Btn, { key: "discard", onClick: onDiscard }, T.discardRevision),
-            h(Btn, {
+            h2(Btn, { key: "discard", onClick: onDiscard }, T.discardRevision),
+            h2(Btn, {
               key: "ok",
               variant: "primary",
               disabled: busy || candidate.verification?.status !== "passed",
@@ -3665,48 +12391,48 @@ ${sourceUrl}` : ""}` : ""
             }, T.confirmRevision)
           ]
         },
-        h(
+        h2(
           "div",
           { className: "kd-verify" },
-          h(
+          h2(
             Badge,
             { tone: candidate.verification?.status === "passed" ? "ok" : "warn" },
             candidate.verification?.status === "passed" ? "候选版本已通过独立校验" : "候选版本未通过校验"
           ),
           ` ${candidate.verification?.summary || ""}（${candidate.verification?.method || ""}）`
         ),
-        h(
+        h2(
           "div",
           { className: "kd-answer-block kd-answer-copy", style: { marginTop: "14px" } },
-          h("div", { className: "kd-answer-label" }, "候选标准答案"),
-          h(Markdown, { text: candidate.answer })
+          h2("div", { className: "kd-answer-label" }, "候选标准答案"),
+          h2(Markdown, { text: candidate.answer })
         ),
-        h(
+        h2(
           "div",
           { className: "kd-answer-block kd-answer-copy" },
-          h("div", { className: "kd-answer-label" }, "候选解析"),
-          h(Markdown, { text: candidate.explanation })
+          h2("div", { className: "kd-answer-label" }, "候选解析"),
+          h2(Markdown, { text: candidate.explanation })
         ),
-        h("div", { className: "kd-msg-meta" }, "确认后才会替换正式版本；旧版本会保留在版本历史中。")
+        h2("div", { className: "kd-msg-meta" }, "确认后才会替换正式版本；旧版本会保留在版本历史中。")
       );
     }
     __name(RevisionModal, "RevisionModal");
     function ConfirmModal({ title, message, confirmLabel, onConfirm, onClose, danger, busy, embedded, explicitClose }) {
-      return h(Modal, {
+      return h2(Modal, {
         title,
         embedded,
         explicitClose,
         onClose,
         footer: [
-          h(Btn, { key: "cancel", onClick: onClose, disabled: busy }, T.cancel),
-          h(Btn, { key: "ok", variant: danger ? "danger" : "primary", onClick: onConfirm, disabled: busy }, busy ? "正在处理…" : confirmLabel || T.confirm)
+          h2(Btn, { key: "cancel", onClick: onClose, disabled: busy }, T.cancel),
+          h2(Btn, { key: "ok", variant: danger ? "danger" : "primary", onClick: onConfirm, disabled: busy }, busy ? "正在处理…" : confirmLabel || T.confirm)
         ]
-      }, h("div", { className: "kd-md" }, message));
+      }, h2("div", { className: "kd-md" }, message));
     }
     __name(ConfirmModal, "ConfirmModal");
     function PluginLogo({ size = 16, className }) {
       const gradientId = useId();
-      return h(
+      return h2(
         "svg",
         {
           width: size,
@@ -3715,23 +12441,23 @@ ${sourceUrl}` : ""}` : ""
           className,
           "aria-hidden": true
         },
-        h(
+        h2(
           "defs",
           null,
-          h(
+          h2(
             "linearGradient",
             { id: gradientId, x1: 0, y1: 0, x2: 1, y2: 1 },
-            h("stop", { offset: 0, stopColor: "#5676ff" }),
-            h("stop", { offset: 1, stopColor: "#3b55e8" })
+            h2("stop", { offset: 0, stopColor: "#5676ff" }),
+            h2("stop", { offset: 1, stopColor: "#3b55e8" })
           )
         ),
-        h("rect", { x: 2, y: 2, width: 60, height: 60, rx: 16, fill: `url(#${gradientId})` }),
-        h(
+        h2("rect", { x: 2, y: 2, width: 60, height: 60, rx: 16, fill: `url(#${gradientId})` }),
+        h2(
           "g",
           { fill: "none", stroke: "#fff", strokeLinecap: "round", strokeLinejoin: "round" },
-          h("rect", { x: 15.5, y: 20, width: 33, height: 30, rx: 6.5, strokeWidth: 3.6 }),
-          h("path", { d: "M23 15.5V23M41 15.5V23", strokeWidth: 3.6 }),
-          h("path", { d: "m27.4 33.2 5.5-3.9v13.3m-4.4 0h9.2", strokeWidth: 4 })
+          h2("rect", { x: 15.5, y: 20, width: 33, height: 30, rx: 6.5, strokeWidth: 3.6 }),
+          h2("path", { d: "M23 15.5V23M41 15.5V23", strokeWidth: 3.6 }),
+          h2("path", { d: "m27.4 33.2 5.5-3.9v13.3m-4.4 0h9.2", strokeWidth: 4 })
         )
       );
     }
@@ -3774,44 +12500,44 @@ ${sourceUrl}` : ""}` : ""
   }
   __name(accuracy, "accuracy");
   function createStudyStatsPage(React, { window, rpc, Btn, Icon }) {
-    const { createElement: h, useState, useEffect } = React;
+    const { createElement: h2, useState, useEffect } = React;
     function PracticeChart({ days }) {
       const max = Math.max(1, ...days.map((day) => day.attempts));
-      return h(
+      return h2(
         "section",
         { className: "kd-stats-card", "aria-label": "近七天作答" },
-        h(
+        h2(
           "div",
           { className: "kd-stats-section-head" },
-          h("h2", null, "近七天作答"),
-          h(
+          h2("h2", null, "近七天作答"),
+          h2(
             "div",
             { className: "kd-stats-legend" },
-            h("span", { className: "is-correct" }, "正确"),
-            h("span", { className: "is-wrong" }, "错误"),
-            h("span", { className: "is-pending" }, "待判定")
+            h2("span", { className: "is-correct" }, "正确"),
+            h2("span", { className: "is-wrong" }, "错误"),
+            h2("span", { className: "is-pending" }, "待判定")
           )
         ),
-        max === 1 && !days.some((day) => day.attempts) ? h("p", { className: "kd-meta" }, "近七天暂无作答。") : null,
-        h(
+        max === 1 && !days.some((day) => day.attempts) ? h2("p", { className: "kd-meta" }, "近七天暂无作答。") : null,
+        h2(
           "ol",
           { className: "kd-stats-chart" },
           days.map((day) => {
             const label = `${formatDate(day.date)}，作答 ${day.attempts} 次，正确 ${day.correct} 次，错误 ${day.wrong} 次，待判定 ${day.pending} 次`;
-            return h(
+            return h2(
               "li",
               { key: day.date, "aria-label": label, title: label },
-              h(
+              h2(
                 "div",
                 { className: "kd-stats-bar-area", "aria-hidden": true },
-                h("span", { className: "kd-stats-bar-value" }, day.attempts),
-                h(
+                h2("span", { className: "kd-stats-bar-value" }, day.attempts),
+                h2(
                   "div",
                   { className: "kd-stats-bar", style: { "--kd-bar-share": day.attempts / max } },
-                  ...["correct", "wrong", "pending"].filter((status) => day[status]).map((status) => h("span", { key: status, className: `is-${status}`, style: { flex: day[status] } }))
+                  ...["correct", "wrong", "pending"].filter((status) => day[status]).map((status) => h2("span", { key: status, className: `is-${status}`, style: { flex: day[status] } }))
                 )
               ),
-              h("span", { className: "kd-stats-day", "aria-hidden": true }, day.date.slice(5).replace("-", "/"))
+              h2("span", { className: "kd-stats-day", "aria-hidden": true }, day.date.slice(5).replace("-", "/"))
             );
           })
         )
@@ -3820,30 +12546,30 @@ ${sourceUrl}` : ""}` : ""
     __name(PracticeChart, "PracticeChart");
     function SubjectTable({ subjects }) {
       const columns = ["科目", "已练习", "作答次数", "正确率", "收藏", "错题", "待复习"];
-      return h(
+      return h2(
         "section",
         { className: "kd-stats-card", "aria-label": "分科统计" },
-        h("h2", null, "分科统计"),
-        subjects.length ? h(
+        h2("h2", null, "分科统计"),
+        subjects.length ? h2(
           "div",
           { className: "kd-stats-table-wrap", tabIndex: 0, "aria-label": "分科统计表格" },
-          h(
+          h2(
             "table",
             { className: "kd-stats-table" },
-            h("thead", null, h("tr", null, columns.map((label) => h("th", { key: label, scope: "col" }, label)))),
-            h("tbody", null, subjects.map((subject) => h(
+            h2("thead", null, h2("tr", null, columns.map((label) => h2("th", { key: label, scope: "col" }, label)))),
+            h2("tbody", null, subjects.map((subject) => h2(
               "tr",
               { key: subject.id },
-              h("th", { scope: "row" }, subject.name, subject.enabled ? null : h("small", null, "已停用")),
-              h("td", null, subject.attempted, " / ", subject.all),
-              h("td", null, subject.attempts),
-              h("td", null, accuracy(subject)),
-              h("td", null, subject.favorite),
-              h("td", null, subject.wrongBook),
-              h("td", null, subject.review)
+              h2("th", { scope: "row" }, subject.name, subject.enabled ? null : h2("small", null, "已停用")),
+              h2("td", null, subject.attempted, " / ", subject.all),
+              h2("td", null, subject.attempts),
+              h2("td", null, accuracy(subject)),
+              h2("td", null, subject.favorite),
+              h2("td", null, subject.wrongBook),
+              h2("td", null, subject.review)
             )))
           )
-        ) : h("p", { className: "kd-meta" }, "启用科目后，这里会显示各科的学习记录。")
+        ) : h2("p", { className: "kd-meta" }, "启用科目后，这里会显示各科的学习记录。")
       );
     }
     __name(SubjectTable, "SubjectTable");
@@ -3878,43 +12604,43 @@ ${sourceUrl}` : ""}` : ""
         ["待复习", `${totals.review} 道`, `错题本 ${totals.wrongBook} 道 · 收藏 ${totals.favorite} 道`]
       ] : [];
       return fullscreen(
-        h,
+        h2,
         Icon,
         {
           title: "学习统计",
           onClose,
-          detail: data?.today || today ? h("span", { className: "kd-meta" }, formatDate(data?.today || today)) : null
+          detail: data?.today || today ? h2("span", { className: "kd-meta" }, formatDate(data?.today || today)) : null
         },
-        h(
+        h2(
           "div",
           { className: "kd-stats-scroll" },
-          h(
+          h2(
             "div",
             { className: "kd-stats-content" },
-            error ? h(
+            error ? h2(
               "div",
               { className: "kd-stats-card", role: "alert" },
-              h("p", null, `无法读取学习统计：${error}`),
-              h(Btn, { onClick: /* @__PURE__ */ __name(() => setRetry((value) => value + 1), "onClick") }, "重试")
-            ) : !data ? h(
+              h2("p", null, `无法读取学习统计：${error}`),
+              h2(Btn, { onClick: /* @__PURE__ */ __name(() => setRetry((value) => value + 1), "onClick") }, "重试")
+            ) : !data ? h2(
               "div",
               { className: "kd-loading", role: "status" },
-              h("span", { className: "kd-spinner" }),
+              h2("span", { className: "kd-spinner" }),
               "正在读取学习统计…"
             ) : [
-              h(
+              h2(
                 "section",
                 { key: "overview", className: "kd-stats-metrics", "aria-label": "学习概览" },
-                metrics.map(([label, value, hint]) => h(
+                metrics.map(([label, value, hint]) => h2(
                   "div",
                   { key: label, className: "kd-stats-card kd-stats-metric" },
-                  h("h2", null, label),
-                  h("strong", null, value),
-                  h("p", { className: "kd-meta" }, hint)
+                  h2("h2", null, label),
+                  h2("strong", null, value),
+                  h2("p", { className: "kd-meta" }, hint)
                 ))
               ),
-              h(PracticeChart, { key: "chart", days: data.days }),
-              h(SubjectTable, { key: "subjects", subjects: data.subjects })
+              h2(PracticeChart, { key: "chart", days: data.days }),
+              h2(SubjectTable, { key: "subjects", subjects: data.subjects })
             ]
           )
         )
@@ -3930,7 +12656,7 @@ ${sourceUrl}` : ""}` : ""
   }
   __name(evidence, "evidence");
   function createStudyMemoryPage(React, { window, rpc, Btn, Icon }) {
-    const { createElement: h, useState, useEffect } = React;
+    const { createElement: h2, useState, useEffect } = React;
     function SubjectMemory({ subject, onRelated }) {
       const [data, setData] = useState(null);
       const [error, setError] = useState("");
@@ -3971,23 +12697,23 @@ ${sourceUrl}` : ""}` : ""
           setPending("");
         }
       }, "run");
-      if (!data) return h(
+      if (!data) return h2(
         "div",
         { className: "kd-memory-panel" },
-        h("p", { role: error ? "alert" : "status" }, error || "正在读取学习记忆…"),
-        error ? h(Btn, { onClick: /* @__PURE__ */ __name(() => {
+        h2("p", { role: error ? "alert" : "status" }, error || "正在读取学习记忆…"),
+        error ? h2(Btn, { onClick: /* @__PURE__ */ __name(() => {
           setError("");
           setRetry(retry + 1);
         }, "onClick") }, "重试") : null
       );
-      if (!data.enabled) return h("p", { className: "kd-meta" }, "功能已关闭，请重新打开页面以同步设置。");
+      if (!data.enabled) return h2("p", { className: "kd-meta" }, "功能已关闭，请重新打开页面以同步设置。");
       const { rows, analysis } = data;
       const analyze = /* @__PURE__ */ __name(() => run("analysis", async () => {
         const next = await rpc("analyzeStudyMemory", { subjectId: subject.id });
         setData((current) => ({ ...current, analysis: next }));
       }), "analyze");
       const download = /* @__PURE__ */ __name(() => {
-        const markdown = [`# ${subject.name} · 学习记忆`, ...rows.map((row) => [
+        const markdown2 = [`# ${subject.name} · 学习记忆`, ...rows.map((row) => [
           `## ${row.topic}`,
           `- ${labels[row.status]}：${evidence(row)}`,
           ...row.note ? ["### 我的错因", row.note] : []
@@ -3995,68 +12721,68 @@ ${sourceUrl}` : ""}` : ""
           `## 上次 AI 建议 · ${formatDateTime(analysis.at)}`,
           ...analysis.topics.map((item) => `- ${item.topic}（分析时 ${item.distinctQuestions} 道，${item.latestWrong} 道错）：${item.suggestion}`)
         ] : []].join("\n\n");
-        const url = window.URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
+        const url = window.URL.createObjectURL(new Blob([markdown2], { type: "text/markdown;charset=utf-8" }));
         const link = window.document.createElement("a");
         link.href = url;
         link.download = "daily-question-memory.md";
         link.click();
         window.setTimeout(() => window.URL.revokeObjectURL(url), 1e3);
       }, "download");
-      return h(
+      return h2(
         React.Fragment,
         null,
-        h(
+        h2(
           "section",
           { className: "kd-memory-panel kd-memory-analysis-panel", "aria-label": "AI 薄弱点分析" },
-          h(
+          h2(
             "div",
             { className: "kd-stats-section-head" },
-            h("h3", null, "AI 薄弱点分析"),
-            h(
+            h2("h3", null, "AI 薄弱点分析"),
+            h2(
               "div",
               { className: "kd-actions" },
-              h(Btn, { onClick: download, disabled: !rows.length && !analysis }, "导出 Markdown"),
-              h(Btn, {
+              h2(Btn, { onClick: download, disabled: !rows.length && !analysis }, "导出 Markdown"),
+              h2(Btn, {
                 variant: "primary",
                 disabled: Boolean(pending) || !rows.some((row) => row.status === "weak"),
                 onClick: analyze
               }, pending === "analysis" ? "正在分析…" : "AI 分析")
             )
           ),
-          h("p", { className: "kd-meta" }, "仅在点击时调用 DSH 默认模型，发送当前科目的学习摘要和相关错因片段。"),
-          analysisError ? h("p", { role: "alert", className: "kd-error-text" }, analysisError) : null,
-          !rows.some((row) => row.status === "weak") ? h("p", { className: "kd-meta" }, "暂无证据充足的薄弱点。近 30 天同一知识点至少练过 3 道已判定的不同题，其中至少 2 道最近一次答错，才建议巩固。") : null,
-          analysis ? h(
+          h2("p", { className: "kd-meta" }, "仅在点击时调用 DSH 默认模型，发送当前科目的学习摘要和相关错因片段。"),
+          analysisError ? h2("p", { role: "alert", className: "kd-error-text" }, analysisError) : null,
+          !rows.some((row) => row.status === "weak") ? h2("p", { className: "kd-meta" }, "暂无证据充足的薄弱点。近 30 天同一知识点至少练过 3 道已判定的不同题，其中至少 2 道最近一次答错，才建议巩固。") : null,
+          analysis ? h2(
             "div",
             { className: "kd-memory-analysis" },
-            h("p", { className: "kd-meta" }, "上次分析：", formatDateTime(analysis.at)),
-            h("ul", null, analysis.topics.map((item) => h(
+            h2("p", { className: "kd-meta" }, "上次分析：", formatDateTime(analysis.at)),
+            h2("ul", null, analysis.topics.map((item) => h2(
               "li",
               { key: item.topic },
-              h("strong", null, item.topic),
+              h2("strong", null, item.topic),
               `（分析时 ${item.distinctQuestions} 道，${item.latestWrong} 道错）`,
-              h("p", null, item.suggestion)
+              h2("p", null, item.suggestion)
             )))
           ) : null
         ),
-        h(
+        h2(
           "section",
           { className: "kd-memory-panel", "aria-label": "知识点与错因笔记" },
-          h(
+          h2(
             "div",
             { className: "kd-stats-section-head" },
-            h("h3", null, "知识点与错因笔记"),
-            rows.length ? h(
+            h2("h3", null, "知识点与错因笔记"),
+            rows.length ? h2(
               "div",
               { className: "kd-row kd-memory-topic-controls", role: "group", "aria-label": `${subject.name}知识点` },
-              h(Btn, { onClick: /* @__PURE__ */ __name(() => setAllTopics(true), "onClick") }, "全部展开"),
-              h(Btn, { onClick: /* @__PURE__ */ __name(() => setAllTopics(false), "onClick") }, "全部收起")
+              h2(Btn, { onClick: /* @__PURE__ */ __name(() => setAllTopics(true), "onClick") }, "全部展开"),
+              h2(Btn, { onClick: /* @__PURE__ */ __name(() => setAllTopics(false), "onClick") }, "全部收起")
             ) : null
           ),
-          h("p", { className: "kd-meta" }, "每道题只统计最近一次已判定作答。展开知识点可记录 Markdown 笔记；清空并保存可删除。"),
-          error ? h("p", { role: "alert", className: "kd-error-text" }, error) : null,
-          status ? h("p", { role: "status", className: "kd-meta" }, status) : null,
-          rows.length ? rows.map((row) => h(
+          h2("p", { className: "kd-meta" }, "每道题只统计最近一次已判定作答。展开知识点可记录 Markdown 笔记；清空并保存可删除。"),
+          error ? h2("p", { role: "alert", className: "kd-error-text" }, error) : null,
+          status ? h2("p", { role: "status", className: "kd-meta" }, status) : null,
+          rows.length ? rows.map((row) => h2(
             "details",
             {
               className: "kd-memory-topic",
@@ -4064,14 +12790,14 @@ ${sourceUrl}` : ""}` : ""
               open: topicDisplay.overrides.get(row.topic) ?? topicDisplay.expanded,
               onToggle: /* @__PURE__ */ __name((event) => onTopicToggle(row.topic, event.currentTarget.open), "onToggle")
             },
-            h("summary", null, h(
+            h2("summary", null, h2(
               "span",
               { className: "kd-memory-topic-title" },
-              h("strong", null, row.topic),
-              h("span", { className: "kd-memory-topic-status" }, labels[row.status], row.note ? " · 有笔记" : "")
+              h2("strong", null, row.topic),
+              h2("span", { className: "kd-memory-topic-status" }, labels[row.status], row.note ? " · 有笔记" : "")
             )),
-            h("p", { className: "kd-meta" }, evidence(row)),
-            h(
+            h2("p", { className: "kd-meta" }, evidence(row)),
+            h2(
               "form",
               { onSubmit: /* @__PURE__ */ __name((event) => {
                 event.preventDefault();
@@ -4082,11 +12808,11 @@ ${sourceUrl}` : ""}` : ""
                   setStatus("已保存错因笔记");
                 });
               }, "onSubmit") },
-              h(
+              h2(
                 "label",
                 { className: "kd-field" },
-                h("span", { className: "kd-field-label" }, "错因笔记（支持 Markdown）"),
-                h("textarea", {
+                h2("span", { className: "kd-field-label" }, "错因笔记（支持 Markdown）"),
+                h2("textarea", {
                   name: "note",
                   className: "kd-textarea kd-memory-note-input",
                   "aria-label": `${row.topic}的错因笔记`,
@@ -4095,15 +12821,15 @@ ${sourceUrl}` : ""}` : ""
                   maxLength: 1e3
                 })
               ),
-              h(
+              h2(
                 "div",
                 { className: "kd-actions" },
-                h(Btn, { type: "submit", disabled: Boolean(pending) }, "保存笔记"),
-                row.wrongBook ? h(Btn, { onClick: /* @__PURE__ */ __name(() => onRelated(subject.id, "wrong", row.topic), "onClick") }, "查看相关错题") : null,
-                row.due ? h(Btn, { onClick: /* @__PURE__ */ __name(() => onRelated(subject.id, "review", row.topic), "onClick") }, "复习相关错题") : null
+                h2(Btn, { type: "submit", disabled: Boolean(pending) }, "保存笔记"),
+                row.wrongBook ? h2(Btn, { onClick: /* @__PURE__ */ __name(() => onRelated(subject.id, "wrong", row.topic), "onClick") }, "查看相关错题") : null,
+                row.due ? h2(Btn, { onClick: /* @__PURE__ */ __name(() => onRelated(subject.id, "review", row.topic), "onClick") }, "复习相关错题") : null
               )
             )
-          )) : h("p", { className: "kd-meta" }, "作答后，这里会按题目的知识点标签汇总学习记录。")
+          )) : h2("p", { className: "kd-meta" }, "作答后，这里会按题目的知识点标签汇总学习记录。")
         )
       );
     }
@@ -4144,46 +12870,46 @@ ${sourceUrl}` : ""}` : ""
       }, "change");
       const enabledSubjects = subjects.filter((subject) => subject.enabled);
       return fullscreen(
-        h,
+        h2,
         Icon,
         { title: "记忆与建议", onClose },
-        h("div", { className: "kd-stats-scroll" }, h(
+        h2("div", { className: "kd-stats-scroll" }, h2(
           "div",
           { className: "kd-stats-content" },
-          h(
+          h2(
             "section",
             { className: "kd-stats-card kd-memory-settings" },
-            h("h2", null, "功能设置"),
-            preferences ? h("label", null, h("input", {
+            h2("h2", null, "功能设置"),
+            preferences ? h2("label", null, h2("input", {
               type: "checkbox",
               checked: preferences.enabled,
               disabled: pending,
               onChange: /* @__PURE__ */ __name((event) => change({ enabled: event.target.checked }), "onChange")
             }), "启用记忆与建议") : null,
-            h("p", { className: "kd-meta" }, "关闭期间不分析、不影响出题。笔记保留，重新启用时按本地作答记录计算。"),
-            preferences?.enabled ? h(
+            h2("p", { className: "kd-meta" }, "关闭期间不分析、不影响出题。笔记保留，重新启用时按本地作答记录计算。"),
+            preferences?.enabled ? h2(
               React.Fragment,
               null,
-              h("label", null, h("input", {
+              h2("label", null, h2("input", {
                 type: "checkbox",
                 checked: preferences.reinforce,
                 disabled: pending,
                 onChange: /* @__PURE__ */ __name((event) => change({ reinforce: event.target.checked }), "onChange")
               }), "每日题目优先巩固薄弱点"),
-              h("p", { className: "kd-meta" }, "每科 7 天内最多安排 2 道补弱题，同一知识点不连续安排；每日仍最多一道新题。在线命题会参考当前知识点和相关错因片段。")
+              h2("p", { className: "kd-meta" }, "每科 7 天内最多安排 2 道补弱题，同一知识点不连续安排；每日仍最多一道新题。在线命题会参考当前知识点和相关错因片段。")
             ) : null,
-            error ? h("p", { role: "alert", className: "kd-error-text" }, error) : null,
-            !preferences && error ? h(Btn, { onClick: /* @__PURE__ */ __name(() => {
+            error ? h2("p", { role: "alert", className: "kd-error-text" }, error) : null,
+            !preferences && error ? h2(Btn, { onClick: /* @__PURE__ */ __name(() => {
               setError("");
               setRetry(retry + 1);
             }, "onClick") }, "重试") : null
           ),
-          preferences?.enabled ? enabledSubjects.length ? enabledSubjects.map((subject) => h(
+          preferences?.enabled ? enabledSubjects.length ? enabledSubjects.map((subject) => h2(
             "article",
             { className: "kd-stats-card kd-memory-subject-card", key: subject.id, "aria-label": subject.name },
-            h("h2", null, subject.name),
-            h(SubjectMemory, { subject, onRelated })
-          )) : h("p", { className: "kd-meta" }, "还没有启用科目。请先在科目管理里启用要查看的科目。") : null
+            h2("h2", null, subject.name),
+            h2(SubjectMemory, { subject, onRelated })
+          )) : h2("p", { className: "kd-meta" }, "还没有启用科目。请先在科目管理里启用要查看的科目。") : null
         ))
       );
     }, "StudyMemoryPage");
@@ -4193,7 +12919,10 @@ ${sourceUrl}` : ""}` : ""
   // ui/page.js
   var SETTINGS_SECTIONS = /* @__PURE__ */ new Set(["subjects", "banks", "syllabuses", "past-papers", "backup", "about"]);
   function createPage(React, { window, rpc, components, styleState }) {
-    const { createElement: h, useState, useEffect, useRef, useMemo, useCallback } = React;
+    const { createElement: h2, useState, useEffect, useRef, useMemo, useCallback } = React;
+    const navigator = window?.navigator;
+    const platform = navigator?.userAgentData?.platform || navigator?.platform || "";
+    const codePlatform = /^win/i.test(platform) ? "windows" : /^mac/i.test(platform) ? "macos" : void 0;
     const {
       Icon,
       Btn,
@@ -4323,20 +13052,20 @@ ${sourceUrl}` : ""}` : ""
       useEffect(() => {
         if (focusedQuestionId && !questionFocused) closeQuestionFocus();
         if (!questionFocused) return void 0;
-        const document = window.document;
-        let wasFullScreen = document.fullscreenElement === pageRef.current;
+        const document2 = window.document;
+        let wasFullScreen = document2.fullscreenElement === pageRef.current;
         const onFullscreenChange = /* @__PURE__ */ __name(() => {
-          const isFullScreen = document.fullscreenElement === pageRef.current;
+          const isFullScreen = document2.fullscreenElement === pageRef.current;
           if (wasFullScreen && !isFullScreen) closeQuestionFocus();
           wasFullScreen = isFullScreen;
         }, "onFullscreenChange");
         const onKeyDown = /* @__PURE__ */ __name((event) => {
           if (event.key === "Escape") closeQuestionFocus();
         }, "onKeyDown");
-        document.addEventListener("fullscreenchange", onFullscreenChange);
+        document2.addEventListener("fullscreenchange", onFullscreenChange);
         window.addEventListener("keydown", onKeyDown);
         return () => {
-          document.removeEventListener("fullscreenchange", onFullscreenChange);
+          document2.removeEventListener("fullscreenchange", onFullscreenChange);
           window.removeEventListener("keydown", onKeyDown);
         };
       }, [focusedQuestionId, questionFocused, closeQuestionFocus]);
@@ -4347,12 +13076,12 @@ ${sourceUrl}` : ""}` : ""
         }
         setFocusedQuestionId(question.id);
         const page = pageRef.current;
-        const document = window.document;
-        if (!page?.requestFullscreen || document?.fullscreenElement) return;
+        const document2 = window.document;
+        if (!page?.requestFullscreen || document2?.fullscreenElement) return;
         const request = {};
         fullScreenRequest.current = request;
         page.requestFullscreen().then(() => {
-          if (fullScreenRequest.current === null && document.fullscreenElement === page) return document.exitFullscreen();
+          if (fullScreenRequest.current === null && document2.fullscreenElement === page) return document2.exitFullscreen();
         }).catch(() => {
         });
       }, "toggleQuestionFocus");
@@ -4988,83 +13717,83 @@ ${sourceUrl}` : ""}` : ""
       const narrow = useMediaQuery("(max-width: 1180px)");
       const mainContent = (() => {
         if (error) {
-          return h(EmptyState, {
+          return h2(EmptyState, {
             icon: "x",
             title: "插件加载失败",
             body: error,
-            actions: h(
+            actions: h2(
               "div",
               { className: "kd-row" },
-              h(Btn, { onClick: /* @__PURE__ */ __name(() => window.location.reload(), "onClick") }, "重新加载页面"),
-              h(Btn, { onClick: /* @__PURE__ */ __name(() => setModal({ kind: "backup" }), "onClick") }, h(Icon, { name: "backup" }), "备份与恢复")
+              h2(Btn, { onClick: /* @__PURE__ */ __name(() => window.location.reload(), "onClick") }, "重新加载页面"),
+              h2(Btn, { onClick: /* @__PURE__ */ __name(() => setModal({ kind: "backup" }), "onClick") }, h2(Icon, { name: "backup" }), "备份与恢复")
             )
           });
         }
-        if (loading) return h("div", { className: "kd-loading" }, h("span", { className: "kd-spinner" }), "正在读取学习数据…");
+        if (loading) return h2("div", { className: "kd-loading" }, h2("span", { className: "kd-spinner" }), "正在读取学习数据…");
         if (!boot?.settings?.subjects?.length) {
-          return h(EmptyState, {
+          return h2(EmptyState, {
             icon: "plus",
             title: T.noSubjects,
             body: T.noSubjectsHint,
             actions: [
-              h(Btn, {
+              h2(Btn, {
                 key: "add",
                 variant: "primary",
                 onClick: /* @__PURE__ */ __name(() => setModal({ kind: "subjects" }), "onClick")
-              }, h(Icon, { name: "plus", size: 13 }), T.addSubject),
-              h(Btn, { key: "bank", onClick: /* @__PURE__ */ __name(() => setModal({ kind: "banks" }), "onClick") }, T.manageBanks)
+              }, h2(Icon, { name: "plus", size: 13 }), T.addSubject),
+              h2(Btn, { key: "bank", onClick: /* @__PURE__ */ __name(() => setModal({ kind: "banks" }), "onClick") }, T.manageBanks)
             ]
           });
         }
         if (!subjectVisible) return null;
         if (busy === "daily" && !question) {
-          return h(
+          return h2(
             "div",
             { className: "kd-loading" },
-            h("span", { className: "kd-spinner" }),
+            h2("span", { className: "kd-spinner" }),
             T.generating,
-            h(
+            h2(
               "div",
               { className: "kd-msg-meta", style: { marginTop: "8px" } },
               "先出题，再仅凭题干和选项盲解并比对答案；分歧交由主裁，仍无法确定就重新出题或阻止发布。首次出题可能需要较长时间。"
             ),
-            h(Btn, { variant: "ghost", onClick: /* @__PURE__ */ __name(() => cancelWork("daily"), "onClick") }, "取消生成")
+            h2(Btn, { variant: "ghost", onClick: /* @__PURE__ */ __name(() => cancelWork("daily"), "onClick") }, "取消生成")
           );
         }
         if (kind === "today" && !question && dailyPlan?.todaySkipped) {
           const relative = dailyPlan.nextDate === dailyPlan.tomorrow ? "明天" : "后天";
-          return h(EmptyState, {
+          return h2(EmptyState, {
             icon: "book",
             title: "今天已跳过出题",
             body: `${dailyPlan.pendingStart ? "可手动出题的最早时间" : "下次出题"}：${relative}（${formatDate(dailyPlan.nextDate)}）`
           });
         }
         if (fail) {
-          return h(EmptyState, {
+          return h2(EmptyState, {
             icon: "refresh",
             title: T.generateFailed,
             body: fail,
             actions: [
-              h(Btn, {
+              h2(Btn, {
                 key: "retry",
                 variant: "primary",
                 onClick: /* @__PURE__ */ __name(() => loadToday(subjectId, Boolean(dailyPlan?.pendingStart)), "onClick")
-              }, h(Icon, { name: "refresh", size: 13 }), T.retry),
-              h(Btn, { key: "src", onClick: /* @__PURE__ */ __name(() => setModal({ kind: "subjects" }), "onClick") }, "切换出题来源"),
-              h(Btn, { key: "bank", onClick: /* @__PURE__ */ __name(() => setModal({ kind: "banks" }), "onClick") }, T.manageBanks)
+              }, h2(Icon, { name: "refresh", size: 13 }), T.retry),
+              h2(Btn, { key: "src", onClick: /* @__PURE__ */ __name(() => setModal({ kind: "subjects" }), "onClick") }, "切换出题来源"),
+              h2(Btn, { key: "bank", onClick: /* @__PURE__ */ __name(() => setModal({ kind: "banks" }), "onClick") }, T.manageBanks)
             ]
           });
         }
         if (kind === "today" && !question && dailyPlan?.pendingStart) {
-          return h(EmptyState, {
+          return h2(EmptyState, {
             icon: "spark",
             title: "准备开始练习",
             body: "点击开始出题。首次出题成功后，科目保持启用时会自动安排每日题目。",
-            actions: h(Btn, { variant: "primary", onClick: /* @__PURE__ */ __name(() => loadToday(subjectId, true), "onClick") }, "开始出题")
+            actions: h2(Btn, { variant: "primary", onClick: /* @__PURE__ */ __name(() => loadToday(subjectId, true), "onClick") }, "开始出题")
           });
         }
         if (!subjectId) {
-          return h(EmptyState, {
+          return h2(EmptyState, {
             icon: "book",
             title: "先选择一个科目",
             body: "左侧列出的科目都可以切换；没有想要的科目就先去「科目管理」添加。"
@@ -5075,7 +13804,7 @@ ${sourceUrl}` : ""}` : ""
           const types = new Map((currentSubject?.types || []).map((value, index) => [value, currentSubject.typeLabels?.[index] || value]));
           for (const option of list?.types || []) types.set(option.value, option.label);
           if (filters.type && !types.has(filters.type)) types.set(filters.type, filters.type);
-          const search = kind !== "review" ? h(
+          const search2 = kind !== "review" ? h2(
             "form",
             {
               className: "kd-row",
@@ -5085,7 +13814,7 @@ ${sourceUrl}` : ""}` : ""
                 applyFilters({ query: queryDraft.trim() });
               }, "onSubmit")
             },
-            h("input", {
+            h2("input", {
               className: "kd-input",
               type: "search",
               "aria-label": "搜索题目",
@@ -5094,8 +13823,8 @@ ${sourceUrl}` : ""}` : ""
               maxLength: 120,
               onChange: /* @__PURE__ */ __name((event) => setQueryDraft(event.target.value), "onChange")
             }),
-            h(Btn, { type: "submit", disabled: bulkLock.current }, "搜索"),
-            h(
+            h2(Btn, { type: "submit", disabled: bulkLock.current }, "搜索"),
+            h2(
               "select",
               {
                 className: "kd-select",
@@ -5104,10 +13833,10 @@ ${sourceUrl}` : ""}` : ""
                 disabled: bulkLock.current,
                 onChange: /* @__PURE__ */ __name((event) => applyFilters({ type: event.target.value }), "onChange")
               },
-              h("option", { value: "" }, "全部题型"),
-              ...[...types].map(([value, label]) => h("option", { key: value, value }, label))
+              h2("option", { value: "" }, "全部题型"),
+              ...[...types].map(([value, label]) => h2("option", { key: value, value }, label))
             ),
-            kind === "wrong" ? h(
+            kind === "wrong" ? h2(
               "select",
               {
                 className: "kd-select",
@@ -5116,29 +13845,29 @@ ${sourceUrl}` : ""}` : ""
                 disabled: bulkLock.current,
                 onChange: /* @__PURE__ */ __name((event) => applyFilters({ mastery: event.target.value }), "onChange")
               },
-              h("option", { value: "" }, "全部状态"),
-              h("option", { value: "due" }, "今日待复习"),
-              h("option", { value: "unmastered" }, "未掌握"),
-              h("option", { value: "mastered" }, "已掌握")
+              h2("option", { value: "" }, "全部状态"),
+              h2("option", { value: "due" }, "今日待复习"),
+              h2("option", { value: "unmastered" }, "未掌握"),
+              h2("option", { value: "mastered" }, "已掌握")
             ) : null,
-            hasFilters || queryDraft ? h(Btn, {
+            hasFilters || queryDraft ? h2(Btn, {
               variant: "ghost",
               disabled: bulkLock.current,
               onClick: /* @__PURE__ */ __name(() => applyFilters({ query: "", type: "", mastery: "" }), "onClick")
             }, "清除筛选") : null
           ) : null;
-          const topicFilter = filters.topic ? h(
+          const topicFilter = filters.topic ? h2(
             "div",
             { className: "kd-row kd-memory-filter" },
-            h("span", { className: "kd-meta" }, "知识点：", filters.topic),
-            h(Btn, { variant: "ghost", disabled: bulkLock.current, onClick: /* @__PURE__ */ __name(() => applyFilters({ topic: "" }), "onClick") }, "清除知识点筛选")
+            h2("span", { className: "kd-meta" }, "知识点：", filters.topic),
+            h2(Btn, { variant: "ghost", disabled: bulkLock.current, onClick: /* @__PURE__ */ __name(() => applyFilters({ topic: "" }), "onClick") }, "清除知识点筛选")
           ) : null;
-          return h("div", null, topicFilter, search, listError ? h(EmptyState, {
+          return h2("div", null, topicFilter, search2, listError ? h2(EmptyState, {
             icon: "refresh",
             title: "题目列表加载失败",
             body: listError,
-            actions: h(Btn, { onClick: /* @__PURE__ */ __name(() => loadList(subjectId, kind, list?.page || 1, filters), "onClick") }, "重试")
-          }) : h(ListPane, {
+            actions: h2(Btn, { onClick: /* @__PURE__ */ __name(() => loadList(subjectId, kind, list?.page || 1, filters), "onClick") }, "重试")
+          }) : h2(ListPane, {
             list,
             kind,
             subjectName: currentSubject?.name || "",
@@ -5158,7 +13887,7 @@ ${sourceUrl}` : ""}` : ""
           }));
         }
         if (view === "detail" && question) {
-          return h(QuestionPane, {
+          return h2(QuestionPane, {
             q: question,
             focused: questionFocused,
             onToggleFocus: toggleQuestionFocus,
@@ -5211,7 +13940,7 @@ ${sourceUrl}` : ""}` : ""
             }, "onRemoveWrong")
           });
         }
-        return h(EmptyState, {
+        return h2(EmptyState, {
           icon: "spark",
           title: "选择一个入口开始",
           body: "左侧「今日题目 / 全部 / 收藏 / 错题本」分别对应今天这道题、历史题目、收藏和错题。"
@@ -5245,7 +13974,7 @@ ${sourceUrl}` : ""}` : ""
         const embedded = { embedded: true, onClose: closeSettings, onBusyChange: setSettingsBusy };
         switch (modal.kind) {
           case "subjects":
-            return boot && h(SubjectsModal, {
+            return boot && h2(SubjectsModal, {
               ...embedded,
               boot,
               key: modal.edit || 0,
@@ -5257,7 +13986,7 @@ ${sourceUrl}` : ""}` : ""
           case "banks":
             if (modal.deleting) {
               const bank = modal.deleting;
-              return h(ConfirmModal, {
+              return h2(ConfirmModal, {
                 embedded: true,
                 danger: true,
                 busy: busy === "delete-bank",
@@ -5268,7 +13997,7 @@ ${sourceUrl}` : ""}` : ""
                 onClose: /* @__PURE__ */ __name(() => setModal({ kind: "banks" }), "onClose")
               });
             }
-            return boot && h(BanksModal, {
+            return boot && h2(BanksModal, {
               ...embedded,
               boot,
               key: modal.importResult?.importId || "banks",
@@ -5280,7 +14009,7 @@ ${sourceUrl}` : ""}` : ""
               onCancelImport: /* @__PURE__ */ __name(() => setModal({ kind: "banks" }), "onCancelImport")
             });
           case "syllabuses":
-            return boot && h(SyllabusesModal, {
+            return boot && h2(SyllabusesModal, {
               ...embedded,
               boot,
               onSaved: /* @__PURE__ */ __name((syllabuses) => {
@@ -5289,7 +14018,7 @@ ${sourceUrl}` : ""}` : ""
               }, "onSaved")
             });
           case "past-papers":
-            return boot && h(PastPapersModal, {
+            return boot && h2(PastPapersModal, {
               ...embedded,
               boot,
               onSaved: /* @__PURE__ */ __name((pastPapers) => {
@@ -5298,12 +14027,12 @@ ${sourceUrl}` : ""}` : ""
               }, "onSaved")
             });
           case "backup":
-            return h(BackupModal, { ...embedded, onRestored: /* @__PURE__ */ __name((warning) => {
+            return h2(BackupModal, { ...embedded, onRestored: /* @__PURE__ */ __name((warning) => {
               if (warning) window.alert(warning);
               window.location.reload();
             }, "onRestored") });
           case "about":
-            return h(AboutPanel, { currentVersion: boot?.pluginVersion });
+            return h2(AboutPanel, { currentVersion: boot?.pluginVersion });
         }
       }, "settingsPanel");
       const openStudyPage = /* @__PURE__ */ __name((event, page) => {
@@ -5321,28 +14050,32 @@ ${sourceUrl}` : ""}` : ""
         });
         loadList(sid, tab, 1, { topic });
       }, "openRelated");
-      return h(
+      return h2(
         "div",
-        { ref: pageRef, className: questionFocused ? "kd-page is-question-focus" : "kd-page" },
-        styleState.injected ? null : h("style", null, CSS),
-        h(
+        {
+          ref: pageRef,
+          className: questionFocused ? "kd-page is-question-focus" : "kd-page",
+          "data-code-platform": codePlatform
+        },
+        styleState.injected ? null : h2("style", null, CSS),
+        h2(
           "div",
           { className: "kd-practice-screen", inert: Boolean(studyPage) || settingsOpen || void 0 },
-          h(
+          h2(
             "div",
             { className: "kd-header" },
-            h(
+            h2(
               "div",
               { className: "kd-header-top" },
-              h(
+              h2(
                 "div",
                 { className: "kd-header-left" },
-                h(PluginLogo, { size: 40, className: "kd-brand" }),
-                h(
+                h2(PluginLogo, { size: 40, className: "kd-brand" }),
+                h2(
                   "div",
                   { style: { minWidth: 0 } },
-                  h("h1", { className: "kd-title" }, T.title),
-                  h(
+                  h2("h1", { className: "kd-title" }, T.title),
+                  h2(
                     "div",
                     { className: "kd-sub", title: T.subtitle },
                     boot?.today ? `今日日期：${formatDate(boot.today)}  ` : "",
@@ -5350,16 +14083,16 @@ ${sourceUrl}` : ""}` : ""
                   )
                 )
               ),
-              boot ? h(CountdownLines, { countdown: boot.countdown }) : null
+              boot ? h2(CountdownLines, { countdown: boot.countdown }) : null
             ),
-            boot ? h(ExamStrip, {
+            boot ? h2(ExamStrip, {
               boot,
               busy: busy === "exam",
               onRefresh: refreshExam,
               onYearChange: changeYear
             }) : null
           ),
-          boot ? h(MobileBar, {
+          boot ? h2(MobileBar, {
             boot,
             subjectId,
             onPick: pickSubject,
@@ -5367,10 +14100,10 @@ ${sourceUrl}` : ""}` : ""
             onStats: /* @__PURE__ */ __name((event) => openStudyPage(event, "stats"), "onStats"),
             onMemory: /* @__PURE__ */ __name((event) => openStudyPage(event, "memory"), "onMemory")
           }) : null,
-          h(
+          h2(
             "div",
             { className: "kd-shell" },
-            boot ? h(SubjectNav, {
+            boot ? h2(SubjectNav, {
               boot,
               subjectId,
               onPick: pickSubject,
@@ -5378,27 +14111,27 @@ ${sourceUrl}` : ""}` : ""
               onStats: /* @__PURE__ */ __name((event) => openStudyPage(event, "stats"), "onStats"),
               onMemory: /* @__PURE__ */ __name((event) => openStudyPage(event, "memory"), "onMemory")
             }) : null,
-            h(
+            h2(
               "main",
               { className: "kd-main" },
-              h(
+              h2(
                 "div",
                 { className: "kd-main-toolbar" },
-                boot ? h(TabBar, {
+                boot ? h2(TabBar, {
                   kind,
                   counts,
                   onPick: pickTab,
                   todayDisabled: !boot.settings.subjects.includes(subjectId),
                   onBack: subjectVisible && kind !== "today" && view === "detail" ? backToList : void 0
                 }) : null,
-                dailyPlan ? h(
+                dailyPlan ? h2(
                   "div",
                   { className: "kd-daily-schedule", "aria-label": "全局出题计划" },
-                  dailyPlan.todaySkipped ? h(Btn, {
+                  dailyPlan.todaySkipped ? h2(Btn, {
                     disabled: scheduleBusy,
                     onClick: /* @__PURE__ */ __name(() => changeDailySkip(dailyPlan.today, false), "onClick")
                   }, "取消跳过今天") : null,
-                  h(
+                  h2(
                     Btn,
                     {
                       disabled: scheduleBusy,
@@ -5408,17 +14141,17 @@ ${sourceUrl}` : ""}` : ""
                   )
                 ) : null
               ),
-              h(
+              h2(
                 "div",
                 { className: "kd-main-scroll", ref: mainScroll },
-                h(
+                h2(
                   "div",
                   { className: "kd-main-inner" },
-                  h("div", { className: "kd-view", key: `${subjectId}|${kind}|${view}|${question?.id || ""}` }, mainContent)
+                  h2("div", { className: "kd-view", key: `${subjectId}|${kind}|${view}|${question?.id || ""}` }, mainContent)
                 )
               )
             ),
-            h(Presence, null, showThread ? h(ThreadPane, {
+            h2(Presence, null, showThread ? h2(ThreadPane, {
               thread,
               questionId: question.id,
               busy,
@@ -5431,23 +14164,23 @@ ${sourceUrl}` : ""}` : ""
               onClose: /* @__PURE__ */ __name(() => setThreadOpen(false), "onClose")
             }) : null)
           ),
-          h("input", {
+          h2("input", {
             ref: fileRef,
             type: "file",
             accept: STUDY_FILE_ACCEPT,
             style: { display: "none" },
             onChange: onFile
           }),
-          h(
+          h2(
             Presence,
             null,
-            settingsOpen ? h(SettingsModal, {
+            settingsOpen ? h2(SettingsModal, {
               active: modal.kind,
               ready: Boolean(boot),
               locked: settingsBusy || ["import", "commit", "delete-bank"].includes(busy),
               onPick: requestSettingsNavigation,
               onClose: closeSettings,
-              dialog: modal.leaveTo ? h(ConfirmModal, {
+              dialog: modal.leaveTo ? h2(ConfirmModal, {
                 title: "放弃本次更改",
                 message: modal.leaveTo === "close" ? "科目管理还有未保存的更改。确定放弃更改并关闭设置吗？" : "科目管理还有未保存的更改。确定放弃更改并切换设置项吗？",
                 explicitClose: true,
@@ -5456,15 +14189,15 @@ ${sourceUrl}` : ""}` : ""
                 onConfirm: /* @__PURE__ */ __name(() => finishSettingsNavigation(modal.leaveTo), "onConfirm")
               }) : null
             }, settingsPanel()) : null,
-            modal?.kind === "attempt" ? h(AttemptModal, { record: modal.record, onClose: /* @__PURE__ */ __name(() => setModal(null), "onClose") }) : null,
-            modal?.kind === "revision" ? h(RevisionModal, {
+            modal?.kind === "attempt" ? h2(AttemptModal, { record: modal.record, onClose: /* @__PURE__ */ __name(() => setModal(null), "onClose") }) : null,
+            modal?.kind === "revision" ? h2(RevisionModal, {
               question,
               busy: busy === "revise",
               onClose: /* @__PURE__ */ __name(() => setModal(null), "onClose"),
               onConfirm: confirmRevision,
               onDiscard: discardRevision
             }) : null,
-            modal?.kind === "confirm" ? h(ConfirmModal, {
+            modal?.kind === "confirm" ? h2(ConfirmModal, {
               key: modal.title,
               title: modal.title,
               message: modal.message,
@@ -5476,18 +14209,18 @@ ${sourceUrl}` : ""}` : ""
                 if (!bulkLock.current) setModal(null);
               }, "onClose")
             }) : null,
-            studyPage === "stats" ? h(StudyStatsPage, { today: boot?.today, onClose: closeStudyPage }) : null,
-            studyPage === "memory" ? h(StudyMemoryPage, {
+            studyPage === "stats" ? h2(StudyStatsPage, { today: boot?.today, onClose: closeStudyPage }) : null,
+            studyPage === "memory" ? h2(StudyMemoryPage, {
               subjects: boot?.subjects || [],
               onClose: closeStudyPage,
               onRelated: openRelated
             }) : null
           ),
-          toast ? h(NotificationBanner, { key: toast.id, message: toast.message, tone: toast.tone, onUndo: toast.onUndo, floating: true }) : null,
-          busy === "import" || busy === "commit" ? h(
+          toast ? h2(NotificationBanner, { key: toast.id, message: toast.message, tone: toast.tone, onUndo: toast.onUndo, floating: true }) : null,
+          busy === "import" || busy === "commit" ? h2(
             "div",
             { className: "kd-loading", style: { position: "absolute", inset: "auto 0 60px 0", zIndex: 45, pointerEvents: "none" } },
-            h("span", { className: "kd-spinner" }),
+            h2("span", { className: "kd-spinner" }),
             busy === "import" ? "正在读取文件并让模型识别题目…" : "正在入库…"
           ) : null
         )
@@ -5553,8 +14286,8 @@ ${sourceUrl}` : ""}` : ""
       return payload.result;
     }
     __name(rpc, "rpc");
-    const markdown = createMarkdown(React, { window });
-    const components = createComponents(React, { window, rpc, ...markdown });
+    const markdown2 = createMarkdown(React, { window });
+    const components = createComponents(React, { window, rpc, ...markdown2 });
     const page = createPage(React, { window, rpc, components, styleState });
     const { Page } = page;
     const { PluginLogo } = components;
@@ -5610,7 +14343,7 @@ ${sourceUrl}` : ""}` : ""
         }, "daily-question.slots");
       }
     };
-    return { plugin, ...components, ...page, mathState: markdown.mathState };
+    return { plugin, ...components, ...page, mathState: markdown2.mathState };
   }
   __name(createClient, "createClient");
   return __toCommonJS(app_exports);
