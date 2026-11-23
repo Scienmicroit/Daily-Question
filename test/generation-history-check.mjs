@@ -36,6 +36,14 @@ const numberedOutline = [
 const numberedPlan = generationPlan({ subject: numberedSubject, references: { sources: [{ kind: 'outline', text: numberedOutline }] } })
 assert.deepEqual(numberedPlan.topicCounts.map(({ topic }) => topic), ['数据结构', '线性表', '图的遍历'],
   '编号、前置说明及其子标题被排除，保留范围章节下的考点')
+const chapterLabels = Array.from({ length: 45 }, (_, i) => '知识点' + (100 + i) + '章')
+const largeOutline = { sources: [{ kind: 'outline', text: chapterLabels.map((label) => '## ' + label).join('\n') }] }
+const covered = Array.from({ length: 5 }, (_, i) => ({
+  ...old, id: 'covered-' + i, knowledge: chapterLabels.slice(i * 8, i * 8 + 8),
+}))
+const longPlan = generationPlan({ subject: numberedSubject, references: largeOutline, history: covered })
+assert.equal(longPlan.topicCounts.length, 45, '整份大纲的有效标题都参与覆盖率统计')
+assert.equal(longPlan.topic, chapterLabels[40], '能够选择大纲后半部分尚未考查的知识点')
 const proseOutline = { ...referencePages[0], text: `## I. 考试性质\n本考试按照下列范围命题。\n## II. 考查内容\n${outlineQuote}` }
 const proseReferences = referenceSnapshot(numberedSubject, proseOutline, [])
 assert.equal(generationPlan({ subject: numberedSubject, references: proseReferences }).topic, '',

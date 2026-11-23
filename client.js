@@ -282,8 +282,8 @@ var DailyQuestionClient = (() => {
 .kd-dot { width:6px; height:6px; border-radius:50%; background:var(--kd-state-success-primary); }
 .kd-dot-idle { background:var(--kd-state-idle-primary); }
 .kd-nav-spacer { flex:1 1 auto; }
-.kd-main { flex:1 1 auto; min-width:0; overflow:hidden; display:flex; flex-direction:column; }
-.kd-main-toolbar { --kd-toolbar-control-height:36px; flex:none; padding:12px 28px 10px; display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; }
+.kd-main { --kd-toolbar-control-height:36px; flex:1 1 auto; min-width:0; overflow:hidden; display:flex; flex-direction:column; }
+.kd-main-toolbar { flex:none; padding:12px 28px 10px; display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; }
 .kd-daily-schedule { margin-inline-start:auto; align-self:stretch; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
 .kd-daily-schedule > .kd-btn { min-height:var(--kd-toolbar-control-height); border-radius:12px; }
 .kd-main-scroll { flex:1; min-height:0; overflow:auto; padding:0 28px 48px; scrollbar-gutter:stable; }
@@ -299,6 +299,9 @@ var DailyQuestionClient = (() => {
   color:var(--kd-label-secondary); }
 .kd-thread-scroll { flex:1 1 auto; min-height:0; overflow:auto; padding:18px 20px; display:flex;
   flex-direction:column; gap:12px; }
+.kd-thread-suggestions { display:grid; gap:6px; justify-items:start; min-width:0; }
+.kd-thread-suggestions .kd-thread-suggestion { min-height:32px; max-width:100%; padding:5px 9px;
+  font-size:12px; font-weight:400; line-height:1.5; text-align:left; white-space:normal; overflow-wrap:anywhere; }
 .kd-msg { max-width:100%; border-radius:12px; padding:10px 12px; font-size:13px; line-height:1.72; }
 .kd-msg-user { align-self:flex-end; background:color-mix(in srgb, var(--kd-brand-primary) 9%, transparent);
   border:1px solid color-mix(in srgb, var(--kd-brand-primary) 26%, transparent); }
@@ -310,6 +313,7 @@ var DailyQuestionClient = (() => {
   background:var(--kd-bg-base); padding:6px; transition:border-color .15s, box-shadow .15s; }
 .kd-composer:focus-within { border-color:var(--kd-brand-primary);
   box-shadow:0 0 0 3px color-mix(in srgb, var(--kd-brand-primary) 14%, transparent); }
+.kd-composer .kd-thread-send { flex:none; width:32px; min-height:32px; height:32px; padding:0; border-radius:50%; }
 .kd-textarea { width:100%; min-height:58px; max-height:180px; resize:vertical; padding:6px 8px;
   border:0; background:transparent; color:var(--kd-label-primary); font:inherit; font-size:13px; }
 .kd-textarea:focus { outline:none; }
@@ -457,6 +461,7 @@ var DailyQuestionClient = (() => {
 .kd-list-summary { --kd-preview-line-height:28px; font-size:14px; line-height:var(--kd-preview-line-height); min-width:0;
   flex:1 1 auto; max-height:calc(2 * var(--kd-preview-line-height)); overflow:hidden; }
 .kd-list-summary .kd-md { line-height:inherit; }
+.kd-list-summary-pending { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
 .kd-list-summary .kd-md > * { display:inline; }
 .kd-list-summary .kd-p, .kd-list-summary .kd-h, .kd-list-summary .kd-mathblock { margin:0; }
 .kd-list-summary .kd-p::after { content:' '; }
@@ -500,6 +505,8 @@ var DailyQuestionClient = (() => {
   box-shadow:0 0 0 3px color-mix(in srgb, var(--kd-brand-primary) 14%, transparent); }
 .kd-input::placeholder { color:var(--kd-label-secondary); }
 .kd-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.kd-question-filters { margin-bottom:12px; }
+.kd-question-filters > :is(.kd-input, .kd-btn, .kd-select) { height:var(--kd-toolbar-control-height); max-width:100%; }
 .kd-row-between { display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
 .kd-divider { height:1px; background:var(--kd-border-l1); margin:16px 0; }
 .kd-preview-item { border:1px solid var(--kd-border-l1); border-radius:12px; padding:12px 14px;
@@ -9567,14 +9574,15 @@ var DailyQuestionClient = (() => {
       }
     }
     __name(ensureMathStylesheet, "ensureMathStylesheet");
-    function useMathJaxStatus() {
+    function useMathJaxStatus(enabled = true) {
       const [status, setStatus] = useState(mathState.status);
       useEffect(() => {
+        if (!enabled) return void 0;
         ensureMathJax();
         const update = /* @__PURE__ */ __name(() => setStatus(mathState.status), "update");
         update();
         return subscribeMath(update);
-      }, []);
+      }, [enabled]);
       return status;
     }
     __name(useMathJaxStatus, "useMathJaxStatus");
@@ -10169,7 +10177,7 @@ ${lines[index]}`;
       "chevron-left": "M15 6l-6 6 6 6",
       expand: "M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5",
       collapse: "M4 9h5V4m6 0v5h5M4 15h5v5m6 0v-5h5",
-      send: "M4 12l16-8-6 8 6 8z",
+      "arrow-up": "M12 19V5m-6 6 6-6 6 6",
       book: "M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z",
       subjects: "M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 17h6 M17 14v6",
       syllabus: "M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6 M9 16h6",
@@ -10972,13 +10980,26 @@ ${sourceUrl}` : ""}` : ""
       return { top: lastLine * lineHeight, start: Math.max(0, end - 72), end };
     }
     __name(previewFadePosition, "previewFadePosition");
-    function QuestionPreview({ text }) {
+    function QuestionPreview({ text, summary }) {
       const ref = useRef(null);
+      const [visible, setVisible] = useState(() => !window?.IntersectionObserver);
       const [truncated, setTruncated] = useState(false);
-      const mathStatus = useMathJaxStatus();
+      const mathStatus = useMathJaxStatus(visible);
       useEffect(() => {
         const element = ref.current;
-        if (!element) return void 0;
+        if (!element || visible) return void 0;
+        const observer = new window.IntersectionObserver((entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) {
+            observer.disconnect();
+            setVisible(true);
+          }
+        }, { root: element.closest(".kd-main-scroll"), rootMargin: "100px 0px" });
+        observer.observe(element);
+        return () => observer.disconnect();
+      }, [visible]);
+      useEffect(() => {
+        const element = ref.current;
+        if (!element || !visible) return void 0;
         const measure = /* @__PURE__ */ __name(() => {
           let lineHeight = 28;
           for (const svg3 of element.querySelectorAll("svg")) lineHeight = Math.max(lineHeight, Math.ceil(svg3.getBoundingClientRect().height + 16));
@@ -11001,7 +11022,8 @@ ${sourceUrl}` : ""}` : ""
           observer.disconnect();
           mutations.disconnect();
         };
-      }, [text, mathStatus]);
+      }, [text, mathStatus, visible]);
+      if (!visible) return h2("div", { ref, className: "kd-list-summary kd-list-summary-pending" }, summary || "正在加载题目预览…");
       return h2("div", { ref, className: "kd-list-summary" + (truncated ? " is-truncated" : "") }, h2(Markdown, { text }));
     }
     __name(QuestionPreview, "QuestionPreview");
@@ -11083,7 +11105,7 @@ ${sourceUrl}` : ""}` : ""
             h2(
               "div",
               { className: "kd-list-heading" },
-              h2(QuestionPreview, { text: item.stem || item.summary || "(无题干)" }),
+              h2(QuestionPreview, { text: item.stem || item.summary || "(无题干)", summary: item.summary }),
               !managing ? h2("span", { className: "kd-list-open", "aria-hidden": true }, "查看题目", h2(Icon, { name: "chevron" })) : null
             ),
             h2(
@@ -11115,7 +11137,7 @@ ${sourceUrl}` : ""}` : ""
       );
     }
     __name(ListPane, "ListPane");
-    function ThreadPane({ thread, questionId, busy, onSend, onClear, onClose, onCancel, narrow, ratio = 33, onRatioChange }) {
+    function ThreadPane({ thread, openingSuggestions, onSend, onClear, onClose, onCancel, narrow, ratio = 33, onRatioChange }) {
       const [draft, setDraft] = useState("");
       const [sending, setSending] = useState(false);
       const [localError, setLocalError] = useState("");
@@ -11124,10 +11146,11 @@ ${sourceUrl}` : ""}` : ""
       const sendingRef = useRef(false);
       const sendingMessage = useRef(null);
       const messages2 = thread?.messages || [];
+      const suggestions = (messages2.length ? thread.suggestions : openingSuggestions) || [];
       useEffect(() => {
         const node = scrollRef.current;
         if (node) node.scrollTop = node.scrollHeight;
-      }, [messages2.length, pending?.id]);
+      }, [messages2.length, pending?.id, sending]);
       const send = useCallback(async (text, messageId) => {
         const value = String(text || "").trim();
         if (!value || sendingRef.current) return;
@@ -11138,7 +11161,7 @@ ${sourceUrl}` : ""}` : ""
         try {
           await onSend(value, messageId);
           setPending(null);
-          setDraft("");
+          setDraft((current) => current.trim() === value ? "" : current);
         } catch (error) {
           setLocalError(error.message);
           setPending({ id: messageId, text: value });
@@ -11249,7 +11272,18 @@ ${sourceUrl}` : ""}` : ""
         h2(
           "div",
           { className: "kd-thread-scroll", ref: scrollRef },
-          rows.length ? rows : h2("div", { className: "kd-empty-body" }, "还没有追问。可以问某一步推导为什么成立、某个知识点怎么理解，或有没有别的解法。")
+          rows,
+          !sending && suggestions.length ? h2(
+            "div",
+            { className: "kd-thread-suggestions", role: "group", "aria-label": "建议追问" },
+            h2("span", { className: "kd-meta" }, "建议追问"),
+            suggestions.map((text) => h2("button", {
+              key: text,
+              type: "button",
+              className: "kd-btn kd-btn-default kd-thread-suggestion",
+              onClick: /* @__PURE__ */ __name(() => send(text, newAttemptId()), "onClick")
+            }, text))
+          ) : !rows.length ? h2("div", { className: "kd-empty-body" }, "还没有追问。") : null
         ),
         localError ? h2("div", { className: "kd-error-text", style: { padding: "0 14px" } }, localError) : null,
         h2(
@@ -11261,7 +11295,7 @@ ${sourceUrl}` : ""}` : ""
             h2("textarea", {
               className: "kd-textarea",
               value: draft,
-              placeholder: "围绕这道题继续追问…（Enter 发送，Shift+Enter 换行）",
+              "aria-label": "追问内容",
               disabled: sending,
               onChange: /* @__PURE__ */ __name((event) => setDraft(event.target.value), "onChange"),
               onKeyDown: /* @__PURE__ */ __name((event) => {
@@ -11275,12 +11309,13 @@ ${sourceUrl}` : ""}` : ""
               "div",
               { className: "kd-row", style: { justifyContent: "flex-end", marginTop: "2px" } },
               sending && onCancel ? h2(Btn, { small: true, variant: "ghost", onClick: /* @__PURE__ */ __name(() => onCancel(sendingMessage.current), "onClick") }, "取消回复") : null,
-              h2(Btn, {
-                variant: "primary",
-                small: true,
+              h2("button", {
+                type: "button",
+                className: "kd-btn kd-btn-primary kd-thread-send",
+                "aria-label": T.send,
                 disabled: sending || !draft.trim(),
                 onClick: /* @__PURE__ */ __name(() => send(draft, newAttemptId()), "onClick")
-              }, h2(Icon, { name: "send", size: 13 }), T.send)
+              }, h2(Icon, { name: "arrow-up", size: 17 }))
             )
           )
         )
@@ -12918,6 +12953,7 @@ ${sourceUrl}` : ""}` : ""
 
   // ui/page.js
   var SETTINGS_SECTIONS = /* @__PURE__ */ new Set(["subjects", "banks", "syllabuses", "past-papers", "backup", "about"]);
+  var MANAGEMENT_SECTIONS = /* @__PURE__ */ new Set(["subjects", "banks", "syllabuses", "past-papers"]);
   function createPage(React, { window, rpc, components, styleState }) {
     const { createElement: h2, useState, useEffect, useRef, useMemo, useCallback } = React;
     const navigator = window?.navigator;
@@ -12951,7 +12987,7 @@ ${sourceUrl}` : ""}` : ""
     } = components;
     const StudyStatsPage = createStudyStatsPage(React, { window, rpc, Btn, Icon });
     const StudyMemoryPage = createStudyMemoryPage(React, { window, rpc, Btn, Icon });
-    function watchDayChange(snapshot, onSnapshot) {
+    function watchDayChange(snapshot, onSnapshot, load = () => rpc("bootstrap", { practiceOnly: true })) {
       let timer, stopped = false, checking = false;
       const schedule = /* @__PURE__ */ __name((retry = false) => {
         const delay = Date.parse(snapshot.nextDayAt) - Date.parse(snapshot.now);
@@ -12963,10 +12999,11 @@ ${sourceUrl}` : ""}` : ""
         window.clearTimeout(timer);
         let retry = false;
         try {
-          const fresh = await rpc("bootstrap");
-          if (!stopped) {
+          const fresh = await load();
+          if (!fresh) retry = true;
+          else if (!stopped) {
             snapshot = fresh;
-            onSnapshot(fresh);
+            onSnapshot?.(fresh);
           }
         } catch {
           retry = true;
@@ -13034,6 +13071,10 @@ ${sourceUrl}` : ""}` : ""
       const [focusedQuestionId, setFocusedQuestionId] = useState(null);
       const pageRef = useRef(null);
       const fullScreenRequest = useRef(null);
+      const countsRequest = useRef(0);
+      const [management, setManagement] = useState(null);
+      const [managementAttempt, setManagementAttempt] = useState(0);
+      const managementSection = MANAGEMENT_SECTIONS.has(modal?.kind) ? modal.kind : null;
       const questionFocused = Boolean(focusedQuestionId && view === "detail" && question?.id === focusedQuestionId && !modal && !studyPage);
       currentView.current = { subjectId, kind, view, page: list?.page || 1, loading: busy === "list", filters };
       const skipToday = Boolean(boot?.dailyPlans?.[boot.settings.subjects[0]]?.todaySkipped);
@@ -13090,14 +13131,42 @@ ${sourceUrl}` : ""}` : ""
       }, []);
       const refreshBoot = useCallback(async () => {
         const request = ++bootRequest.current;
+        const countsVersion = ++countsRequest.current;
         try {
-          const result = await rpc("bootstrap");
-          if (request === bootRequest.current) setBoot(result);
+          const result = await rpc("bootstrap", { practiceOnly: true });
+          if (request === bootRequest.current) {
+            setBoot((current) => ({
+              ...current,
+              ...result,
+              counts: countsVersion === countsRequest.current ? result.counts : current?.counts
+            }));
+          }
           return result;
         } catch {
           return null;
         }
       }, []);
+      const refreshCounts = useCallback(async () => {
+        const request = ++countsRequest.current;
+        try {
+          const { counts: counts2 } = await rpc("practiceCounts");
+          if (counts2 && request === countsRequest.current) setBoot((current) => ({ ...current, counts: counts2 }));
+        } catch {
+        }
+      }, []);
+      useEffect(/* @__PURE__ */ __name(function loadManagementSection() {
+        if (!managementSection || !boot?.practiceOnly) return void 0;
+        let cancelled = false;
+        setManagement(null);
+        rpc("managementData", { section: managementSection }).then((data) => {
+          if (!cancelled) setManagement({ section: managementSection, data });
+        }).catch((issue) => {
+          if (!cancelled) setManagement({ section: managementSection, error: issue.message });
+        });
+        return () => {
+          cancelled = true;
+        };
+      }, "loadManagementSection"), [managementSection, boot?.practiceOnly, managementAttempt]);
       const loadToday = useCallback(async (sid, manual = false) => {
         if (!sid) return;
         const request = ++dailyRequest.current;
@@ -13147,8 +13216,8 @@ ${sourceUrl}` : ""}` : ""
       }, [boot?.settings.subjects, subjectId, showSubject]);
       useEffect(() => {
         if (!boot?.today) return void 0;
-        return watchDayChange(boot, setBoot);
-      }, [boot?.today]);
+        return watchDayChange(boot, null, refreshBoot);
+      }, [boot?.today, refreshBoot]);
       useEffect(() => {
         if (!boot?.today || !boot.dailyPlans) return void 0;
         let cancelled = false;
@@ -13204,6 +13273,19 @@ ${sourceUrl}` : ""}` : ""
           cancelled = true;
         };
       }, [boot?.today, loadToday, refreshBoot, notify]);
+      const loadQuestion = useCallback(async (qid, entryKind, request) => {
+        const result = await rpc("getQuestion", { qid });
+        if (request !== dailyRequest.current) return;
+        const canResume = entryKind !== "review" && result.isToday && result.question.answerState === "revealed" && result.question.attemptCount > 0 && !redoQuestions.current.has(qid);
+        if (!canResume) redoQuestions.current.add(qid);
+        setQuestion(result.question);
+        setThread(result.thread || null);
+        setView("detail");
+        setLocalRedo(!canResume);
+        setChoice("");
+        setThreadOpen(false);
+        attemptRef.current = newAttemptId();
+      }, []);
       const loadList = useCallback(async (sid, nextKind, page = 1, nextFilters = {}) => {
         if (!sid) return;
         const request = ++dailyRequest.current;
@@ -13219,13 +13301,17 @@ ${sourceUrl}` : ""}` : ""
         setList(null);
         try {
           const result = await rpc("listQuestions", { subjectId: sid, kind: nextKind, page, ...nextFilters });
+          if (request !== dailyRequest.current) return;
+          if (nextKind === "review" && !nextFilters.topic && result.total === 1) {
+            await loadQuestion(result.items[0].id, nextKind, request);
+          }
           if (request === dailyRequest.current) setList(result);
         } catch (issue) {
           if (request === dailyRequest.current) setListError(issue.message);
         } finally {
           if (request === dailyRequest.current) setBusy("");
         }
-      }, []);
+      }, [loadQuestion]);
       const applyFilters = /* @__PURE__ */ __name((patch) => {
         if (bulkLock.current) return;
         setSelected([]);
@@ -13246,23 +13332,13 @@ ${sourceUrl}` : ""}` : ""
         listScroll.current = mainScroll.current?.scrollTop || 0;
         setBusy("question");
         try {
-          const result = await rpc("getQuestion", { qid });
-          if (request !== dailyRequest.current) return;
-          const canResume = kind !== "review" && result.isToday && result.question.answerState === "revealed" && result.question.attemptCount > 0 && !redoQuestions.current.has(qid);
-          if (!canResume) redoQuestions.current.add(qid);
-          setQuestion(result.question);
-          setThread(result.thread || null);
-          setView("detail");
-          setLocalRedo(!canResume);
-          setChoice("");
-          setThreadOpen(false);
-          attemptRef.current = newAttemptId();
+          await loadQuestion(qid, kind, request);
         } catch (issue) {
           if (request === dailyRequest.current) notify(issue.message, "bad");
         } finally {
           if (request === dailyRequest.current) setBusy("");
         }
-      }, [kind, notify]);
+      }, [kind, loadQuestion, notify]);
       const backToList = /* @__PURE__ */ __name(async () => {
         const request = ++dailyRequest.current;
         setThreadOpen(false);
@@ -13305,16 +13381,20 @@ ${sourceUrl}` : ""}` : ""
           if (request === dailyRequest.current && history === historyRequest.current) notify(issue.message, "bad");
         }
       }, "inspectAttempt");
-      useEffect(() => {
+      useEffect(/* @__PURE__ */ __name(function initialize() {
         let cancelled = false;
-        rpc("bootstrap").then((result) => {
+        rpc("bootstrap", { practiceOnly: true, includeToday: true }).then(({ todayQuestion, ...result }) => {
           if (cancelled) return;
           setBoot(result);
           const preferred = result.settings?.activeSubject;
           const first = result.settings.subjects.includes(preferred) ? preferred : result.settings.subjects[0] || null;
           setSubjectId(first);
           setLoading(false);
-          if (first) loadToday(first);
+          if (first && todayQuestion?.question) {
+            setQuestion(todayQuestion.question);
+            setThread(todayQuestion.thread || null);
+            setView("detail");
+          } else if (first) loadToday(first);
           else setView("empty");
         }).catch((issue) => {
           if (cancelled) return;
@@ -13324,7 +13404,7 @@ ${sourceUrl}` : ""}` : ""
         return () => {
           cancelled = true;
         };
-      }, [loadToday]);
+      }, "initialize"), [loadToday]);
       const currentSubject = useMemo(
         () => (boot?.subjects || []).find((subject) => subject.id === subjectId) || null,
         [boot, subjectId]
@@ -13336,7 +13416,7 @@ ${sourceUrl}` : ""}` : ""
             await rpc("undoReviewRemoval", { qid, removalId });
             setQuestion((current2) => current2?.id === qid ? { ...current2, wrongEver: true } : current2);
             notify("已撤销操作，题目已恢复到错题本");
-            refreshBoot();
+            refreshCounts();
             const current = currentView.current;
             const request = dailyRequest.current;
             if (current.view === "list" && ["review", "wrong"].includes(current.kind)) {
@@ -13352,7 +13432,7 @@ ${sourceUrl}` : ""}` : ""
             notify(issue.message, "bad");
           }
         });
-      }, [notify, refreshBoot]);
+      }, [notify, refreshCounts]);
       const reveal = useCallback(async (mode) => {
         if (!question) return;
         const request = dailyRequest.current;
@@ -13373,7 +13453,7 @@ ${sourceUrl}` : ""}` : ""
           });
           if (request === dailyRequest.current) showSaved(result.question);
           showReviewRemoval(question.id, result.reviewRemovalId);
-          refreshBoot();
+          refreshCounts();
         } catch (issue) {
           if (request !== dailyRequest.current) return;
           const saved = await rpc("getQuestion", { qid: question.id, attemptId }).catch(() => null);
@@ -13384,14 +13464,14 @@ ${sourceUrl}` : ""}` : ""
             const changed = last.mode !== mode || mode === "submit" && last.choice !== choice;
             if (saved.reviewRemovalId) showReviewRemoval(question.id, saved.reviewRemovalId);
             else notify(changed ? "已找回先前保存的作答。本次改选未提交，可点击「重新作答」再提交。" : "已找回本轮保存的作答", changed ? "warn" : "ok");
-            refreshBoot();
+            refreshCounts();
           } else {
             notify(`${issue.message}。未确认本轮是否保存，可再次提交以核对。`, "warn");
           }
         } finally {
           if (request === dailyRequest.current) setBusy("");
         }
-      }, [question, choice, kind, notify, refreshBoot, showReviewRemoval]);
+      }, [question, choice, kind, notify, refreshCounts, showReviewRemoval]);
       const judge = useCallback(async (verdict) => {
         if (!question) return;
         if (!question.lastAttempt?.id) {
@@ -13404,13 +13484,13 @@ ${sourceUrl}` : ""}` : ""
           const result = await rpc("judge", { qid: question.id, verdict, attemptId: question.lastAttempt.id });
           if (request === dailyRequest.current) setQuestion(result.question);
           showReviewRemoval(question.id, result.reviewRemovalId);
-          refreshBoot();
+          refreshCounts();
         } catch (issue) {
           if (request === dailyRequest.current) notify(issue.message, "bad");
         } finally {
           if (request === dailyRequest.current) setBusy("");
         }
-      }, [question, notify, refreshBoot, showReviewRemoval]);
+      }, [question, notify, refreshCounts, showReviewRemoval]);
       const favorite = useCallback(async () => {
         if (!question || favoritePending === question.id) return;
         const request = dailyRequest.current;
@@ -13421,13 +13501,13 @@ ${sourceUrl}` : ""}` : ""
             setQuestion((current) => current?.id === question.id ? { ...current, favorite: result.question.favorite } : current);
             notify(question.favorite ? "已取消收藏" : "已加入收藏");
           }
-          refreshBoot();
+          refreshCounts();
         } catch (issue) {
           if (request === dailyRequest.current) notify(issue.message, "bad");
         } finally {
           setFavoritePending((value) => value === question.id ? null : value);
         }
-      }, [question, favoritePending, notify, refreshBoot]);
+      }, [question, favoritePending, notify, refreshCounts]);
       const sendFollowup = useCallback(async (text, messageId) => {
         if (!question) throw new Error("没有打开任何题目");
         const request = dailyRequest.current;
@@ -13552,7 +13632,12 @@ ${sourceUrl}` : ""}` : ""
         const result = await rpc("saveSettings", { ...draft, activeSubject: preferred });
         const next = result.settings.activeSubject;
         bootRequest.current++;
+        countsRequest.current++;
         setBoot((current) => ({ ...current, ...result }));
+        setManagement((current) => current?.section === "subjects" && result.customSubjects ? { ...current, data: {
+          customSubjects: result.customSubjects,
+          bankItemCounts: Object.fromEntries(result.subjects.map(({ id, bankItemCount }) => [id, bankItemCount]))
+        } } : current);
         resetSubjectsEditor(draft.deleteSubjectIds?.length ? "科目设置已保存，所选科目及其历史题目已删除" : "科目设置已保存");
         if (next !== subjectId) showSubject(next);
       }, "saveSubjects");
@@ -13588,19 +13673,19 @@ ${sourceUrl}` : ""}` : ""
         try {
           const saved = await rpc("commitBank", { importId: result.importId, name: result.name, subjectId: subjectId || "", excludedIndexes });
           setModal({ kind: "banks" });
-          await refreshBoot();
+          if (saved.banks) setManagement({ section: "banks", data: { banks: saved.banks } });
           notify(`题库《${saved.bank.name}》已入库，共 ${saved.bank.itemCount} 道题`);
         } catch (issue) {
           notify(issue.message, "bad");
         } finally {
           setBusy("");
         }
-      }, [subjectId, notify, refreshBoot]);
+      }, [subjectId, notify]);
       const deleteBank = useCallback(async (bank) => {
         setBusy("delete-bank");
         try {
           const result = await rpc("deleteBank", { bankId: bank.id });
-          await refreshBoot();
+          if (result.banks) setManagement({ section: "banks", data: { banks: result.banks } });
           setModal({ kind: "banks" });
           notify(result.message);
         } catch (issue) {
@@ -13608,7 +13693,7 @@ ${sourceUrl}` : ""}` : ""
         } finally {
           setBusy("");
         }
-      }, [notify, refreshBoot]);
+      }, [notify]);
       const bulkQuestions = /* @__PURE__ */ __name(async (action) => {
         if (bulkLock.current || !selected.length) return;
         const request = dailyRequest.current;
@@ -13620,7 +13705,7 @@ ${sourceUrl}` : ""}` : ""
           try {
             const result = await rpc("bulkQuestions", { qids, action, confirmProtected });
             if (request !== dailyRequest.current) {
-              refreshBoot();
+              refreshCounts();
               return;
             }
             if (result.requiresConfirmation) {
@@ -13639,7 +13724,7 @@ ${sourceUrl}` : ""}` : ""
             const loading2 = loadList(subjectId, kind, list?.page || 1, filters);
             const listRequest = dailyRequest.current;
             await loading2;
-            await refreshBoot();
+            await refreshCounts();
             if (listRequest === dailyRequest.current) notify(`已处理 ${result.affected} 道题目`);
           } catch (issue) {
             if (request === dailyRequest.current) {
@@ -13807,8 +13892,7 @@ ${sourceUrl}` : ""}` : ""
           const search2 = kind !== "review" ? h2(
             "form",
             {
-              className: "kd-row",
-              style: { marginBottom: "12px" },
+              className: "kd-row kd-question-filters",
               onSubmit: /* @__PURE__ */ __name((event) => {
                 event.preventDefault();
                 applyFilters({ query: queryDraft.trim() });
@@ -13933,7 +14017,7 @@ ${sourceUrl}` : ""}` : ""
                   setQuestion(result.question);
                   notify("已移出错题本，历史作答记录仍然保留");
                 }
-                refreshBoot();
+                refreshCounts();
               } catch (issue) {
                 if (request === dailyRequest.current) notify(issue.message, "bad");
               }
@@ -13946,9 +14030,10 @@ ${sourceUrl}` : ""}` : ""
           body: "左侧「今日题目 / 全部 / 收藏 / 错题本」分别对应今天这道题、历史题目、收藏和错题。"
         });
       })();
+      const singleReview = kind === "review" && !filters.topic && list?.total === 1;
       const pickTab = /* @__PURE__ */ __name((value) => {
         if (!subjectVisible) return;
-        if (value === kind && (value === "today" || view === "list")) return;
+        if (value === kind && (value === "today" || view === "list" || singleReview)) return;
         if (value === "today") {
           if (boot?.settings.subjects.includes(subjectId)) loadToday(subjectId);
         } else loadList(subjectId, value);
@@ -13972,11 +14057,32 @@ ${sourceUrl}` : ""}` : ""
       const settingsOpen = SETTINGS_SECTIONS.has(modal?.kind);
       const settingsPanel = /* @__PURE__ */ __name(() => {
         const embedded = { embedded: true, onClose: closeSettings, onBusyChange: setSettingsBusy };
+        let panelBoot = boot;
+        if (boot?.practiceOnly && managementSection) {
+          if (management?.section === managementSection && management.error) {
+            return h2(EmptyState, {
+              icon: "refresh",
+              title: "设置资料加载失败",
+              body: management.error,
+              actions: h2(Btn, { onClick: /* @__PURE__ */ __name(() => setManagementAttempt((attempt) => attempt + 1), "onClick") }, T.retry)
+            });
+          }
+          if (management?.section !== managementSection || !management.data) {
+            return h2("div", { className: "kd-loading" }, h2("span", { className: "kd-spinner" }), "正在加载设置资料…");
+          }
+          panelBoot = { ...boot, ...management.data };
+          if (managementSection === "subjects") {
+            panelBoot.subjects = boot.subjects.map((subject) => ({
+              ...subject,
+              bankItemCount: management.data.bankItemCounts[subject.id] || 0
+            }));
+          }
+        }
         switch (modal.kind) {
           case "subjects":
-            return boot && h2(SubjectsModal, {
+            return panelBoot && h2(SubjectsModal, {
               ...embedded,
-              boot,
+              boot: panelBoot,
               key: modal.edit || 0,
               savedNotice: modal.notice,
               onClose: resetSubjectsEditor,
@@ -13997,9 +14103,9 @@ ${sourceUrl}` : ""}` : ""
                 onClose: /* @__PURE__ */ __name(() => setModal({ kind: "banks" }), "onClose")
               });
             }
-            return boot && h2(BanksModal, {
+            return panelBoot && h2(BanksModal, {
               ...embedded,
-              boot,
+              boot: panelBoot,
               key: modal.importResult?.importId || "banks",
               importResult: modal.importResult,
               committing: busy === "commit",
@@ -14009,22 +14115,16 @@ ${sourceUrl}` : ""}` : ""
               onCancelImport: /* @__PURE__ */ __name(() => setModal({ kind: "banks" }), "onCancelImport")
             });
           case "syllabuses":
-            return boot && h2(SyllabusesModal, {
+            return panelBoot && h2(SyllabusesModal, {
               ...embedded,
-              boot,
-              onSaved: /* @__PURE__ */ __name((syllabuses) => {
-                bootRequest.current++;
-                setBoot((current) => ({ ...current, syllabuses }));
-              }, "onSaved")
+              boot: panelBoot,
+              onSaved: /* @__PURE__ */ __name((syllabuses) => setManagement({ section: "syllabuses", data: { syllabuses } }), "onSaved")
             });
           case "past-papers":
-            return boot && h2(PastPapersModal, {
+            return panelBoot && h2(PastPapersModal, {
               ...embedded,
-              boot,
-              onSaved: /* @__PURE__ */ __name((pastPapers) => {
-                bootRequest.current++;
-                setBoot((current) => ({ ...current, pastPapers }));
-              }, "onSaved")
+              boot: panelBoot,
+              onSaved: /* @__PURE__ */ __name((pastPapers) => setManagement({ section: "past-papers", data: { pastPapers } }), "onSaved")
             });
           case "backup":
             return h2(BackupModal, { ...embedded, onRestored: /* @__PURE__ */ __name((warning) => {
@@ -14122,7 +14222,7 @@ ${sourceUrl}` : ""}` : ""
                   counts,
                   onPick: pickTab,
                   todayDisabled: !boot.settings.subjects.includes(subjectId),
-                  onBack: subjectVisible && kind !== "today" && view === "detail" ? backToList : void 0
+                  onBack: subjectVisible && kind !== "today" && !singleReview && view === "detail" ? backToList : void 0
                 }) : null,
                 dailyPlan ? h2(
                   "div",
@@ -14153,8 +14253,7 @@ ${sourceUrl}` : ""}` : ""
             ),
             h2(Presence, null, showThread ? h2(ThreadPane, {
               thread,
-              questionId: question.id,
-              busy,
+              openingSuggestions: question.openingSuggestions,
               narrow,
               ratio: threadRatio,
               onRatioChange: setThreadRatio,

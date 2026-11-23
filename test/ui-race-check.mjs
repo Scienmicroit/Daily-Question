@@ -3,9 +3,10 @@ import { createClient } from '../ui/app.js'
 import { BANK_PDF_BYTES, BANK_TEXT_LIMIT } from '../lib/import-limits.js'
 const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r});return {promise,resolve}}
 const tick=()=>new Promise(r=>setImmediate(r))
-function fixture(responder,detail=false) {
-  let index,refIndex
-  const boot={settings:{subjects:['math1']},subjects:[],counts:{math1:{all:2}}}
+function fixture(responder,detail=false,initialBoot) {
+  let index,refIndex,effects
+  const boot=initialBoot||{settings:{subjects:['math1']},subjects:[],counts:{math1:{all:2}}}
+  const bootRequests=[]
   const state=new Map([[0,boot],[1,false],[3,'math1'],[4,detail?'all':'today'],[5,detail?'detail':'empty'],
     [6,detail?{id:'A',type:'single',favorite:false,answerState:'revealed',attemptCount:1,lastAttempt:{id:'attempt-A'}}:null],[8,{items:[]}]])
   const refs=[]
@@ -13,15 +14,45 @@ function fixture(responder,detail=false) {
   const React = {
     createElement: h,
     useState(value){const i=index++;if(!state.has(i))state.set(i,typeof value==='function'?value():value);return [state.get(i),v=>state.set(i,typeof v==='function'?v(state.get(i)):v)]},
-    useRef(value){return refs[refIndex++]??={current:value}},useEffect(){},useCallback:f=>f,useMemo:f=>f(),
+    useRef(value){return refs[refIndex++]??={current:value}},useEffect(fn){effects.push(fn)},useCallback:f=>f,useMemo:f=>f(),
   }
   const components = createClient(React, { window: {}, fetch: async (_url, options) => {
     const {op,args}=JSON.parse(options.body)
+    if (op==='bootstrap') bootRequests.push(args)
     const result=op==='bootstrap'?boot:await responder(op,args)
     return {ok:true,json:async()=>({ok:true,result})}
   } })
   function find(node,name){if(typeof name==='function'?name(node):node?.type===name||node?.type?.name===name)return node;for(const child of node?.children||[]){const found=find(child,name);if(found)return found}}
-  return {state,props(name){index=refIndex=0;const node=find(components.Page(),name);assert(node,`缺少${name}`);return node.props}}
+  function render(){index=refIndex=0;effects=[];return components.Page()}
+  return {state,bootRequests,props(name){const node=find(render(),name);assert(node,`缺少${name}`);return node.props},
+    effect(name){render();const run=effects.find(fn=>fn.name===name);assert(run,`缺少${name}`);return run()}}
+}
+
+{
+  const requests = []
+  const boot = { practiceOnly: true, settings: { subjects: ['math1'], activeSubject: 'math1' },
+    subjects: [{ id: 'math1' }], counts: { math1: { all: 1 } },
+    todayQuestion: { question: { id: 'existing', type: 'single', answerState: 'locked' } } }
+  const ui = fixture((op, args) => {
+    requests.push({ op, args })
+    return args.section === 'subjects' ? { bankItemCounts: { math1: 7 }, customSubjects: [] } : { banks: [] }
+  }, false, boot)
+  ui.effect('initialize')
+  await tick()
+  assert.deepEqual(ui.bootRequests, [{ practiceOnly: true, includeToday: true }])
+  assert.equal(ui.props('QuestionPane').q.id, 'existing')
+  assert.equal(requests.length, 0, '已出题首屏仅用一次请求')
+  ui.props('SubjectNav').onSettings()
+  const cleanup = ui.effect('loadManagementSection')
+  await tick()
+  assert.equal(ui.props('SubjectsModal').boot.subjects[0].bankItemCount, 7)
+  assert.deepEqual(requests, [{ op: 'managementData', args: { section: 'subjects' } }])
+  ui.props('SettingsModal').onPick('banks')
+  cleanup()
+  ui.effect('loadManagementSection')
+  await tick()
+  assert.deepEqual(ui.props('BanksModal').boot.banks, [])
+  assert.deepEqual(requests.at(-1), { op: 'managementData', args: { section: 'banks' } })
 }
 
 {
@@ -77,21 +108,66 @@ function fixture(responder,detail=false) {
 
   search.props('TabBar').onPick('review')
   await tick()
-  assert.equal(requests.at(-1).args.kind, 'review')
-  assert.equal(requests.at(-1).args.query, undefined)
-  await search.props('ListPane').onOpen('A')
-  assert.equal(search.props('QuestionPane').localRedo, true, '从复习入口打开今日题也先隐藏答案')
+  assert.deepEqual(requests.slice(-2), [
+    { op: 'listQuestions', args: { subjectId: 'math1', kind: 'review', page: 1 } },
+    { op: 'getQuestion', args: { qid: 'A' } },
+  ])
+  assert.equal(search.props('QuestionPane').q.id, 'A', '只有一道待复习题时直接显示详情')
+  assert.equal(search.props('TabBar').onBack, undefined, '单题直达时隐藏返回按钮')
+  assert.equal(search.props('QuestionPane').localRedo, true, '直接进入复习也先隐藏历史答案')
   search.props('QuestionPane').onSelect('A')
+  search.props('TabBar').onPick('review')
+  assert.equal(search.props('QuestionPane').choice, 'A', '再次点击当前栏目不清空作答')
   search.props('QuestionPane').onToggleFocus()
   assert.equal(search.props('QuestionPane').focused, true)
   assert.equal(search.props('QuestionPane').choice, 'A')
   await search.props('QuestionPane').onReveal('submit')
+  assert.equal(requests.findLast(({ op }) => op === 'reveal').args.fromReview, true, '直接进入仍记为复习作答')
+  assert.equal(requests.at(-1).op, 'practiceCounts', '答题只刷新练习计数')
   assert.equal(search.props('QuestionPane').localRedo, false)
   assert.equal(search.props('QuestionPane').focused, true)
   search.props('QuestionPane').onToggleFocus()
   assert.equal(search.props('QuestionPane').focused, false)
   await search.props('QuestionPane').onInspectAttempt('prior')
   assert.equal(search.props('AttemptModal').record.lastAttempt.id, 'prior')
+}
+
+for (const items of [[], [{ id: 'A' }, { id: 'B' }]]) {
+  const requests = []
+  const review = fixture((op, args) => {
+    requests.push({ op, args })
+    if (op === 'getQuestion') return { question: { id: args.qid, type: 'single' } }
+    return { items, total: items.length }
+  })
+  review.props('TabBar').onPick('review')
+  await tick()
+  assert.equal(requests.length, 1, '空列表或多道题时不自动打开详情')
+  assert.deepEqual(review.props('ListPane').list.items, items)
+  if (items.length) {
+    await review.props('ListPane').onOpen('B')
+    assert.equal(review.props('QuestionPane').q.id, 'B', '多道待复习题仍可自行选择')
+    await review.props('TabBar').onBack()
+    assert.deepEqual(review.props('ListPane').list.items, items)
+  }
+}
+
+{
+  const detail = deferred()
+  const requests = []
+  const review = fixture((op, args) => {
+    requests.push(op)
+    if (op === 'getQuestion') return detail.promise
+    return args.kind === 'review' ? { items: [{ id: 'A' }], total: 1 } : { items: [], total: 0 }
+  })
+  review.props('TabBar').onPick('review')
+  await tick()
+  assert.deepEqual(requests, ['listQuestions', 'getQuestion'])
+  assert.equal(review.props('ListPane').list, null, '详情加载时不闪现单题预览')
+  review.props('TabBar').onPick('all')
+  detail.resolve({ question: { id: 'A', type: 'single' } })
+  await tick()
+  assert.deepEqual(review.props('ListPane').list.items, [], '切换栏目后丢弃迟到的复习详情')
+  assert.equal(review.props('TabBar').kind, 'all')
 }
 
 const all=deferred(),favorite=deferred()
@@ -304,16 +380,25 @@ const lateThread=deferred()
   await reader.props('QuestionPane').onFavorite()
   assert.deepEqual(reader.state.get(6), { id: 'A', answerState: 'locked', answer: null, favorite: true })
   await reader.props('QuestionPane').onFavorite()
-  assert.deepEqual(changes,[['favorite',{qid:'A',value:true}],['favorite',{qid:'A',value:false}]])
+  assert.deepEqual(changes,[['favorite',{qid:'A',value:true}],['practiceCounts',{}],['favorite',{qid:'A',value:false}],['practiceCounts',{}]])
   assert.equal(reader.state.get(6).answerState, 'locked', '未看答案也可收藏和取消，收藏响应不覆盖作答状态')
 }
-f=fixture((op)=>op==='followup'?lateThread.promise:{thread:{messages:[]}},true)
-f.state.set(17,true)
+const threadRequests = []
+f=fixture((op)=>{
+  threadRequests.push(op)
+  return op==='followup'?lateThread.promise:{thread:{messages:[],suggestions:[]}}
+},true)
+const preparedSuggestions = ['这道题的切入点是什么？', '这一步有哪些容易混淆的条件？']
+f.state.set(6, { ...f.state.get(6), openingSuggestions: preparedSuggestions })
+f.props('QuestionPane').onToggleThread()
+assert.deepEqual(f.props('ThreadPane').openingSuggestions, preparedSuggestions)
+assert.deepEqual(threadRequests, [], '打开追问只显示已准备的建议，不发请求')
 const sending=f.props('ThreadPane').onSend('解释','old-message')
 await f.props('ThreadPane').onClear()
 await f.props('ConfirmModal').onConfirm()
-lateThread.resolve({thread:{messages:[{role:'assistant',text:'清空前的回复'}]}});await sending
+lateThread.resolve({thread:{messages:[{role:'assistant',text:'清空前的回复'}],suggestions:['清空前的建议？']}});await sending
 assert.deepEqual(f.state.get(7).messages,[],'清空后不能被网络迟到的旧追问响应恢复')
+assert.deepEqual(f.state.get(7).suggestions, [], '清空后丢弃迟到的旧建议')
 
 const cancellations=[]
 f=fixture((op,args)=>{cancellations.push({op,args});return {ok:true}},true)

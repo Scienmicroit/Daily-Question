@@ -40,20 +40,27 @@ function scripted(steps) {
   } }
   return { ctx, calls, fitCalls }
 }
-async function generate(steps) {
+async function generate(steps, options = {}) {
   const run = scripted(steps)
-  const result = await createVerifiedQuestion({ ctx: run.ctx, subject, preferredType: 'single' })
+  const result = await createVerifiedQuestion({ ctx: run.ctx, subject, preferredType: 'single', ...options })
   return { ...run, result }
 }
 function roles(calls, expected) { assert.deepEqual(calls.map((c) => c.role), expected.split(' ')) }
 
-const accepted = await generate([writer, solver(), agree])
+const initialSuggestions = ['这道题用哪个条件判断极限是否存在？', '能直接用极限运算法则吗？', '怎样检查代入是否合理？']
+const accepted = await generate([{ ...writer, followupSuggestions: initialSuggestions }, solver(), agree], {
+  followupFocus: [{ topic: '极限的计算', recent: 3, wrong: 2 }],
+})
 roles(accepted.calls, 'writer solver compare')
 const blindPrompt = accepted.calls[1].messages[0].content[0].text
 assert.deepEqual(JSON.parse(blindPrompt), { stem: writer.stem, options: writer.options })
 assert(!blindPrompt.includes('WRITER_EXPLANATION'))
 assert(accepted.calls.every((c) => c.messages.length === 1 && c.model === 'default-model'))
 assert.equal(accepted.result.question.answerKey, 'A')
+assert.deepEqual(accepted.result.question.followupSuggestions, initialSuggestions)
+const writerPrompt = accepted.calls[0].messages[0].content[0].text
+assert(writerPrompt.includes('"followupSuggestions"') && writerPrompt.includes('"topic":"极限的计算","recent":3,"wrong":2'))
+console.log('ok   命题调用同时预生成首轮建议并参考近期作答，盲解仍只接收题干和选项')
 console.log('ok   盲解只接收题干与选项，所有角色独立调用默认模型；一致时发布')
 
 const applicationType = '综合应用题'

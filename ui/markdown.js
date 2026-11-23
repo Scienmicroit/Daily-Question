@@ -124,14 +124,15 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
   }
 
   /** 让组件跟着公式引擎的加载状态重渲染。 */
-  function useMathJaxStatus() {
+  function useMathJaxStatus(enabled = true) {
     const [status, setStatus] = useState(mathState.status)
     useEffect(() => {
+      if (!enabled) return undefined
       ensureMathJax()
       const update = () => setStatus(mathState.status)
       update()
       return subscribeMath(update)
-    }, [])
+    }, [enabled])
     return status
   }
 

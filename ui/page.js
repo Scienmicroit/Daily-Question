@@ -5,6 +5,7 @@ import { createStudyStatsPage } from './study-stats.js'
 import { createStudyMemoryPage } from './study-memory.js'
 
 const SETTINGS_SECTIONS = new Set(['subjects', 'banks', 'syllabuses', 'past-papers', 'backup', 'about'])
+const MANAGEMENT_SECTIONS = new Set(['subjects', 'banks', 'syllabuses', 'past-papers'])
 
 export function createPage(React, { window, rpc, components, styleState }) {
   const { createElement: h, useState, useEffect, useRef, useMemo, useCallback } = React
@@ -19,7 +20,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
   const StudyStatsPage = createStudyStatsPage(React, { window, rpc, Btn, Icon })
   const StudyMemoryPage = createStudyMemoryPage(React, { window, rpc, Btn, Icon })
 
-  function watchDayChange(snapshot, onSnapshot) {
+  function watchDayChange(snapshot, onSnapshot, load = () => rpc('bootstrap', { practiceOnly: true })) {
     let timer, stopped = false, checking = false
     const schedule = (retry = false) => {
       const delay = Date.parse(snapshot.nextDayAt) - Date.parse(snapshot.now)
@@ -31,8 +32,9 @@ export function createPage(React, { window, rpc, components, styleState }) {
       window.clearTimeout(timer)
       let retry = false
       try {
-        const fresh = await rpc('bootstrap')
-        if (!stopped) { snapshot = fresh; onSnapshot(fresh) }
+        const fresh = await load()
+        if (!fresh) retry = true
+        else if (!stopped) { snapshot = fresh; onSnapshot?.(fresh) }
       } catch { retry = true }
       finally { checking = false; if (!stopped) schedule(retry) }
     }
@@ -93,6 +95,10 @@ export function createPage(React, { window, rpc, components, styleState }) {
     const [focusedQuestionId, setFocusedQuestionId] = useState(null)
     const pageRef = useRef(null)
     const fullScreenRequest = useRef(null)
+    const countsRequest = useRef(0)
+    const [management, setManagement] = useState(null)
+    const [managementAttempt, setManagementAttempt] = useState(0)
+    const managementSection = MANAGEMENT_SECTIONS.has(modal?.kind) ? modal.kind : null
     const questionFocused = Boolean(focusedQuestionId && view === 'detail' && question?.id === focusedQuestionId
       && !modal && !studyPage)
     currentView.current = { subjectId, kind, view, page:list?.page||1, loading:busy==='list', filters }
@@ -149,14 +155,40 @@ export function createPage(React, { window, rpc, components, styleState }) {
 
     const refreshBoot = useCallback(async () => {
       const request = ++bootRequest.current
+      const countsVersion = ++countsRequest.current
       try {
-        const result = await rpc('bootstrap')
-        if (request === bootRequest.current) setBoot(result)
+        const result = await rpc('bootstrap', { practiceOnly: true })
+        if (request === bootRequest.current) {
+          setBoot((current) => ({
+            ...current, ...result,
+            counts: countsVersion === countsRequest.current ? result.counts : current?.counts,
+          }))
+        }
         return result
       } catch {
         return null
       }
     }, [])
+
+    const refreshCounts = useCallback(async () => {
+      const request = ++countsRequest.current
+      try {
+        const { counts } = await rpc('practiceCounts')
+        if (counts && request === countsRequest.current) setBoot((current) => ({ ...current, counts }))
+      } catch { /* The next practice snapshot refresh can still update the counts. */ }
+    }, [])
+
+    useEffect(function loadManagementSection() {
+      if (!managementSection || !boot?.practiceOnly) return undefined
+      let cancelled = false
+      setManagement(null)
+      rpc('managementData', { section: managementSection }).then((data) => {
+        if (!cancelled) setManagement({ section: managementSection, data })
+      }).catch((issue) => {
+        if (!cancelled) setManagement({ section: managementSection, error: issue.message })
+      })
+      return () => { cancelled = true }
+    }, [managementSection, boot?.practiceOnly, managementAttempt])
 
     const loadToday = useCallback(async (sid, manual = false) => {
       if (!sid) return
@@ -206,8 +238,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
 
     useEffect(() => {
       if (!boot?.today) return undefined
-      return watchDayChange(boot, setBoot)
-    }, [boot?.today])
+      return watchDayChange(boot, null, refreshBoot)
+    }, [boot?.today, refreshBoot])
 
     useEffect(() => {
       if (!boot?.today || !boot.dailyPlans) return undefined
@@ -255,6 +287,21 @@ export function createPage(React, { window, rpc, components, styleState }) {
       return () => { cancelled = true }
     }, [boot?.today, loadToday, refreshBoot, notify])
 
+    const loadQuestion = useCallback(async (qid, entryKind, request) => {
+      const result = await rpc('getQuestion', { qid })
+      if (request !== dailyRequest.current) return
+      const canResume = entryKind !== 'review' && result.isToday && result.question.answerState === 'revealed'
+        && result.question.attemptCount > 0 && !redoQuestions.current.has(qid)
+      if (!canResume) redoQuestions.current.add(qid)
+      setQuestion(result.question)
+      setThread(result.thread || null)
+      setView('detail')
+      setLocalRedo(!canResume)
+      setChoice('')
+      setThreadOpen(false)
+      attemptRef.current = newAttemptId()
+    }, [])
+
     const loadList = useCallback(async (sid, nextKind, page = 1, nextFilters = {}) => {
       if (!sid) return
       const request = ++dailyRequest.current
@@ -270,13 +317,17 @@ export function createPage(React, { window, rpc, components, styleState }) {
       setList(null)
       try {
         const result = await rpc('listQuestions', { subjectId: sid, kind: nextKind, page, ...nextFilters })
+        if (request !== dailyRequest.current) return
+        if (nextKind === 'review' && !nextFilters.topic && result.total === 1) {
+          await loadQuestion(result.items[0].id, nextKind, request)
+        }
         if (request === dailyRequest.current) setList(result)
       } catch (issue) {
         if (request === dailyRequest.current) setListError(issue.message)
       } finally {
         if (request === dailyRequest.current) setBusy('')
       }
-    }, [])
+    }, [loadQuestion])
 
     const applyFilters = (patch) => {
       if (bulkLock.current) return
@@ -297,24 +348,13 @@ export function createPage(React, { window, rpc, components, styleState }) {
       listScroll.current = mainScroll.current?.scrollTop || 0
       setBusy('question')
       try {
-        const result = await rpc('getQuestion', { qid })
-        if (request !== dailyRequest.current) return
-        const canResume = kind !== 'review' && result.isToday && result.question.answerState === 'revealed'
-          && result.question.attemptCount > 0 && !redoQuestions.current.has(qid)
-        if (!canResume) redoQuestions.current.add(qid)
-        setQuestion(result.question)
-        setThread(result.thread || null)
-        setView('detail')
-        setLocalRedo(!canResume)
-        setChoice('')
-        setThreadOpen(false)
-        attemptRef.current = newAttemptId()
+        await loadQuestion(qid, kind, request)
       } catch (issue) {
         if (request === dailyRequest.current) notify(issue.message, 'bad')
       } finally {
         if (request === dailyRequest.current) setBusy('')
       }
-    }, [kind, notify])
+    }, [kind, loadQuestion, notify])
 
     const backToList = async () => {
       const request = ++dailyRequest.current
@@ -354,16 +394,20 @@ export function createPage(React, { window, rpc, components, styleState }) {
       }
     }
 
-    useEffect(() => {
+    useEffect(function initialize() {
       let cancelled = false
-      rpc('bootstrap').then((result) => {
+      rpc('bootstrap', { practiceOnly: true, includeToday: true }).then(({ todayQuestion, ...result }) => {
         if (cancelled) return
         setBoot(result)
         const preferred = result.settings?.activeSubject
         const first = result.settings.subjects.includes(preferred) ? preferred : (result.settings.subjects[0] || null)
         setSubjectId(first)
         setLoading(false)
-        if (first) loadToday(first)
+        if (first && todayQuestion?.question) {
+          setQuestion(todayQuestion.question)
+          setThread(todayQuestion.thread || null)
+          setView('detail')
+        } else if (first) loadToday(first)
         else setView('empty')
       }).catch((issue) => {
         if (cancelled) return
@@ -383,7 +427,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
           await rpc('undoReviewRemoval', { qid, removalId })
           setQuestion((current) => current?.id === qid ? { ...current, wrongEver: true } : current)
           notify('已撤销操作，题目已恢复到错题本')
-          refreshBoot()
+          refreshCounts()
           const current = currentView.current
           const request = dailyRequest.current
           if (current.view === 'list' && ['review', 'wrong'].includes(current.kind)) {
@@ -393,7 +437,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
           }
         } catch (issue) { notify(issue.message, 'bad') }
       })
-    }, [notify, refreshBoot])
+    }, [notify, refreshCounts])
 
     const reveal = useCallback(async (mode) => {
       if (!question) return
@@ -415,7 +459,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
         })
         if (request === dailyRequest.current) showSaved(result.question)
         showReviewRemoval(question.id, result.reviewRemovalId)
-        refreshBoot()
+        refreshCounts()
       } catch (issue) {
         if (request !== dailyRequest.current) return
         const saved = await rpc('getQuestion', { qid: question.id, attemptId }).catch(() => null)
@@ -426,14 +470,14 @@ export function createPage(React, { window, rpc, components, styleState }) {
           const changed = last.mode !== mode || (mode === 'submit' && last.choice !== choice)
           if (saved.reviewRemovalId) showReviewRemoval(question.id, saved.reviewRemovalId)
           else notify(changed ? '已找回先前保存的作答。本次改选未提交，可点击「重新作答」再提交。' : '已找回本轮保存的作答', changed ? 'warn' : 'ok')
-          refreshBoot()
+          refreshCounts()
         } else {
           notify(`${issue.message}。未确认本轮是否保存，可再次提交以核对。`, 'warn')
         }
       } finally {
         if (request === dailyRequest.current) setBusy('')
       }
-    }, [question, choice, kind, notify, refreshBoot, showReviewRemoval])
+    }, [question, choice, kind, notify, refreshCounts, showReviewRemoval])
 
     const judge = useCallback(async (verdict) => {
       if (!question) return
@@ -444,13 +488,13 @@ export function createPage(React, { window, rpc, components, styleState }) {
         const result = await rpc('judge', { qid: question.id, verdict, attemptId:question.lastAttempt.id })
         if (request === dailyRequest.current) setQuestion(result.question)
         showReviewRemoval(question.id, result.reviewRemovalId)
-        refreshBoot()
+        refreshCounts()
       } catch (issue) {
         if (request === dailyRequest.current) notify(issue.message, 'bad')
       } finally {
         if (request === dailyRequest.current) setBusy('')
       }
-    }, [question, notify, refreshBoot, showReviewRemoval])
+    }, [question, notify, refreshCounts, showReviewRemoval])
 
     const favorite = useCallback(async () => {
       if (!question || favoritePending === question.id) return
@@ -463,15 +507,16 @@ export function createPage(React, { window, rpc, components, styleState }) {
             ? { ...current, favorite: result.question.favorite } : current)
           notify(question.favorite ? '已取消收藏' : '已加入收藏')
         }
-        refreshBoot()
+        refreshCounts()
       } catch (issue) {
         if (request === dailyRequest.current) notify(issue.message, 'bad')
       } finally {
         setFavoritePending((value) => value === question.id ? null : value)
       }
-    }, [question, favoritePending, notify, refreshBoot])
+    }, [question, favoritePending, notify, refreshCounts])
 
-    const sendFollowup = useCallback(async (text, messageId) => {        if (!question) throw new Error('没有打开任何题目')
+    const sendFollowup = useCallback(async (text, messageId) => {
+      if (!question) throw new Error('没有打开任何题目')
       const request = dailyRequest.current
       const threadVersion = ++threadRequest.current
       const result = await rpc('followup', { qid: question.id, message: text, clientMessageId: messageId })
@@ -601,7 +646,13 @@ export function createPage(React, { window, rpc, components, styleState }) {
       const result = await rpc('saveSettings', { ...draft, activeSubject: preferred })
       const next = result.settings.activeSubject
       bootRequest.current++
+      countsRequest.current++
       setBoot((current) => ({ ...current, ...result }))
+      setManagement((current) => current?.section === 'subjects' && result.customSubjects
+        ? { ...current, data: {
+          customSubjects: result.customSubjects,
+          bankItemCounts: Object.fromEntries(result.subjects.map(({ id, bankItemCount }) => [id, bankItemCount])),
+        } } : current)
       resetSubjectsEditor(draft.deleteSubjectIds?.length ? '科目设置已保存，所选科目及其历史题目已删除' : '科目设置已保存')
       if (next !== subjectId) showSubject(next)
     }
@@ -640,20 +691,20 @@ export function createPage(React, { window, rpc, components, styleState }) {
       try {
         const saved = await rpc('commitBank', { importId: result.importId, name: result.name, subjectId: subjectId || '', excludedIndexes })
         setModal({ kind: 'banks' })
-        await refreshBoot()
+        if (saved.banks) setManagement({ section: 'banks', data: { banks: saved.banks } })
         notify(`题库《${saved.bank.name}》已入库，共 ${saved.bank.itemCount} 道题`)
       } catch (issue) {
         notify(issue.message, 'bad')
       } finally {
         setBusy('')
       }
-    }, [subjectId, notify, refreshBoot])
+    }, [subjectId, notify])
 
     const deleteBank = useCallback(async (bank) => {
       setBusy('delete-bank')
       try {
         const result = await rpc('deleteBank', { bankId: bank.id })
-        await refreshBoot()
+        if (result.banks) setManagement({ section: 'banks', data: { banks: result.banks } })
         setModal({ kind: 'banks' })
         notify(result.message)
       } catch (issue) {
@@ -661,7 +712,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
       } finally {
         setBusy('')
       }
-    }, [notify, refreshBoot])
+    }, [notify])
 
     const bulkQuestions = async (action) => {
       if (bulkLock.current || !selected.length) return
@@ -673,7 +724,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
         setBusy('bulk')
         try {
           const result = await rpc('bulkQuestions', { qids, action, confirmProtected })
-          if (request !== dailyRequest.current) { refreshBoot(); return }
+          if (request !== dailyRequest.current) { refreshCounts(); return }
           if (result.requiresConfirmation) {
             setModal({ kind: 'confirm', title: '再次确认删除收藏或错题', danger: true,
               message: `选中的题目中有 ${result.protectedCount} 道已收藏或在错题本中。继续将永久删除所选 ${qids.length} 道题及其作答和追问，无法恢复。确定仍要删除吗？`,
@@ -685,7 +736,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
           const loading = loadList(subjectId, kind, list?.page||1, filters)
           const listRequest = dailyRequest.current
           await loading
-          await refreshBoot()
+          await refreshCounts()
           if (listRequest === dailyRequest.current) notify(`已处理 ${result.affected} 道题目`)
         } catch (issue) {
           if (request === dailyRequest.current) { setModal(null); notify(issue.message, 'bad') }
@@ -824,7 +875,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
         const types = new Map((currentSubject?.types || []).map((value, index) => [value, currentSubject.typeLabels?.[index] || value]))
         for (const option of list?.types || []) types.set(option.value, option.label)
         if (filters.type && !types.has(filters.type)) types.set(filters.type, filters.type)
-        const search = kind !== 'review' ? h('form', { className: 'kd-row', style: { marginBottom: '12px' },
+        const search = kind !== 'review' ? h('form', { className: 'kd-row kd-question-filters',
           onSubmit: (event) => { event.preventDefault(); applyFilters({ query: queryDraft.trim() }) } },
           h('input', { className: 'kd-input', type: 'search', 'aria-label': '搜索题目', placeholder: '搜索题干或知识点',
             value: queryDraft, maxLength: 120, onChange: (event) => setQueryDraft(event.target.value) }),
@@ -903,7 +954,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
                 setQuestion(result.question)
                 notify('已移出错题本，历史作答记录仍然保留')
               }
-              refreshBoot()
+              refreshCounts()
             } catch (issue) {
               if (request === dailyRequest.current) notify(issue.message, 'bad')
             }
@@ -917,9 +968,10 @@ export function createPage(React, { window, rpc, components, styleState }) {
       })
     })()
 
+    const singleReview = kind === 'review' && !filters.topic && list?.total === 1
     const pickTab = (value) => {
       if (!subjectVisible) return
-      if (value === kind && (value === 'today' || view === 'list')) return
+      if (value === kind && (value === 'today' || view === 'list' || singleReview)) return
       if (value === 'today') {
         if (boot?.settings.subjects.includes(subjectId)) loadToday(subjectId)
       }
@@ -943,9 +995,25 @@ export function createPage(React, { window, rpc, components, styleState }) {
     const settingsOpen = SETTINGS_SECTIONS.has(modal?.kind)
     const settingsPanel = () => {
       const embedded = { embedded: true, onClose: closeSettings, onBusyChange: setSettingsBusy }
+      let panelBoot = boot
+      if (boot?.practiceOnly && managementSection) {
+        if (management?.section === managementSection && management.error) {
+          return h(EmptyState, { icon: 'refresh', title: '设置资料加载失败', body: management.error,
+            actions: h(Btn, { onClick: () => setManagementAttempt((attempt) => attempt + 1) }, T.retry) })
+        }
+        if (management?.section !== managementSection || !management.data) {
+          return h('div', { className: 'kd-loading' }, h('span', { className: 'kd-spinner' }), '正在加载设置资料…')
+        }
+        panelBoot = { ...boot, ...management.data }
+        if (managementSection === 'subjects') {
+          panelBoot.subjects = boot.subjects.map((subject) => ({
+            ...subject, bankItemCount: management.data.bankItemCounts[subject.id] || 0,
+          }))
+        }
+      }
       switch (modal.kind) {
         case 'subjects':
-          return boot && h(SubjectsModal, { ...embedded, boot, key: modal.edit || 0, savedNotice: modal.notice,
+          return panelBoot && h(SubjectsModal, { ...embedded, boot: panelBoot, key: modal.edit || 0, savedNotice: modal.notice,
             onClose: resetSubjectsEditor, onDone: saveSubjects, onDirtyChange: reportSubjectsDirty })
         case 'banks':
           if (modal.deleting) {
@@ -959,18 +1027,18 @@ export function createPage(React, { window, rpc, components, styleState }) {
               onClose: () => setModal({ kind: 'banks' }),
             })
           }
-          return boot && h(BanksModal, {
-            ...embedded, boot, key: modal.importResult?.importId || 'banks', importResult: modal.importResult,
+          return panelBoot && h(BanksModal, {
+            ...embedded, boot: panelBoot, key: modal.importResult?.importId || 'banks', importResult: modal.importResult,
             committing: busy === 'commit', onPickFile: pickFile, onCommit: commitBank,
             onDelete: (bank) => setModal({ kind: 'banks', deleting: bank }),
             onCancelImport: () => setModal({ kind: 'banks' }),
           })
         case 'syllabuses':
-          return boot && h(SyllabusesModal, { ...embedded, boot,
-            onSaved: (syllabuses) => { bootRequest.current++; setBoot((current) => ({ ...current, syllabuses })) } })
+          return panelBoot && h(SyllabusesModal, { ...embedded, boot: panelBoot,
+            onSaved: (syllabuses) => setManagement({ section: 'syllabuses', data: { syllabuses } }) })
         case 'past-papers':
-          return boot && h(PastPapersModal, { ...embedded, boot,
-            onSaved: (pastPapers) => { bootRequest.current++; setBoot((current) => ({ ...current, pastPapers })) } })
+          return panelBoot && h(PastPapersModal, { ...embedded, boot: panelBoot,
+            onSaved: (pastPapers) => setManagement({ section: 'past-papers', data: { pastPapers } }) })
         case 'backup':
           return h(BackupModal, { ...embedded, onRestored: (warning) => {
             if (warning) window.alert(warning)
@@ -1039,7 +1107,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
               counts,
               onPick: pickTab,
               todayDisabled: !boot.settings.subjects.includes(subjectId),
-              onBack: subjectVisible && kind !== 'today' && view === 'detail' ? backToList : undefined,
+              onBack: subjectVisible && kind !== 'today' && !singleReview && view === 'detail' ? backToList : undefined,
             }) : null,
             dailyPlan ? h('div', { className: 'kd-daily-schedule', 'aria-label': '全局出题计划' },
               dailyPlan.todaySkipped ? h(Btn, { disabled: scheduleBusy,
@@ -1053,8 +1121,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
         h(Presence, null, showThread
           ? h(ThreadPane, {
             thread,
-            questionId: question.id,
-            busy,
+            openingSuggestions: question.openingSuggestions,
             narrow,
             ratio: threadRatio,
             onRatioChange: setThreadRatio,

@@ -66,6 +66,16 @@ const daily1 = await service.ensureDaily('math1', { manual: true })
 check('题库出题成功', Boolean(daily1.question?.id), JSON.stringify(daily1).slice(0, 200))
 check('答案在提交前不下发', daily1.question.answer === null && daily1.question.answerState === 'locked')
 const qid1 = daily1.question.id
+const quickBoot = await service.bootstrap({ practiceOnly: true, includeToday: true })
+check('练习首屏直接下发已出题详情，且设置资料单独加载',
+  quickBoot.todayQuestion.question.id === qid1 && quickBoot.todayQuestion.question.answer === null
+  && !Object.hasOwn(quickBoot, 'banks') && !Object.hasOwn(quickBoot, 'syllabuses')
+  && !Object.hasOwn(quickBoot.subjects[0], 'bankItemCount'))
+check('按设置栏目加载其所需资料',
+  (await service.managementData({ section: 'subjects' })).bankItemCounts.math1 === 1
+  && (await service.managementData({ section: 'banks' })).banks[0].id === committed.bank.id)
+check('题库出题时预存三条追问建议且揭晓前不下发',
+  (await service.data()).questions[qid1].followupSuggestions.length === 3 && daily1.question.openingSuggestions.length === 0)
 check('按当日分配记录识别今日题目', (await service.getQuestion({ qid: qid1 })).isToday === true)
 const previewStem = '完整题干\n\n$$x^2+1$$\n\n```js\n  return 42\n```'
 const preview = service.summaryView(await service.data(), { ...(await service.data()).questions[qid1], stem: previewStem })
@@ -84,6 +94,8 @@ check('未作答时不泄露校验结论',
 check('未作答时题干里不含"标准答案"', !JSON.stringify(daily1b.question).includes('标准答案'))
 
 const wrong = await service.reveal({ qid: qid1, mode: 'submit', choice: 'A', attemptId: 'a1' })
+check('作答后直接返回针对错选项的首轮建议',
+  wrong.question.openingSuggestions.length === 3 && wrong.question.openingSuggestions[0].includes('我选了 A'))
 check('提交后公布答案', wrong.question.answerState === 'revealed' && Boolean(wrong.question.answer))
 check('提交后才给出校验结论', Boolean(wrong.question.publishVerification.summary))
 check('错误提交判定为错', wrong.question.lastAttempt.result === 'wrong' && wrong.question.wrongEver)

@@ -16,7 +16,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     'chevron-left': 'M15 6l-6 6 6 6',
     expand: 'M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5',
     collapse: 'M4 9h5V4m6 0v5h5M4 15h5v5m6 0v-5h5',
-    send: 'M4 12l16-8-6 8 6 8z',
+    'arrow-up': 'M12 19V5m-6 6 6-6 6 6',
     book: 'M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z',
     subjects: 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 17h6 M17 14v6',
     syllabus: 'M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6 M9 16h6',
@@ -590,13 +590,26 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     return { top: lastLine * lineHeight, start: Math.max(0, end - 72), end }
   }
 
-  function QuestionPreview({ text }) {
+  function QuestionPreview({ text, summary }) {
     const ref = useRef(null)
+    const [visible, setVisible] = useState(() => !window?.IntersectionObserver)
     const [truncated, setTruncated] = useState(false)
-    const mathStatus = useMathJaxStatus()
+    const mathStatus = useMathJaxStatus(visible)
     useEffect(() => {
       const element = ref.current
-      if (!element) return undefined
+      if (!element || visible) return undefined
+      const observer = new window.IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          observer.disconnect()
+          setVisible(true)
+        }
+      }, { root: element.closest('.kd-main-scroll'), rootMargin: '100px 0px' })
+      observer.observe(element)
+      return () => observer.disconnect()
+    }, [visible])
+    useEffect(() => {
+      const element = ref.current
+      if (!element || !visible) return undefined
       const measure = () => {
         let lineHeight = 28
         for (const svg of element.querySelectorAll('svg')) lineHeight = Math.max(lineHeight, Math.ceil(svg.getBoundingClientRect().height + 16))
@@ -617,7 +630,8 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       const mutations = new MutationObserver(measure)
       mutations.observe(element, { childList: true, subtree: true })
       return () => { observer.disconnect(); mutations.disconnect() }
-    }, [text, mathStatus])
+    }, [text, mathStatus, visible])
+    if (!visible) return h('div', { ref, className: 'kd-list-summary kd-list-summary-pending' }, summary || '正在加载题目预览…')
     return h('div', { ref, className: 'kd-list-summary' + (truncated ? ' is-truncated' : '') }, h(Markdown, { text }))
   }
 
@@ -669,7 +683,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         'aria-label': '选择题目：' + (item.summary || item.id), onChange: () => onToggle(item.id) }) : null,
       h('div', { className: 'kd-list-body' },
         h('div', { className: 'kd-list-heading' },
-          h(QuestionPreview, { text: item.stem || item.summary || '(无题干)' }),
+          h(QuestionPreview, { text: item.stem || item.summary || '(无题干)', summary: item.summary }),
           !managing ? h('span', { className: 'kd-list-open', 'aria-hidden': true }, '查看题目', h(Icon, { name: 'chevron' })) : null),
         h('div', { className: 'kd-list-meta' },
           h('div', { className: 'kd-list-tags' },
@@ -686,7 +700,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
   }
 
   /* ============================== 追问侧栏 ============================== */
-  function ThreadPane({ thread, questionId, busy, onSend, onClear, onClose, onCancel, narrow, ratio = 33, onRatioChange }) {
+  function ThreadPane({ thread, openingSuggestions, onSend, onClear, onClose, onCancel, narrow, ratio = 33, onRatioChange }) {
     const [draft, setDraft] = useState('')
     const [sending, setSending] = useState(false)
     const [localError, setLocalError] = useState('')
@@ -695,11 +709,12 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     const sendingRef = useRef(false)
     const sendingMessage = useRef(null)
     const messages = thread?.messages || []
+    const suggestions = (messages.length ? thread.suggestions : openingSuggestions) || []
 
     useEffect(() => {
       const node = scrollRef.current
       if (node) node.scrollTop = node.scrollHeight
-    }, [messages.length, pending?.id])
+    }, [messages.length, pending?.id, sending])
 
     const send = useCallback(async (text, messageId) => {
       const value = String(text || '').trim()
@@ -711,7 +726,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       try {
         await onSend(value, messageId)
         setPending(null)
-        setDraft('')
+        setDraft((current) => current.trim() === value ? '' : current)
       } catch (error) {
         setLocalError(error.message)
         setPending({ id: messageId, text: value })
@@ -788,14 +803,22 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           h('button', { className: 'kd-iconbtn', onClick: onClose, 'aria-label': T.close }, h(Icon, { name: 'close' })))),
       h('div', { className: 'kd-thread-hint' }, T.followupHint),
       h('div', { className: 'kd-thread-scroll', ref: scrollRef },
-        rows.length ? rows : h('div', { className: 'kd-empty-body' }, '还没有追问。可以问某一步推导为什么成立、某个知识点怎么理解，或有没有别的解法。')),
+        rows,
+        !sending && suggestions.length ? h('div', { className: 'kd-thread-suggestions', role: 'group', 'aria-label': '建议追问' },
+          h('span', { className: 'kd-meta' }, '建议追问'),
+          suggestions.map((text) => h('button', {
+            key: text,
+            type: 'button',
+            className: 'kd-btn kd-btn-default kd-thread-suggestion',
+            onClick: () => send(text, newAttemptId()),
+          }, text))) : !rows.length ? h('div', { className: 'kd-empty-body' }, '还没有追问。') : null),
       localError ? h('div', { className: 'kd-error-text', style: { padding: '0 14px' } }, localError) : null,
       h('div', { className: 'kd-thread-foot' },
         h('div', { className: 'kd-composer' },
           h('textarea', {
             className: 'kd-textarea',
             value: draft,
-            placeholder: '围绕这道题继续追问…（Enter 发送，Shift+Enter 换行）',
+            'aria-label': '追问内容',
             disabled: sending,
             onChange: (event) => setDraft(event.target.value),
             onKeyDown: (event) => {
@@ -807,12 +830,13 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           }),
           h('div', { className: 'kd-row', style: { justifyContent: 'flex-end', marginTop: '2px' } },
             sending && onCancel ? h(Btn,{small:true,variant:'ghost',onClick:()=>onCancel(sendingMessage.current)},'取消回复') : null,
-            h(Btn, {
-              variant: 'primary',
-              small: true,
+            h('button', {
+              type: 'button',
+              className: 'kd-btn kd-btn-primary kd-thread-send',
+              'aria-label': T.send,
               disabled: sending || !draft.trim(),
               onClick: () => send(draft, newAttemptId()),
-            }, h(Icon, { name: 'send', size: 13 }), T.send)))))
+            }, h(Icon, { name: 'arrow-up', size: 17 }))))))
   }
 
   /* ============================== 弹窗 ============================== */

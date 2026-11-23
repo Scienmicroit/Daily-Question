@@ -331,6 +331,42 @@ const previewNodes = []
 walk(preview, (n) => previewNodes.push(n))
 check('列表预览保留公式块和代码块', previewNodes.some((n) => n.props.className === 'kd-mathblock')
   && previewNodes.some((n) => n.type === 'pre' && textOf(n).includes('  return 42')))
+{
+  const item = { id: 'lazy', summary: '题干摘要', stem: '原题含公式 $x^2$ 和代码。' }
+  let previewProps
+  walk(components.ListPane({ list: { items: [item] }, kind: 'all' }), (node) => {
+    if (node.type?.name === 'QuestionPreview') previewProps = node
+  })
+  const effects = []
+  let intersection, disconnected = 0, visible = false, firstState = true
+  mockWindow.IntersectionObserver = class {
+    constructor(handler) { intersection = handler }
+    observe() {}
+    disconnect() { disconnected++ }
+  }
+  stateHook = (value) => {
+    if (firstState) { firstState = false; return [visible, (next) => { visible = next }] }
+    return useState(value)
+  }
+  refHook = () => ({ current: { closest: () => null } })
+  effectHook = (fn) => effects.push(fn)
+  const dormant = previewProps.type(previewProps.props)
+  check('屏幕外的题目只显示摘要，公式暂不渲染', textOf(dormant) === item.summary)
+  for (const effect of effects) effect()
+  intersection([{ isIntersecting: false }])
+  check('屏幕外预览保持休眠', !visible)
+  intersection([{ isIntersecting: true }])
+  firstState = true
+  let renderedMath = false
+  walk(resolve(previewProps.type(previewProps.props)), (node) => {
+    if (node.props.className === 'kd-math') renderedMath = true
+  })
+  check('进入视口后渲染完整 Markdown 预览', visible && disconnected === 1 && renderedMath)
+  delete mockWindow.IntersectionObserver
+  stateHook = useState
+  refHook = (v) => ({ current: v })
+  effectHook = () => {}
+}
 let opened = 0
 const card = resolve(components.ListPane({ list: { items: [{ id: 'card', stem: '题干' }] }, kind: 'all', onOpen: () => opened++ }))
 const cardNodes = []
@@ -865,6 +901,9 @@ const thread = components.ThreadPane({ thread: { messages: [] }, onSend: async (
 const threadNodes = []
 walk(thread, (n) => threadNodes.push(n))
 const textarea = threadNodes.find((n) => n.type === 'textarea')
+const sendButton = threadNodes.find((n) => n.props.className?.includes('kd-thread-send'))
+check('追问输入框无占位文字，发送按钮只有上箭头', !Object.hasOwn(textarea.props, 'placeholder')
+  && sendButton.props['aria-label'] === '发送' && sendButton.children[0].props.name === 'arrow-up' && textOf(sendButton) === '')
 const key = (extra = {}) => textarea.props.onKeyDown({ key: 'Enter', preventDefault() { prevented++ }, ...extra })
 key({ shiftKey: true }); key({ nativeEvent: { isComposing: true } }); key({ keyCode: 229 })
 check('换行与中文输入法确认不触发发送', sent === 0 && prevented === 0)
@@ -879,6 +918,21 @@ for (const clientX of [400, 1100]) separator.props.onPointerMove({ pointerId: 1,
 } })
 check('拖动分隔线使用主区域宽度并限制比例', JSON.stringify(widths.slice(-2)) === JSON.stringify([55, 20]))
 stateHook = useState
+const openingSuggestions = ['为什么要先处理这一步？', '这道题有哪些易错点？']
+const nextSuggestions = ['刚才的结论怎么检验？', '能用另一种方法复核吗？']
+const sentSuggestions = []
+for (const messages of [[], [{ id: 'reply', role: 'assistant', text: '这是回复。' }]]) {
+  const suggestionButtons = []
+  walk(components.ThreadPane({ thread: { messages, suggestions: nextSuggestions }, openingSuggestions,
+    onSend: async (value, id) => sentSuggestions.push({ value, id }),
+  }), (n) => {
+    if (n.props.className?.split(' ').includes('kd-thread-suggestion')) suggestionButtons.push(n)
+  })
+  const expected = messages.length ? nextSuggestions : openingSuggestions
+  check('追问根据对话状态切换建议', JSON.stringify(suggestionButtons.map(textOf)) === JSON.stringify(expected))
+  await suggestionButtons[0].props.onClick()
+  check('点击建议直接发送且携带消息 ID', sentSuggestions.at(-1).value === expected[0] && Boolean(sentSuggestions.at(-1).id))
+}
 
 const pageChanges=[]
 const pagedNodes=[]

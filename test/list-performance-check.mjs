@@ -1,20 +1,27 @@
 import assert from 'node:assert/strict'
-import { mkdtemp,rm } from 'node:fs/promises'
+import { mkdtemp,rm,stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DailyQuestionService } from '../lib/service.js'
 import { Store } from '../lib/store.js'
+import { todayISO } from '../lib/exam-dates.js'
 
 const root=await mkdtemp(join(tmpdir(),'dq-list-performance-'))
 const service=new DailyQuestionService({get:()=>undefined});service.store=new Store(root)
 try {
   await service.store.update(d=>{
     d.settings.subjects=['math1']
+    d.settings.activeSubject='math1'
+    d.daily[todayISO()+'|math1']={ subjectId:'math1', questionId:'q1', date:todayISO() }
     for(let i=0;i<5000;i++) {
       const id='q'+i
       d.questions[id]={id,subjectId:'math1',stem:('带公式 $x^2$ 的题干正文。').repeat(100),type:'single',favoriteAt:i%2===0?'yes':null,assignedDate:'2026-11-05'}
       for(let j=0;j<3;j++)d.attempts.push({id:`${id}-${j}`,questionId:id,result:i%5===0?'wrong':'correct'})
     }
+    d.banks=[{id:'benchmark',items:Array.from({length:3000},(_,i)=>({
+      id:'bank-'+i,type:'fill',stem:'导入题库中的完整练习题及公式 $x^2$。'.repeat(30),
+      explanation:'请从定义和题设条件出发，逐步推导。'.repeat(15),
+    }))}]
     d.questions.q0.wrongBookRemoved=true;d.questions.q1.wrongBookAdded=true
   })
   const snapshot=await service.data(),attempts=snapshot.attempts
@@ -43,4 +50,32 @@ try {
   assert.equal(service.counts(await service.data()).math1.wrong,1001,'写入后刷新索引')
   assert.equal(service.counts(snapshot).math1.wrong,1000,'旧快照仍保持原结果')
   console.log(`ok   5000题/15000次作答：索引一次构建、分页与全栏目ID选择、快照失效；统计和多次查询 ${elapsed}ms，原子保存 ${saveElapsed}ms`)
+  if (process.argv.includes('--benchmark')) {
+    const medianTime = async (run) => {
+      await run()
+      const times = []
+      for (let i = 0; i < 9; i++) {
+        const start = performance.now()
+        await run()
+        times.push(performance.now() - start)
+      }
+      return Number(times.sort((a, b) => a - b)[4].toFixed(2))
+    }
+    const operations = {
+      startup: async () => {
+        const boot = await service.bootstrap({ practiceOnly: true, includeToday: true })
+        if (!boot.todayQuestion) {
+          await service.ensureDaily(boot.settings.activeSubject)
+          await service.bootstrap({ practiceOnly: true })
+        }
+      },
+      detail: () => service.getQuestion({ qid: 'q1' }),
+      page: () => service.listQuestions({ subjectId: 'math1', page: 2 }),
+      search: () => service.listQuestions({ subjectId: 'math1', query: '带公式' }),
+    }
+    const milliseconds = {}
+    for (const [key, run] of Object.entries(operations)) milliseconds[key] = await medianTime(run)
+    const bytes = (await stat(service.store.file)).size
+    console.log(JSON.stringify({ fixture: { questions: 5000, attempts: 15001, imported: 3000, bytes }, medianMs: milliseconds }))
+  }
 } finally {await rm(root,{recursive:true,force:true})}

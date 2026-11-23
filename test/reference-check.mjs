@@ -68,7 +68,7 @@ console.log('ok   即使答案一致，范围难度不合格仍重新命题，�
 const choiceOnly = referencePages.slice(1).map((page) => ({...page,text:page.text.split('\n二、填空题：')[0]}))
 const fillOnly = referencePages.slice(1).map((page,i) => ({...page,url:page.url+'-full',
   text:page.text.split('\n')[0]+'\n二、填空题：'+fillQuotes[i]}))
-function typedRun({papers=[],fitOverride,scopeOverride,stemPrefix='本轮第'}={}) {
+function typedRun({papers=[],fitOverride,scopeOverride,stemPrefix='本轮第',outline=referencePages[0]}={}) {
   const calls = [], webRequests = []
   const ctx = { get(name) {
     if (name==='web') {
@@ -97,6 +97,7 @@ function typedRun({papers=[],fitOverride,scopeOverride,stemPrefix='本轮第'}={
         calls.push({role:'solve',payload:JSON.parse(prompt)})
         reply = {...candidate,solvable:true,issues:[]}
       } else if (system.includes('答案比对专家')) {
+        calls.push({role:'compare',payload:JSON.parse(prompt)})
         reply = {agree:true,writerValid:true,solverValid:true,issues:[]}
       } else {
         const type = /"targetType":"([^"]+)"/.exec(prompt)[1]
@@ -108,7 +109,7 @@ function typedRun({papers=[],fitOverride,scopeOverride,stemPrefix='本轮第'}={
   }}
   const typedSubject = {...subject,types:['single','fill']}
   return {run:() => generateWithLocalReferences({ctx,subject:typedSubject,preferredType:'fill',
-    localReferences:referenceSnapshot(typedSubject,referencePages[0],papers)}),ctx,calls,webRequests}
+    localReferences:referenceSnapshot(typedSubject,outline,papers)}),ctx,calls,webRequests}
 }
 const local = typedRun({papers:[...choiceOnly,...fillOnly]})
 const filled = await local.run()
@@ -119,6 +120,15 @@ const checked = local.calls.find((call)=>call.role==='difficulty').payload.refer
 assert.deepEqual(checked.map((s)=>s.year),[referenceYear-1,referenceYear-2])
 assert(checked.every((source)=>source.text.includes('填空题')&&!source.text.includes('选择题')))
 assert.deepEqual(Object.keys(local.calls.find((call)=>call.role==='solve').payload).sort(),['options','stem'])
+assert(local.calls.find((call)=>call.role==='compare').payload.references.sources.every((source)=>source.kind==='outline'))
+const longOutline = { ...referencePages[0], text: '数学一 301 考试内容：\n' + '学科范围涵盖函数、极限及可导性等要求。\n'.repeat(400) + outlineQuote }
+const focused = typedRun({ papers: fillOnly, outline: longOutline })
+const focusedResult = await focused.run()
+const fitInputs = focused.calls.filter((call) => call.role === 'difficulty').map((call) => call.payload.references.sources[0])
+assert.equal(fitInputs.length, 2, '片段证据不够时重新核对全文')
+assert(fitInputs[0].excerpt && fitInputs[0].text.length <= 4000 && !fitInputs[0].text.includes(outlineQuote))
+assert.equal(fitInputs[1].text, longOutline.text)
+assert.equal(focusedResult.question.examAlignment.outlineEvidence[0].quote, outlineQuote)
 const switched = typedRun({papers:[...choiceOnly,fillOnly[0],{...fillOnly[0],url:fillOnly[0].url+'-copy'}]})
 const changed = await switched.run()
 assert.equal(changed.question.type,'fill','真题不足时仍按原计划题型出题')
