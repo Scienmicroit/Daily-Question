@@ -1,6 +1,7 @@
-# 统一换行与二进制判定：JS/JSON/MD 一律 LF，字体与压缩包按二进制处理
+# 文本文件统一使用 LF 换行
 * text=auto eol=lf
 
+# 字体、压缩包和图片按二进制处理
 *.otf binary
 *.woff  binary
 *.woff2 binary
