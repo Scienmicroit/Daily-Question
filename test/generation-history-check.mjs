@@ -17,6 +17,9 @@ const fresh={type:'single',stem:'一个三阶矩阵经过初等行变换得到�
 const references={sources:[{kind:'outline',text:'# 函数极限\n# 矩阵秩\n考试内容与要求。'}]}
 const plan=generationPlan({subject,references,history:[old]})
 assert.equal(plan.type,'fill');assert.equal(plan.topic,'矩阵秩');assert.equal(plan.knowledgeCounts['函数极限'],1)
+const seriesPlan = generationPlan({ subject, references: { sources: [{ kind: 'outline', text: '# 傅里叶级数\n# 幂级数' }] },
+  history: [{ ...old, stem: '求该周期函数的展开形式。', coverageTopic: '级数', knowledge: ['级数'], coverageKnowledge: ['傅里叶级数'] }] })
+assert.deepEqual(seriesPlan.topicCounts, [{ topic: '傅里叶级数', count: 1 }, { topic: '幂级数', count: 0 }])
 assert(!JSON.stringify(plan.recent).includes('HISTORY SECRET'))
 assert.equal(generationPlan({subject,references,history:[old],preferredType:'solution'}).type,'solution')
 assert(findQuestionRepeat({...old,stem:'  '+old.stem+'\n',options:[{key:'A',text:'2'},{key:'B',text:'1'}]},plan.index))

@@ -41,19 +41,32 @@ try {
     await started.promise;await rejected
     assert.equal(service.tasks.size,0);assert.equal(service.inflightDaily.size,0);assert.equal(service.inflightFollowups.size,0)
     assert(modelSignal.aborted)
+    if(kind==='daily') {
+      const failed=await service.ensureDaily('math1')
+      assert.equal(failed.status,'failed')
+      assert.match(failed.message,/超时/)
+    }
     if(kind==='followup')assert.equal((await service.data()).threads.q.messages.at(-1).status,'failed')
     gate.resolve()
   }
   service.taskTimeoutMs=10000
   for(const kind of ['daily','revise','followup']) {
     mode='hang';gate=deferred();started=deferred()
-    const operation=kind==='daily'?service.ensureDaily('math1'):kind==='revise'?service.revise({qid:'q'}):service.followup({qid:'q',message:'解释',clientMessageId:'cancel'})
+    const operation=kind==='daily'?service.ensureDaily('math1',{manual:true}):kind==='revise'?service.revise({qid:'q'}):service.followup({qid:'q',message:'解释',clientMessageId:'cancel'})
     const rejected=assert.rejects(operation,/取消/)
     await started.promise
     assert.equal((await service.cancelTask({kind,subjectId:'math1',qid:'q',clientMessageId:'cancel'})).cancelled,1)
     await rejected;assert.equal(service.tasks.size,0)
     mode='ok'
-    if(kind==='daily')assert((await service.ensureDaily('math1')).created)
+    if(kind==='daily') {
+      const reopened=new DailyQuestionService(ctx)
+      reopened.store=new Store(root)
+      assert.match((await reopened.bootstrap()).failures.math1.message,/任务已取消/)
+      assert.match((await reopened.ensureDaily('math1')).message,/任务已取消/)
+      assert.equal((await service.ensureDaily('math1')).status,'failed')
+      assert((await service.ensureDaily('math1',{manual:true})).created)
+      assert.equal((await reopened.bootstrap()).failures.math1,undefined)
+    }
     if(kind==='revise')assert((await service.revise({qid:'q'})).question.pendingRevision)
     if(kind==='followup')await service.followup({qid:'q',message:'解释',clientMessageId:'cancel'})
     gate.resolve();await new Promise(r=>setImmediate(r))

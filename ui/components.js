@@ -77,7 +77,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       active ? children : retained)
   }
 
-  function NotificationBanner({ message, tone = 'ok', floating = false, onUndo }) {
+  function NotificationBanner({ id, message, tone = 'ok', onUndo, onDismiss }) {
     const [phase, setPhase] = useState('visible')
     const [hovering, setHovering] = useState(false)
     const remaining = useRef(2000)
@@ -85,28 +85,33 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       if (phase === 'hidden' || (phase === 'visible' && hovering)) return undefined
       const started = window.performance.now()
       const timeout = window.setTimeout(() => {
-        setPhase(phase === 'visible' ? 'leaving' : 'hidden')
+        if (phase === 'visible') setPhase('leaving')
+        else {
+          setPhase('hidden')
+          onDismiss?.(id)
+        }
       }, phase === 'visible' ? remaining.current : 180)
       return () => {
         window.clearTimeout(timeout)
         if (phase === 'visible') remaining.current = Math.max(0, remaining.current - (window.performance.now() - started))
       }
-    }, [phase, hovering])
+    }, [phase, hovering, onDismiss, id])
     if (phase === 'hidden') return null
-    return h('div', { className: 'kd-notification-slot' + (floating ? ' is-floating' : '') },
-      h('div', { className: `kd-notification kd-notification-${tone}${phase === 'leaving' ? ' is-leaving' : ''}`,
-        onMouseEnter: phase === 'visible' ? () => setHovering(true) : undefined,
-        onMouseLeave: phase === 'visible' ? () => setHovering(false) : undefined },
-        h('span', { role: tone === 'bad' ? 'alert' : 'status' }, message),
-        onUndo ? h(Btn, { small: true, disabled: phase === 'leaving', onClick: () => {
-          setPhase('leaving')
-          onUndo()
-        } }, '撤销') :
-        h('button', { type: 'button', className: 'kd-iconbtn', 'aria-label': '关闭通知',
-          disabled: phase === 'leaving', onClick: () => setPhase('leaving') }, h(Icon, { name: 'close' }))))
+    return h('div', { className: 'kd-notification-slot' + (phase === 'leaving' ? ' is-leaving' : '') },
+      h('div', { className: 'kd-notification-clip' },
+        h('div', { className: `kd-notification kd-notification-${tone}${phase === 'leaving' ? ' is-leaving' : ''}`,
+          onMouseEnter: phase === 'visible' ? () => setHovering(true) : undefined,
+          onMouseLeave: phase === 'visible' ? () => setHovering(false) : undefined },
+          h('span', { role: tone === 'bad' ? 'alert' : 'status' }, message),
+          onUndo ? h(Btn, { small: true, disabled: phase === 'leaving', onClick: () => {
+            setPhase('leaving')
+            onUndo()
+          } }, '撤销') :
+          h('button', { type: 'button', className: 'kd-iconbtn', 'aria-label': '关闭通知',
+            disabled: phase === 'leaving', onClick: () => setPhase('leaving') }, h(Icon, { name: 'close' })))))
   }
 
-  function Modal({ title, children, footer, headerActions, dialog, notification, onClose, wide, embedded = false, locked = false, explicitClose = false }) {
+  function Modal({ title, children, footer, headerActions, dialog, onClose, wide, embedded = false, locked = false, explicitClose = false }) {
     useEffect(() => {
       if (embedded || explicitClose || locked || dialog) return undefined
       const onKey = (event) => {
@@ -121,7 +126,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       h('div', { className: 'kd-modal-head', inert: dialog ? true : undefined },
         h('h2', { className: 'kd-modal-title' }, title),
         headerActions ? h('div', { className: 'kd-settings-header-actions' }, headerActions) : null),
-      body, actions, notification, dialog)
+      body, actions, dialog)
     return h('div', {
       className: 'kd-overlay',
       onMouseDown: explicitClose || dialog ? undefined : (event) => { if (!locked && event.target === event.currentTarget) onClose() },
@@ -134,7 +139,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     h('div', { className: 'kd-modal-head' },
       h('div', { className: 'kd-modal-title' }, title),
       h('button', { className: 'kd-iconbtn', onClick: onClose, disabled: locked || Boolean(dialog), 'aria-label': T.close }, h(Icon, { name: 'close' }))),
-    body, actions, notification, dialog))
+    body, actions, dialog))
   }
 
   function hostOf(url) {
@@ -156,7 +161,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
   function CountdownLines({ countdown }) {
     const { year, days, approx, lines = {} } = countdown || {}
     const showDays = Number.isInteger(days) && days >= 0
-    const duration = days === 0 ? '今日开考' : lines.secondary
+    const duration = days === 0 ? (approx ? '预计今日开考' : '今日开考') : lines.secondary
     const spaceDigits = (line = '') => line.replace(/\p{Script=Han}(?=\d)|\d(?=\p{Script=Han})/gu, '$& ')
     return h('div', { className: 'kd-cd-lines' },
       h('div', { className: 'kd-cd-primary' }, showDays ? `距离 ${year} 考研还剩` : spaceDigits(lines.primary)),
@@ -168,14 +173,10 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
   /** 年份、日期口径与来源：一条紧凑的状态带，横跨整个头部。 */
   function ExamStrip({ boot, busy, onRefresh, onYearChange }) {
     const cd = boot.countdown || {}
-    const basis = cd.basis
     const statusTone = cd.status === 'official' ? 'ok' : cd.status === 'estimated' ? 'warn' : 'bad'
     const statusText = cd.status === 'official' ? '官方公布'
       : cd.status === 'estimated' ? '官方未公布 · 估算' : '尚未核实'
-    const sourceUrl = cd.sourceUrl || (basis && basis.sourceUrl) || ''
-    const sourceLabel = cd.status === 'official'
-      ? `来源 ${hostOf(sourceUrl) || '官方'}`
-      : basis ? `依据 ${basis.year} 官方（${hostOf(basis.sourceUrl) || '官方'}）` : '无来源记录'
+    const sourceUrl = cd.status === 'official' ? cd.sourceUrl : ''
 
     return h('div', { className: 'kd-exam-strip' },
       h('label', { className: 'kd-strip-item' },
@@ -186,13 +187,10 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           onChange: (event) => onYearChange(Number(event.target.value)),
         }, (boot.yearOptions || []).map((year) => h('option', { key: year, value: year }, `${year} 考研`)))),
       h('span', { className: 'kd-strip-item' }, h(Badge, { tone: statusTone }, statusText)),
-      h('span', {
-        className: 'kd-strip-item',
-        title: cd.source ? `${cd.source}${sourceUrl ? `\n${sourceUrl}` : ''}` : '',
-      }, sourceUrl
-        ? h('a', { className: 'kd-link', href: sourceUrl, target: '_blank', rel: 'noreferrer noopener' }, sourceLabel)
-        : h('span', null, sourceLabel)),
-      cd.verifiedAt
+      sourceUrl ? h('span', { className: 'kd-strip-item', title: cd.source || sourceUrl },
+        h('a', { className: 'kd-link', href: sourceUrl, target: '_blank', rel: 'noreferrer noopener' },
+          `来源 ${hostOf(sourceUrl) || '官方'}`)) : null,
+      cd.status === 'official' && cd.verifiedAt
         ? h('span', { className: 'kd-strip-item', title: formatDateTime(cd.verifiedAt) },
           `核验成功 ${formatShort(cd.verifiedAt)}`)
         : null,
@@ -375,6 +373,14 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         onInspect ? h(Btn, { small: true, variant: 'ghost', onClick: () => onInspect(attempt.id) }, '查看当时答案') : null)))
   }
 
+  function AnswerMarkdown({ text }) {
+    return h(Markdown, { text, allowBareMath: true })
+  }
+
+  function VerificationMarkdown({ text }) {
+    return text ? h(Markdown, { text, allowBareMath: true, allowBareCode: true, className: 'kd-verify-copy' }) : null
+  }
+
   function AnswerBlock({ question, focused, onRevise, revising, onRemoveWrong, onInspect }) {
     const answer = question.answer
     if (!answer) {
@@ -397,10 +403,10 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
               ' 这份答案来自导入题库，尚未经过独立校验，请自行核对。'),
           h('div', { className: 'kd-answer-block kd-answer-copy' },
             h('div', { className: 'kd-answer-label' }, T.answer),
-            h(Markdown, { text: answer.answer || '（题库未提供参考答案）' })),
+            h(AnswerMarkdown, { text: answer.answer || '（题库未提供参考答案）' })),
           h('div', { className: 'kd-answer-block kd-answer-copy' },
             h('div', { className: 'kd-answer-label' }, T.explanation),
-            h(Markdown, { text: answer.explanation || '（题库未提供解析）' })),
+            h(AnswerMarkdown, { text: answer.explanation || '（题库未提供解析）' })),
           focused ? null : h('div', { className: 'kd-answer-block' },
             h(AttemptHistory, { attempts: question.attempts || [], onInspect }),
             question.wrongEver
@@ -427,7 +433,8 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
                 onClick: onRevise,
               }, revising ? h('span', { className: 'kd-spinner' }) : null, T.revision)),
             answer.verification?.summary
-              ? h('div', null, `校验：${answer.verification.summary}（${methodLabel(answer.verification.method)}${answer.verification.at ? `，${formatDateTime(answer.verification.at)}` : ''}）`)
+              ? h('div', null, '校验：', h(VerificationMarkdown, { text: answer.verification.summary }),
+                `（${methodLabel(answer.verification.method)}${answer.verification.at ? `，${formatDateTime(answer.verification.at)}` : ''}）`)
               : null,
             (() => {
               const trail = answer.verification?.trail
@@ -435,10 +442,12 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
               const passes = trail.filter((entry) => entry && entry.independentAnswer)
               if (!passes.length) return null
               return h('div', null, passes.map((entry, index) => h('div', { key: index },
-                `校验视角独立求解：${entry.independentAnswer}${entry.attempt ? `（第 ${entry.attempt} 次命题）` : ''}`)))
+                '校验视角独立求解：', h(VerificationMarkdown, { text: entry.independentAnswer }),
+                entry.attempt ? `（第 ${entry.attempt} 次命题）` : null)))
             })(),
             answer.verification?.issues?.length
-              ? h('ul', null, answer.verification.issues.map((issue, index) => h('li', { key: index }, issue)))
+              ? h('ul', null, answer.verification.issues.map((issue, index) =>
+                h('li', { key: index }, h(VerificationMarkdown, { text: issue }))))
               : null))))
   }
 
@@ -553,17 +562,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
             h('span', { className: 'kd-meta' }, focused ? '请判定本次作答：' : '这道题由你自己判定（系统不会替你把“作答完毕”当成答对）：'),
             h(Btn, { variant: 'primary', disabled: busy === 'judge', onClick: () => onJudge('correct') }, T.correct),
             h(Btn, { variant: 'danger', disabled: busy === 'judge', onClick: () => onJudge('wrong') }, T.wrong))
-          : null),
-      !focused && q.publishVerification
-        ? h('div', { className: 'kd-verify', style: { marginTop: '12px' } },
-          h(Badge, { tone: q.publishVerification.status === 'passed' ? 'ok' : 'warn' },
-            q.publishVerification.status === 'passed' ? '试题发布前已通过独立校验' : '试题发布状态：待核验'),
-          // 校验结论里通常写着答案与关键推导，提交答案前不能展示，否则等于泄题。
-          revealed
-            ? ` ${q.publishVerification.summary}`
-            : ' 结论在提交答案后显示',
-          `（${methodLabel(q.publishVerification.method)}${q.publishVerification.at ? `，${formatDateTime(q.publishVerification.at)}` : ''}）`)
-        : null)
+          : null))
   }
 
   /* ============================== 列表 ============================== */
@@ -664,6 +663,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
             h(Btn, { key: action, small: true, variant: action === 'delete' ? 'danger' : 'default', disabled: busy || !selected.length, onClick: () => onBulk(action) }, label)))) : null,
       list.items.map((item) => h('div', {
         key: item.id,
+        'data-question-id': item.id,
         className: 'kd-list-row' + (managing && selected.includes(item.id) ? ' is-selected' : ''),
         role: managing ? undefined : 'button',
         tabIndex: managing ? undefined : 0,
@@ -811,7 +811,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
             type: 'button',
             className: 'kd-btn kd-btn-default kd-thread-suggestion',
             onClick: () => send(text, newAttemptId()),
-          }, text))) : !rows.length ? h('div', { className: 'kd-empty-body' }, '还没有追问。') : null),
+          }, h(Markdown, { text, inline: true, allowBareMath: true })))) : !rows.length ? h('div', { className: 'kd-empty-body' }, '还没有追问。') : null),
       localError ? h('div', { className: 'kd-error-text', style: { padding: '0 14px' } }, localError) : null,
       h('div', { className: 'kd-thread-foot' },
         h('div', { className: 'kd-composer' },
@@ -857,11 +857,10 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       action)
   }
 
-  function SubjectsModal({ boot, savedNotice, onClose, onDone, embedded, onBusyChange, onDirtyChange }) {
+  function SubjectsModal({ boot, onClose, onDone, embedded, onBusyChange, onDirtyChange, onNotify }) {
     const [draft, setDraft] = useState(() => ({ subjects: [...boot.settings.subjects],
       subjectSource: { ...boot.settings.subjectSource }, customSubjects: structuredClone(boot.customSubjects || []), deleteSubjectIds: [] }))
     const [saving, setSaving] = useState(false)
-    const [saveError, setSaveError] = useState(null)
     const [name, setName] = useState('')
     const [types, setTypes] = useState([])
     const [customTypes, setCustomTypes] = useState([])
@@ -935,31 +934,26 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       referenceSubjectId === 'independent' && !referenceExamName.trim() && '填写参考考试名称',
     ].filter(Boolean)
     const canAdd = missingFields.length === 0
-    const customInputError = hasCustomInput && !canAdd
-      ? `添加自定义科目前，请${missingFields.join('，并')}。` : ''
     const withCustomSubject = (current) => {
       const subject = { id: 'custom_' + newAttemptId(), name: name.trim(), code:subjectCode.trim(), types: selectedTypes, referenceSubjectId, referenceExamName:referenceExamName.trim(), referenceExamCode:referenceExamCode.trim(),
         outline:outlineDraft.split('\n') }
       return { ...current, subjects: [...current.subjects, subject.id], customSubjects: [...current.customSubjects, subject] }
     }
-    const showSaveError = (message, validation = false) => {
-      setSaveError((previous) => ({ id: (previous?.id || 0) + 1, message, validation }))
-    }
     const finish = async () => {
       if (saving || !hasChanges) return
       if (hasCustomInput && !canAdd) {
-        showSaveError('', true)
+        onNotify?.(`添加自定义科目前，请${missingFields.join('，并')}。`, 'bad')
         return
       }
       const next = canAdd ? withCustomSubject(draft) : draft
       if (next.customSubjects.some((s)=>s.referenceSubjectId === 'independent' && !s.referenceExamName?.trim())) {
-        showSaveError('独立参考考试请填写准确的考试名称（院校自命题请包含院校名称）。')
+        onNotify?.('独立参考考试请填写准确的考试名称（院校自命题请包含院校名称）。', 'bad')
         return
       }
       setSaving(true)
       onBusyChange?.(true)
       try { await onDone(next) }
-      catch (error) { showSaveError(error.message || '保存失败，请重试') }
+      catch (error) { onNotify?.(error.message || '保存失败，请重试', 'bad') }
       finally { setSaving(false); onBusyChange?.(false) }
     }
     const submit = () => {
@@ -1008,7 +1002,6 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       h(Btn, { key: 'undo', onClick: () => setUndoDialog(true), disabled: saving || !hasChanges }, '撤销'),
       h(Btn, { key: 'save', variant: 'primary', onClick: finish, disabled: saving || !hasChanges }, saving ? '保存中…' : '保存'),
     ]
-    const errorMessage = saveError?.validation ? customInputError : saveError?.message
     return h(Modal, {
       embedded,
       title: T.manageSubjects,
@@ -1016,8 +1009,6 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       wide: true,
       headerActions: embedded ? subjectActions : null,
       footer: embedded ? null : subjectActions,
-      notification: errorMessage ? h(NotificationBanner, { key: saveError.id, message: errorMessage, tone: 'bad' })
-        : !saveError && savedNotice ? h(NotificationBanner, { key: 'saved', message: savedNotice }) : null,
       dialog: undoOpen ? h(ConfirmModal, {
         title: '撤销本次更改',
         explicitClose: true,
@@ -1182,8 +1173,8 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       open ? [
         h(Markdown, { key: 'stem', text: item.stem }),
         ...item.options.map(({ key, text }, index) => h(Markdown, { key: index, text: `${key}. ${text}` })),
-        item.answer ? h('div', { key: 'answer' }, h('strong', null, '参考答案'), h(Markdown, { text: item.answer })) : null,
-        item.explanation ? h('div', { key: 'explanation' }, h('strong', null, '解析'), h(Markdown, { text: item.explanation })) : null,
+        item.answer ? h('div', { key: 'answer' }, h('strong', null, '参考答案'), h(AnswerMarkdown, { text: item.answer })) : null,
+        item.explanation ? h('div', { key: 'explanation' }, h('strong', null, '解析'), h(AnswerMarkdown, { text: item.explanation })) : null,
       ] : null)
   }
 
@@ -1422,7 +1413,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         : h('p', { className: 'kd-manage-empty' }, subject ? '这个科目尚未导入真题。' : '选择科目后查看已导入的真题。'))))
   }
 
-  function BackupModal({ onClose, onRestored, embedded, onBusyChange }) {
+  function BackupModal({ onClose, onRestored, embedded, onBusyChange, onNotify }) {
     const [points, setPoints] = useState(null)
     const [pointsError, setPointsError] = useState('')
     const [pending, setPending] = useState(null)
@@ -1447,7 +1438,10 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       onBusyChange?.(true)
       setError('')
       try { await action() }
-      catch (issue) { setError(issue.message) }
+      catch (issue) {
+        if (pending) setError(issue.message)
+        else onNotify?.(issue.message, 'bad')
+      }
       finally { setBusy(false); if (!pending) onBusyChange?.(false) }
     }
     const download = () => run(async () => {
@@ -1490,7 +1484,6 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     return h(Modal, {
       title: '备份与恢复', embedded, dialog, onClose: () => { if (!busy) onClose() },
       footer: embedded ? null : h(Btn, { onClick: onClose, disabled: busy || Boolean(dialog) }, '关闭'),
-      notification: !pending && error ? h(NotificationBanner, { message: error, tone: 'bad' }) : null,
     },
     h('div', { className: 'kd-backup-layout' },
       h('div', { className: 'kd-backup-actions' },
@@ -1525,8 +1518,8 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         + (lastAttempt.choice ? ` · 选择 ${lastAttempt.choice}` : '')),
       answer ? h('div', { className: 'kd-answer-copy' },
         answer.versionId ? h('p', { className: 'kd-meta' }, `版本 ${answer.versionId}`) : null,
-        h(Markdown, { text: answer.answer || '（无参考答案）' }),
-        h(Markdown, { text: answer.explanation || '（无解析）' }))
+        h(AnswerMarkdown, { text: answer.answer || '（无参考答案）' }),
+        h(AnswerMarkdown, { text: answer.explanation || '（无解析）' }))
         : h('p', null, answerVersionUnknown ? '这条旧作答无法确认当时的答案版本。' : '这次作答没有可用的参考答案。'))
   }
 
@@ -1550,13 +1543,14 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     h('div', { className: 'kd-verify' },
       h(Badge, { tone: candidate.verification?.status === 'passed' ? 'ok' : 'warn' },
         candidate.verification?.status === 'passed' ? '候选版本已通过独立校验' : '候选版本未通过校验'),
-      ` ${candidate.verification?.summary || ''}（${candidate.verification?.method || ''}）`),
+      ' ', h(VerificationMarkdown, { text: candidate.verification?.summary }),
+      `（${candidate.verification?.method || ''}）`),
     h('div', { className: 'kd-answer-block kd-answer-copy', style: { marginTop: '14px' } },
       h('div', { className: 'kd-answer-label' }, '候选标准答案'),
-      h(Markdown, { text: candidate.answer })),
+      h(AnswerMarkdown, { text: candidate.answer })),
     h('div', { className: 'kd-answer-block kd-answer-copy' },
       h('div', { className: 'kd-answer-label' }, '候选解析'),
-      h(Markdown, { text: candidate.explanation })),
+      h(AnswerMarkdown, { text: candidate.explanation })),
     h('div', { className: 'kd-msg-meta' }, '确认后才会替换正式版本；旧版本会保留在版本历史中。'))
   }
 

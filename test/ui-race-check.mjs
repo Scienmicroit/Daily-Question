@@ -3,7 +3,7 @@ import { createClient } from '../ui/app.js'
 import { BANK_PDF_BYTES, BANK_TEXT_LIMIT } from '../lib/import-limits.js'
 const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r});return {promise,resolve}}
 const tick=()=>new Promise(r=>setImmediate(r))
-function fixture(responder,detail=false,initialBoot) {
+function fixture(responder,detail=false,initialBoot,window={}) {
   let index,refIndex,effects
   const boot=initialBoot||{settings:{subjects:['math1']},subjects:[],counts:{math1:{all:2}}}
   const bootRequests=[]
@@ -16,7 +16,7 @@ function fixture(responder,detail=false,initialBoot) {
     useState(value){const i=index++;if(!state.has(i))state.set(i,typeof value==='function'?value():value);return [state.get(i),v=>state.set(i,typeof v==='function'?v(state.get(i)):v)]},
     useRef(value){return refs[refIndex++]??={current:value}},useEffect(fn){effects.push(fn)},useCallback:f=>f,useMemo:f=>f(),
   }
-  const components = createClient(React, { window: {}, fetch: async (_url, options) => {
+  const components = createClient(React, { window, fetch: async (_url, options) => {
     const {op,args}=JSON.parse(options.body)
     if (op==='bootstrap') bootRequests.push(args)
     const result=op==='bootstrap'?boot:await responder(op,args)
@@ -24,7 +24,8 @@ function fixture(responder,detail=false,initialBoot) {
   } })
   function find(node,name){if(typeof name==='function'?name(node):node?.type===name||node?.type?.name===name)return node;for(const child of node?.children||[]){const found=find(child,name);if(found)return found}}
   function render(){index=refIndex=0;effects=[];return components.Page()}
-  return {state,bootRequests,props(name){const node=find(render(),name);assert(node,`缺少${name}`);return node.props},
+  return {state,bootRequests,node(name){const node=find(render(),name);assert(node,`缺少${name}`);return node},
+    props(name){return this.node(name).props},
     effect(name){render();const run=effects.find(fn=>fn.name===name);assert(run,`缺少${name}`);return run()}}
 }
 
@@ -53,6 +54,32 @@ function fixture(responder,detail=false,initialBoot) {
   await tick()
   assert.deepEqual(ui.props('BanksModal').boot.banks, [])
   assert.deepEqual(requests.at(-1), { op: 'managementData', args: { section: 'banks' } })
+}
+
+{
+  const requests = []
+  const message = '任务已取消，可以重试'
+  const boot = { practiceOnly: true, today: '2026-11-18', settings: { subjects: ['math1'], activeSubject: 'math1' },
+    subjects: [{ id: 'math1' }], dailyPlans: { math1: { pendingStart: false } }, failures: { math1: { message } } }
+  const reopened = fixture((op, args) => {
+    requests.push({ op, args })
+    if (op === 'listQuestions') return { items: [] }
+    if (op === 'ensureDaily') return args.manual ? { question: { id: 'retried', type: 'single' } }
+      : { status: 'failed', message }
+  }, false, boot)
+  reopened.effect('initialize')
+  await tick()
+  assert.equal(reopened.props('EmptyState').body, message)
+  assert.equal(requests.length, 0, '插件重开直接显示当天失败记录')
+  reopened.props('TabBar').onPick('all')
+  await tick()
+  reopened.props('TabBar').onPick('today')
+  assert.equal(reopened.props('EmptyState').body, message, '切回时继续显示失败状态')
+  await tick()
+  assert.deepEqual(requests.at(-1), { op: 'ensureDaily', args: { subjectId: 'math1' } })
+  await reopened.props('EmptyState').actions[0].props.onClick()
+  assert.deepEqual(requests.at(-1), { op: 'ensureDaily', args: { subjectId: 'math1', manual: true } })
+  assert.equal(reopened.props('QuestionPane').q.id, 'retried', '点击重试才发起主动出题')
 }
 
 {
@@ -148,6 +175,63 @@ for (const items of [[], [{ id: 'A' }, { id: 'B' }]]) {
     assert.equal(review.props('QuestionPane').q.id, 'B', '多道待复习题仍可自行选择')
     await review.props('TabBar').onBack()
     assert.deepEqual(review.props('ListPane').list.items, items)
+  }
+}
+
+for (const kind of ['all', 'favorite', 'wrong']) {
+  const requests = []
+  const events = new EventTarget()
+  let resize, rows, removeFromList = false
+  const scroller = Object.assign(events, {
+    scrollTop: 220, firstElementChild: {},
+    getBoundingClientRect: () => ({ top: 100 }),
+    querySelectorAll: () => rows,
+  })
+  const entry = (id, top) => ({ dataset: { questionId: id }, top, closest: () => null,
+    getBoundingClientRect() { return { top: 100 + this.top - scroller.scrollTop } } })
+  const page = fixture((op, args) => {
+    requests.push({ op, args })
+    if (op === 'getQuestion') return { question: { id: args.qid, type: 'single' } }
+    if (args.anchorId) return removeFromList ? { page: args.page, items: [{ id: 'Z' }] }
+      : { page: 3, items: [{ id: 'C' }, { id: 'B' }] }
+    return { page: args.page, items: [{ id: 'A' }, { id: 'B' }] }
+  }, false, undefined, { ResizeObserver: class {
+    constructor(callback) { resize = callback }
+    observe() {}
+    disconnect() { resize = undefined }
+  } })
+  page.props('TabBar').onPick(kind)
+  await tick()
+  page.props('input').onChange({ target: { value: '矩阵' } })
+  page.props('form').onSubmit({ preventDefault() {} })
+  await tick()
+  await page.props('ListPane').onPage(2)
+  page.props((node) => node?.props?.className === 'kd-main-scroll').ref.current = scroller
+  rows = [entry('A', 100), entry('B', 260)]
+  await page.props('ListPane').onOpen('B')
+  page.effect('restorePracticeScroll')
+  assert.equal(scroller.scrollTop, 0, '详情从题干顶部开始')
+  await page.props('TabBar').onBack()
+  assert.deepEqual(requests.at(-1).args, { subjectId: 'math1', kind, page: 2, query: '矩阵', anchorId: 'B' })
+  assert.equal(page.props('ListPane').list.page, 3)
+  rows = [entry('C', 100), entry('B', 350)]
+  const stop = page.effect('restorePracticeScroll')
+  assert.equal(scroller.scrollTop, 310, `${kind} 回到同一题距视口上缘 40px 的位置`)
+  rows[1].top += 57
+  resize()
+  assert.equal(scroller.scrollTop, 367, '上方公式渲染改变高度后仍定位到原题')
+  scroller.dispatchEvent(new Event('wheel'))
+  assert.equal(resize, undefined, '用户开始滚动后停止定位')
+  stop()
+
+  if (kind === 'favorite') {
+    await page.props('ListPane').onOpen('B')
+    page.effect('restorePracticeScroll')
+    removeFromList = true
+    await page.props('TabBar').onBack()
+    rows = [entry('Z', 250)]
+    page.effect('restorePracticeScroll')
+    assert.equal(scroller.scrollTop, 367, '原题移出列表时沿用原有偏移')
   }
 }
 
@@ -279,7 +363,7 @@ await f.props('QuestionPane').onReveal('submit')
 assert.equal(retries[0].attemptId, retries[1].attemptId)
 assert.deepEqual(retries.map((item) => item.choice), ['A', 'B'])
 assert.equal(f.state.get(6).lastAttempt.choice, 'A')
-assert.match(f.state.get(13).message, /本次改选未提交/)
+assert.match(f.state.get(13).at(-1).message, /本次改选未提交/)
 
 const archiveCalls = []
 f = fixture((op, args) => {
@@ -306,7 +390,8 @@ assert.deepEqual(f.state.get(14),{kind:'subjects',edit:1},'取消科目修改只
 assert.equal(switchCalls.length,0)
 await f.props('SubjectsModal').onDone({subjects:['math2'],customSubjects:[]})
 await tick()
-assert.deepEqual(f.state.get(14),{kind:'subjects',edit:2,notice:'科目设置已保存'},'保存科目修改后仍停留在设置并显示提示')
+assert.deepEqual(f.state.get(14),{kind:'subjects',edit:2},'保存科目修改后仍停留在设置')
+assert.equal(f.props('NotificationBanner').message,'科目设置已保存')
 assert.equal(f.state.get(3),'math2')
 assert.deepEqual(switchCalls.map(([op,args])=>[op,args.activeSubject||args.subjectId]),[['saveSettings','math2'],['ensureDaily','math2']])
 
@@ -349,6 +434,7 @@ const schedule = fixture((op, args) => {
 const setSchedule = (patch) => schedule.state.set(0, { ...schedule.state.get(0),
   today: plan.today, dailyPlans: { math1: { ...plan, ...patch } } })
 const scheduleButton = (label) => schedule.props((node) => node?.type?.name === 'Btn' && node.children.includes(label))
+const scheduleBanners = () => schedule.node((node) => node?.props?.className === 'kd-notification-stack').children.map((node) => node.props)
 setSchedule({})
 assert.equal(scheduleCalls.length, 0)
 assert.deepEqual(schedule.props('EmptyState').actions.children,['开始出题'])
@@ -357,17 +443,35 @@ assert.deepEqual(scheduleCalls.at(-1), ['ensureDaily', { subjectId: 'math1', man
 setSchedule({})
 await scheduleButton('跳过明天').onClick()
 assert.deepEqual(scheduleCalls.at(-1), ['setDailySkip', { date: '2026-11-19', skip: true }])
-assert.match(schedule.props('NotificationBanner').message,/跳过明天.*所有已启用科目/)
+const firstNotice = scheduleBanners()[0]
+assert.match(firstNotice.message,/跳过明天.*所有已启用科目/)
 await scheduleButton('取消跳过明天').onClick()
 assert.deepEqual(scheduleCalls.at(-1), ['setDailySkip', { date: '2026-11-19', skip: false }])
-assert.match(schedule.props('NotificationBanner').message,/取消跳过明天.*所有科目/)
+assert.equal(scheduleBanners().length, 2, '新通知加入同一堆叠')
+assert.equal(scheduleBanners()[0].key, firstNotice.key, '较早通知保留原组件键和计时器')
+assert.match(scheduleBanners()[1].message,/取消跳过明天.*所有科目/)
 setSchedule({ pendingStart: false, todaySkipped: true, tomorrowSkipped: true, nextDate: '2026-11-20' })
 assert.equal(schedule.props('EmptyState').body, '下次出题：后天（2026年11月20日）')
 assert(scheduleButton('取消跳过明天'))
 await scheduleButton('取消跳过今天').onClick()
 assert.deepEqual(scheduleCalls.at(-2), ['setDailySkip', { date: '2026-11-18', skip: false }])
 assert.deepEqual(scheduleCalls.at(-1), ['ensureDaily', { subjectId: 'math1' }])
-assert.match(schedule.props('NotificationBanner').message,/取消跳过今天.*所有科目/)
+const [, secondNotice, thirdNotice] = scheduleBanners()
+assert.match(thirdNotice.message,/取消跳过今天.*所有科目/)
+assert.equal(scheduleBanners().length, 3)
+setSchedule({ pendingStart: false })
+await scheduleButton('跳过明天').onClick()
+const fourthNotice = scheduleBanners().at(-1)
+assert.deepEqual(scheduleBanners().map(({ id }) => id), [secondNotice.id, thirdNotice.id, fourthNotice.id],
+  '第四条出现时立即移除顶部通知，其余通知保留原键')
+firstNotice.onDismiss(firstNotice.id)
+assert.equal(scheduleBanners().length, 3, '顶部旧通知的迟到回调不会移除其他通知')
+await scheduleButton('取消跳过明天').onClick()
+const fifthNotice = scheduleBanners().at(-1)
+assert.deepEqual(scheduleBanners().map(({ id }) => id), [thirdNotice.id, fourthNotice.id, fifthNotice.id],
+  '连续收到通知时始终最多三条')
+fourthNotice.onDismiss(fourthNotice.id)
+assert.deepEqual(scheduleBanners().map(({ id }) => id), [thirdNotice.id, fifthNotice.id], '只移除已收起的这一条')
 
 const lateThread=deferred()
 {

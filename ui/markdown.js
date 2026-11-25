@@ -31,6 +31,36 @@ function markdownLines(source) {
   return lines
 }
 
+const BARE_MATH_START = /[A-Za-z0-9\\({+\-\p{Script=Greek}∂∫∑√]/u
+const BARE_MATH_BOUNDARY = /[\s\p{Script=Han}\u3000-\u303f\uff01-\uff65:;,!?]/u
+const BARE_MATH_RUN = /(?:[A-Za-z0-9 \t\\{}()[\]^_+\-=−/,|<>'\p{Script=Greek}∂∫∑√∞≤≥≠±×·]|\.(?=\d))+/uy
+const BARE_MATH_SIGNAL = /\\(?:[dtc]?frac(?=\s*\{)|sqrt(?=\s*[\[{])|(?:i{0,2}int|oint|sum|prod|lim|sin|cos|tan|log|ln|leq?|geq?|neq?|infty|pi|theta|alpha|beta|gamma|nabla|partial|times|cdot|pm)(?![A-Za-z]))|[A-Za-z0-9)}\]]\^(?=[\w{\\+\-\p{Script=Greek}])|[∂∫∑√≤≥≠]|[A-Za-z]_\{|\bO\(\s*[\w(]/u
+const BARE_MATH_FUNCTION = /(?<![\\A-Za-z])(?:sin|cos|tan|cot|ln|log)(?=\s+(?:[A-Za-z](?![A-Za-z])|[\p{Script=Greek}\d(]))/gu
+const MATH_WORDS = new Set(['sin', 'cos', 'tan', 'cot', 'lim', 'log', 'ln', 'exp', 'det', 'dim', 'min', 'max', 'Cov', 'Var'])
+const BARE_CODE_ACCESS = /[A-Za-z_]\w*(?:(?:->(?=[A-Za-z_]\w)|::)[A-Za-z_]\w*)+/y
+
+function hasBareMath(text) {
+  return BARE_MATH_SIGNAL.test(text) || text.search(BARE_MATH_FUNCTION) !== -1
+}
+
+// 没有定界符的旧内容只在边界和数学记号都明确时交给 MathJax。
+function bareMathAt(text, index) {
+  if (!BARE_MATH_START.test(text[index]) || (index > 0 && !BARE_MATH_BOUNDARY.test(text[index - 1]))) return ''
+  if (text[index] === '\\' && /[A-Za-z]:$/.test(text.slice(Math.max(0, index - 2), index))) return ''
+  BARE_MATH_RUN.lastIndex = index
+  const run = BARE_MATH_RUN.exec(text)?.[0] || ''
+  const candidate = run.split(/\\[([]|\[[^\]]*\]\(|__/, 1)[0].trimEnd().replace(/(?<!\\),$/, '').trimEnd()
+  if (!hasBareMath(candidate)) return ''
+
+  let braces = 0
+  for (const [token] of candidate.matchAll(/\\[A-Za-z]+|\\.|[A-Za-z]+|[{}]/g)) {
+    if (token === '{') braces++
+    else if (token === '}') { if (--braces < 0) return '' }
+    else if (/^[A-Za-z]{3,}$/.test(token) && !MATH_WORDS.has(token)) return ''
+  }
+  return braces === 0 ? candidate : ''
+}
+
 export function createMarkdown(React, { window = globalThis.window } = {}) {
   const { createElement: h, useState, useEffect, useMemo } = React
   let uid = 0
@@ -234,13 +264,32 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
   const MD_ESCAPABLE = new Set(['\\', '`', '*', '_', '{', '}', '[', ']', '(', ')',
     '#', '+', '-', '.', '!', '>', '|', '~', '<', '$', '"', "'"])
 
-  function inlineNodes(text) {
+  function inlineNodes(text, options = {}) {
     const out = []
     let buffer = ''
     let index = 0
+    const { allowBareMath, allowBareCode, inline } = options
+    const recoverFormulas = allowBareMath && hasBareMath(text)
     const flush = () => { if (buffer) { out.push(buffer); buffer = '' } }
     while (index < text.length) {
       const c = text[index]
+      if (allowBareCode && (index === 0 || BARE_MATH_BOUNDARY.test(text[index - 1]))) {
+        BARE_CODE_ACCESS.lastIndex = index
+        const code = BARE_CODE_ACCESS.exec(text)?.[0]
+        if (code) {
+          flush()
+          out.push(h('code', { className: 'kd-inline-code', key: nextKey('ic') }, code))
+          index += code.length
+          continue
+        }
+      }
+      const bareMath = recoverFormulas && bareMathAt(text, index)
+      if (bareMath) {
+        flush()
+        out.push(renderMath(bareMath.replace(BARE_MATH_FUNCTION, '\\$&'), false))
+        index += bareMath.length
+        continue
+      }
       if (c === '\\' && (text[index + 1] === '(' || text[index + 1] === '[')) {
         // 兼容 \( ... \) 与 \[ ... \] 两套 LaTeX 定界符（模型经常这样输出）。
         const display = text[index + 1] === '['
@@ -248,7 +297,7 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
         const end = text.indexOf(closing, index + 2)
         if (end > index + 2) {
           flush()
-          out.push(renderMath(text.slice(index + 2, end), display))
+          out.push(renderMath(text.slice(index + 2, end), display && !inline))
           index = end + 2
           continue
         }
@@ -282,7 +331,7 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
         const end = text.indexOf(marker, from)
         if (end > from) {
           flush()
-          out.push(renderMath(text.slice(from, end), display))
+          out.push(renderMath(text.slice(from, end), display && !inline))
           index = end + marker.length
           continue
         }
@@ -291,7 +340,7 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
         const link = matchLink(text, index + 1)
         if (link) {
           flush()
-          const url = markdownUrl(link.url, true)
+          const url = inline ? null : markdownUrl(link.url, true)
           out.push(url ? h(MarkdownImage, {
             key: nextKey('img'),
             alt: link.text,
@@ -306,8 +355,8 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
         const link = matchLink(text, index)
         if (link) {
           flush()
-          const url = markdownUrl(link.url)
-          const label = inlineNodes(link.text)
+          const url = inline ? null : markdownUrl(link.url)
+          const label = inlineNodes(link.text, options)
           if (url) out.push(h('a', {
             className: 'kd-link',
             key: nextKey('a'),
@@ -325,7 +374,7 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
         const end = text.indexOf(marker, index + 2)
         if (end > index + 2) {
           flush()
-          out.push(h('strong', { key: nextKey('b') }, inlineNodes(text.slice(index + 2, end))))
+          out.push(h('strong', { key: nextKey('b') }, inlineNodes(text.slice(index + 2, end), options)))
           index = end + 2
           continue
         }
@@ -334,7 +383,7 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
         const end = text.indexOf('~~', index + 2)
         if (end > index + 2) {
           flush()
-          out.push(h('del', { key: nextKey('del') }, inlineNodes(text.slice(index + 2, end))))
+          out.push(h('del', { key: nextKey('del') }, inlineNodes(text.slice(index + 2, end), options)))
           index = end + 2
           continue
         }
@@ -346,7 +395,7 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
           const end = text.indexOf(c, index + 1)
           if (end > index + 1 && text[end + 1] !== c) {
             flush()
-            out.push(h('em', { key: nextKey('em') }, inlineNodes(text.slice(index + 1, end))))
+            out.push(h('em', { key: nextKey('em') }, inlineNodes(text.slice(index + 1, end), options)))
             index = end + 1
             continue
           }
@@ -378,9 +427,9 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
       || /^\s{0,3}\|/.test(line)
   }
 
-  function renderTable(rows) {
-    const header = rows[0].map((cell) => inlineNodes(cell))
-    const body = rows.slice(1).map((row) => row.map((cell) => inlineNodes(cell)))
+  function renderTable(rows, options) {
+    const header = rows[0].map((cell) => inlineNodes(cell, options))
+    const body = rows.slice(1).map((row) => row.map((cell) => inlineNodes(cell, options)))
     return h('div', { className: 'kd-table-wrap', key: nextKey('tb') },
       h('table', { className: 'kd-table' },
         h('thead', null, h('tr', null, header.map((cell, index) => h('th', { key: index }, cell)))),
@@ -410,7 +459,7 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
     }
   }
 
-  function renderBlocks(source) {
+  function renderBlocks(source, options) {
     const lines = markdownLines(source)
     const out = []
     let index = 0
@@ -452,7 +501,7 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
       if (heading) {
         const level = Math.min(6, heading[1].length + 2)
         out.push(h(`h${level}`, { className: `kd-h kd-h${heading[1].length}`, key: nextKey('hd') },
-          inlineNodes(heading[2].trim())))
+          inlineNodes(heading[2].trim(), options)))
         index += 1
         continue
       }
@@ -469,7 +518,7 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
           body.push(lines[index].replace(QUOTE_PREFIX, ''))
           index += 1
         }
-        out.push(h('blockquote', { className: 'kd-quote', key: nextKey('q') }, renderBlocks(body.join('\n'))))
+        out.push(h('blockquote', { className: 'kd-quote', key: nextKey('q') }, renderBlocks(body.join('\n'), options)))
         continue
       }
 
@@ -481,7 +530,7 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
           rows.push(splitRow(lines[index]))
           index += 1
         }
-        out.push(renderTable(rows))
+        out.push(renderTable(rows, options))
         continue
       }
 
@@ -498,7 +547,7 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
             parts.push(lines[index].trim())
             index += 1
           }
-          items.push(h('li', { key: nextKey('li') }, inlineNodes(parts.join('\n'))))
+          items.push(h('li', { key: nextKey('li') }, inlineNodes(parts.join('\n'), options)))
         }
         out.push(h(ordered ? 'ol' : 'ul', { className: 'kd-list', key: nextKey('ls') }, items))
         continue
@@ -510,22 +559,23 @@ export function createMarkdown(React, { window = globalThis.window } = {}) {
         index += 1
       }
       if (!paragraph.length) { index += 1; continue }
-      out.push(h('p', { className: 'kd-p', key: nextKey('p') }, inlineNodes(paragraph.join('\n'))))
+      out.push(h('p', { className: 'kd-p', key: nextKey('p') }, inlineNodes(paragraph.join('\n'), options)))
     }
     return out
   }
 
-  function Markdown({ text, className }) {
+  function Markdown({ text, className, allowBareMath = false, allowBareCode = false, inline = false }) {
     // 公式引擎加载完成后要重渲染一次，否则首次绘制出来的还是 TeX 原文
     const mathStatus = useMathJaxStatus()
     const nodes = useMemo(() => {
       try {
-        return renderBlocks(text)
+        const options = { allowBareMath, allowBareCode, inline }
+        return inline ? inlineNodes(String(text || ''), options) : renderBlocks(text, options)
       } catch (error) {
-        return [h('pre', { className: 'kd-code', key: 'raw' }, String(text || ''))]
+        return inline ? String(text || '') : [h('pre', { className: 'kd-code', key: 'raw' }, String(text || ''))]
       }
-    }, [text, mathStatus])
-    return h('div', { className: `kd-md ${className || ''}` }, nodes)
+    }, [text, mathStatus, allowBareMath, allowBareCode, inline])
+    return h(inline ? 'span' : 'div', { className: `kd-md ${className || ''}` }, nodes)
   }
 
   return { Markdown, useMathJaxStatus, inlineNodes, renderBlocks, MathFormula, ensureMathJax, mathState }

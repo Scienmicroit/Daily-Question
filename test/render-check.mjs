@@ -143,6 +143,37 @@ check('字面量 \\n\\n 还原成两个段落', literalBreak.length === 2
 const nabla = renderBlocks('$\\nabla f$')
 check('\\nabla 不会被当成换行', texOf(nabla).tex === '\\nabla f', JSON.stringify(texOf(nabla)))
 
+const greenAnswer = '\\frac{e^\\pi+1}{2}'
+const greenSteps = '令 P=2xy^3-y^2\\cos x，Q=3x^2y^2-2y\\sin x+e^x。则 Q_x-P_y=e^x。由格林公式，沿正向边界的积分为 \\iint_D e^x\\,dA。区域 D 为 0\\le x\\le\\pi,\\ 0\\le y\\le \\sin x，故 I=\\int_0^\\pi e^x\\sin x\\,dx=\\left[\\frac{e^x}{2}(\\sin x-\\cos x)\\right]_0^\\pi=\\frac{e^\\pi+1}{2}。'
+const mathSpans = (nodes) => {
+  const tex = []
+  walk(nodes, (node) => { if (node.type === api.MathFormula) tex.push(node.props.tex) })
+  return tex
+}
+check('答案模式将旧版裸分式送入 MathJax，普通 Markdown 仍要求定界符',
+  mathSpans(renderBlocks(greenAnswer, { allowBareMath: true }))[0] === greenAnswer && !mathSpans(renderBlocks(greenAnswer)).length)
+const greenBlocks = renderBlocks(greenSteps, { allowBareMath: true })
+check('恢复有中文上下文的六段推导，保留标点和正文',
+  mathSpans(greenBlocks).join('\n') === [
+    'P=2xy^3-y^2\\cos x', 'Q=3x^2y^2-2y\\sin x+e^x', 'Q_x-P_y=e^x', '\\iint_D e^x\\,dA',
+    '0\\le x\\le\\pi,\\ 0\\le y\\le \\sin x',
+    'I=\\int_0^\\pi e^x\\sin x\\,dx=\\left[\\frac{e^x}{2}(\\sin x-\\cos x)\\right]_0^\\pi=\\frac{e^\\pi+1}{2}',
+  ].join('\n') && textOf(greenBlocks).includes('。由格林公式，沿正向边界的积分为'))
+const mixedAnswer = renderBlocks([
+  'I. $y^2$，II. x^3，III. \\(\\frac{1}{2}\\)。',
+  '代码为 `x^2`，路径为 C:\\alpha\\main.txt，变量名 file_count。',
+  '', '~~~text', '\\frac{1}{2}', '~~~',
+].join('\n'), { allowBareMath: true })
+check('显式定界符正常解析，保留编号、代码、路径和普通文本',
+  mathSpans(mixedAnswer).join('|') === 'y^2|x^3|\\frac{1}{2}'
+  && /I\.\s*，II\.\s*，III\./.test(textOf(mixedAnswer))
+  && textOf(mixedAnswer).includes('x^2，路径为 C:\\alpha\\main.txt，变量名 file_count。')
+  && textOf(mixedAnswer).endsWith('\\frac{1}{2}'))
+const judgeNote = '正确计算为 Q_x-P_y=e^x，积分得 (e^π+1)/2。偏导数为 ∂Q/∂x 与 ∂P/∂y，注意区分 cos x 和 sin x。'
+check('旧校验记录可渲染指数、分式、偏导与三角函数',
+  mathSpans(renderBlocks(judgeNote, { allowBareMath: true })).join('|')
+    === 'Q_x-P_y=e^x|(e^π+1)/2|∂Q/∂x|∂P/∂y|\\cos x|\\sin x')
+
 // ---- 引擎未就绪 / 失败 ----
 mathState.status = 'loading'
 const pending = inlineNodes('$x^2$')
@@ -285,11 +316,66 @@ function resolve(node) {
   if (typeof node.type === 'function') return resolve(node.type({ ...node.props, children: node.children }))
   return { ...node, children: node.children.map(resolve) }
 }
+{
+  const summary = ['正确计算为 $x^2$，用 `i++` 检查。头结点是 rear->next。',
+    '', '~~~c', 'int count = 0;', '~~~'].join('\n')
+  const verification = { status: 'passed', summary, method: 'blind-solve', issues: ['核对 `node->next`'],
+    trail: [{ independentAnswer: greenAnswer }] }
+  const answer = { versionId: 'test-review', answer: 'A', explanation: '', verified: true, verification }
+  const question = { id: 'test-review', type: 'solution', options: [], answerState: 'revealed', attemptCount: 1,
+    answer, pendingRevision: answer, publishVerification: { ...verification, summary: '仅发布时的校验说明' } }
+  for (const [label, view, isDetail] of [
+    ['答案下方校验', components.QuestionPane({ q: question }), true],
+    ['候选版本校验', components.RevisionModal({ question }), false],
+  ]) {
+    const rendered = resolve(view)
+    const nodes = []
+    walk(rendered, (node) => nodes.push(node))
+    const math = (tex) => nodes.filter((node) => node.props.className === 'kd-math-pending' && textOf(node) === tex).length
+    const inline = (code) => nodes.filter((node) => node.props.className === 'kd-inline-code' && textOf(node) === code).length
+    check(label + '渲染公式、行内代码和 C 代码块',
+      math('x^2') === 1 && inline('i++') === 1 && inline('rear->next') === 1
+      && nodes.filter((node) => node.props.className === 'kd-code-lang' && textOf(node) === 'c').length === 1
+      && nodes.some((node) => node.props.className === 'token keyword' && textOf(node) === 'int'))
+    if (isDetail) {
+      check('独立求解公式和校验问题也走统一渲染', math(greenAnswer) === 1 && inline('node->next') === 1)
+      check('详情仅显示答案区内的校验说明和修订入口',
+        !/仅发布时的校验说明|试题发布前已通过独立校验/.test(textOf(rendered)) && textOf(rendered).includes('修订答案详解'))
+    }
+  }
+  for (const [answerState, localRedo] of [['locked', false], ['revealed', true]]) {
+    const rendered = resolve(components.QuestionPane({ q: { ...question, answerState }, localRedo }))
+    check('未查看答案时隐藏校验内容和发布校验提示', !/rear->next|仅发布时的校验说明|结论在提交答案后显示/.test(textOf(rendered)))
+  }
+}
+{
+  const answer = { versionId: 'test-version', answer: greenAnswer, explanation: greenSteps }
+  const question = { id: 'test-question', stem: greenAnswer, type: 'solution', answerState: 'revealed', attemptCount: 1,
+    lastAttempt: { result: 'correct', at: '2026-11-25T04:00:00Z' }, options: [], answer, pendingRevision: answer }
+  for (const [name, view] of [
+    ['当前题目答案', components.QuestionPane({ q: question })],
+    ['历史作答答案', components.AttemptModal({ record: question })],
+    ['候选答案', components.RevisionModal({ question })],
+  ]) {
+    let recovered = 0
+    walk(resolve(view), (node) => {
+      if (node.props.className === 'kd-math-pending') recovered++
+    })
+    check(name + '启用旧公式识别', recovered === 7)
+  }
+}
 const examStrip = resolve(components.ExamStrip({ boot: { settings: { targetYear: 2028 }, yearOptions: [2028] } }))
 let yearSelect
 walk(examStrip, (node) => { if (node.type === 'select') yearSelect = node })
 check('年份选择器隐藏文字标签并保留无障碍名称',
   !textOf(examStrip).includes('考研年份') && yearSelect?.props['aria-label'] === '考研年份')
+const verifyUrl = 'https://www.moe.gov.cn/notice'
+const stripFor = (status) => resolve(components.ExamStrip({ boot: { settings: { targetYear: 2028 },
+  countdown: { status, sourceUrl: verifyUrl } } }))
+let officialSource, estimatedSource
+walk(stripFor('official'), (node) => { if (node.type === 'a') officialSource = node.props.href })
+walk(stripFor('estimated'), (node) => { if (node.type === 'a') estimatedSource = node.props.href })
+check('只有官方日期展示公告链接', officialSource === verifyUrl && !estimatedSource)
 
 for (const kind of ['all', 'favorite', 'wrong']) {
   const actions = []
@@ -494,6 +580,121 @@ for (const component of [components.SubjectNav, components.MobileBar]) {
     enabled.panels.join() === '数学一,自定义科目' && !enabled.selector)
   check('关闭记忆或没有启用科目时不渲染学情面板',
     !inspect(false, subjects).panels.length && !inspect(true, subjects.filter((item) => !item.enabled)).panels.length)
+
+  let activeState, hookIndex
+  const mergeCalls = []
+  const mergeGroups = [
+    { target: '矩阵', sources: ['矩阵的秩'], reason: '大纲考点' },
+    { target: '专题 8', sources: ['专题 7'], reason: '同义标签' },
+  ]
+  const withRows = createStudyMemoryPage({
+    createElement: h,
+    useState(initial) {
+      if (!activeState) return [initial ?? { enabled: true }, () => {}]
+      const state = activeState
+      const index = hookIndex++
+      if (!state.has(index)) state.set(index, typeof initial === 'function' ? initial() : initial)
+      return [state.get(index), (value) => state.set(index, typeof value === 'function' ? value(state.get(index)) : value)]
+    },
+    useEffect() {},
+  }, { window, rpc: async (op, args) => {
+    mergeCalls.push({ op, args })
+    if (op === 'suggestMemoryMerges') return { version: 'current', start: 0, reviewed: 9, total: 9, groups: mergeGroups }
+    if (op === 'applyMemoryMerges') return { rows: [{ topic: '矩阵', status: 'insufficient' }], canSuggestMerges: false }
+    throw new Error('展开知识点不应联网')
+  }, Btn: components.Btn, Icon: components.Icon })
+  const subjectNodes = []
+  walk(withRows({ subjects }), (node) => {
+    if (node.type?.name === 'SubjectMemory') subjectNodes.push(node)
+  })
+  const states = [['矩阵的秩', '行列式'], ['队列']].map((topics) =>
+    new Map([[0, { enabled: true, rows: topics.map((topic) => ({ topic, status: 'insufficient' })) }]]))
+  const inspectTopics = (index) => {
+    activeState = states[index]
+    hookIndex = 0
+    const { type, props } = subjectNodes[index]
+    const topics = []
+    let group, expand, collapse, search, filter, next, previous, noteInput
+    walk(type(props), (node) => {
+      if (node.type === 'details' && node.props.className.includes('kd-memory-topics')) group = node
+    })
+    walk(group, (node) => {
+      if (node.type === 'details' && node !== group) topics.push(node)
+      if (node.type === components.Btn && textOf(node) === '全部展开') expand = node.props.onClick
+      if (node.type === components.Btn && textOf(node) === '全部收起') collapse = node.props.onClick
+      if (node.type === components.Btn && textOf(node) === '下一页') next = node.props.onClick
+      if (node.type === components.Btn && textOf(node) === '上一页') previous = node.props.onClick
+      if (node.type === 'input' && node.props.type === 'search') search = node.props
+      if (node.type === 'select') filter = node.props
+      if (node.type === 'textarea' && node.props['aria-label'] === '矩阵的秩的错因笔记') noteInput = node.props
+    })
+    return { group, topics, expand, collapse, search, filter, next, previous, noteInput }
+  }
+  const math = inspectTopics(0)
+  const custom = inspectTopics(1)
+  check('每科知识点整组默认折叠，打开本科后各知识点仍默认收起',
+    math.group.props['aria-label'] === '数学一的知识点与错因笔记'
+    && custom.group.props['aria-label'] === '自定义科目的知识点与错因笔记'
+    && !math.group.props.open && !custom.group.props.open
+    && math.topics.length === 2 && custom.topics.length === 1
+    && [...math.topics, ...custom.topics].every((topic) => topic.props.open === false))
+  math.expand()
+  check('一键展开仅展开本科知识点',
+    inspectTopics(0).topics.every((topic) => topic.props.open) && inspectTopics(1).topics.every((topic) => !topic.props.open))
+  inspectTopics(0).collapse()
+  check('一键收起仍能关闭本科全部知识点', inspectTopics(0).topics.every((topic) => !topic.props.open))
+  states[0].set(0, { enabled: true, rows: [
+    { topic: '矩阵的秩', chapter: '线性代数', status: 'insufficient', aliases: ['矩阵秩'],
+      sourceNotes: [{ topic: '矩阵秩', note: '先用初等变换化简' }] },
+    ...Array.from({ length: 8 }, (_, index) => ({ topic: '专题 ' + (index + 1), chapter: index === 7 ? '高等数学' : '', status: 'insufficient' })),
+  ] })
+  const firstPage = inspectTopics(0)
+  firstPage.noteInput.onChange({ target: { value: '未保存的错因' } })
+  firstPage.next()
+  const secondPage = inspectTopics(0)
+  check('本科知识点每页最多 8 条，翻页继续显示其余条目',
+    firstPage.topics.length === 8 && secondPage.topics.length === 1 && textOf(secondPage.topics[0]).includes('专题 8'))
+  secondPage.previous()
+  check('跨页保留未提交的笔记草稿', inspectTopics(0).noteInput.value === '未保存的错因')
+  inspectTopics(0).filter.onChange({ target: { value: '高等数学' } })
+  check('按章节筛选只显示本章内容', inspectTopics(0).topics.length === 1
+    && textOf(inspectTopics(0).topics[0]).includes('专题 8'))
+  inspectTopics(0).filter.onChange({ target: { value: '' } })
+  inspectTopics(0).search.onChange({ target: { value: '专题 ８' } })
+  check('搜索可定位其他页，且各科独立', inspectTopics(0).topics.length === 1
+    && textOf(inspectTopics(0).topics[0]).includes('专题 8') && inspectTopics(1).search.value === '')
+  inspectTopics(0).search.onChange({ target: { value: '矩阵秩' } })
+  const matched = inspectTopics(0)
+  let sourceNote
+  walk(matched.topics[0], (node) => {
+    if (node.type === 'textarea' && node.props['aria-label'] === '矩阵秩的错因笔记') sourceNote = node.props.value
+  })
+  check('用旧标签能找到归并后的知识点，且原笔记继续显示', matched.topics.length === 1
+    && textOf(matched.topics[0]).includes('有笔记') && sourceNote === '先用初等变换化简')
+  check('展开、搜索和翻页不调用模型', mergeCalls.length === 0)
+  states[0].set(0, { ...states[0].get(0), canSuggestMerges: true })
+  const mergeControls = () => {
+    const { group } = inspectTopics(0)
+    let suggest, apply
+    const choices = []
+    walk(group, (node) => {
+      if (node.type === components.Btn && textOf(node) === 'AI 建议归并') suggest = node.props
+      if (node.type === components.Btn && textOf(node) === '应用所选归并') apply = node.props
+      if (node.type === 'input' && node.props.type === 'checkbox') choices.push(node.props)
+    })
+    return { suggest, apply, choices }
+  }
+  await mergeControls().suggest.onClick()
+  check('AI 归并先展示建议，保留未保存笔记时禁止直接应用',
+    mergeCalls.length === 1 && mergeCalls[0].op === 'suggestMemoryMerges' && mergeControls().choices.length === 2
+    && mergeControls().apply.disabled)
+  inspectTopics(0).noteInput.onChange({ target: { value: '' } })
+  mergeControls().choices[1].onChange({ target: { checked: false } })
+  await mergeControls().apply.onClick()
+  check('仅应用勾选的归并，刷新当前科目的统计',
+    mergeCalls.length === 2 && mergeCalls[1].op === 'applyMemoryMerges'
+    && mergeCalls[1].args.version === 'current' && mergeCalls[1].args.groups.length === 1
+    && mergeCalls[1].args.groups[0].target === '矩阵' && states[0].get(0).rows[0].topic === '矩阵')
 }
 let selectedSection, closeRequested = false, settingsKeys
 effectHook = (fn) => { settingsKeys = fn }
@@ -665,10 +866,11 @@ const subjectsBoot = { settings: { subjects: ['math1'], subjectSource: { math1: 
   subjects: [{ id: 'math1', name: '数学一', typeLabels: ['解答题'] }, { id: 'politics', name: '思想政治理论', typeLabels: ['单项选择题'] }] }
 const originalSubjects = JSON.stringify(subjectsBoot)
 let subjectState = new Map(), subjectIndex = 0, subjectSaves = [], closes = 0, failSave = false
+const subjectNotices = []
 const subjectProps = { boot: subjectsBoot, onClose: () => closes++, onDone: async (value) => {
   if (failSave) throw new Error('模拟保存失败')
   subjectSaves.push(structuredClone(value))
-} }
+}, onNotify: (message, tone) => subjectNotices.push({ message, tone }) }
 stateHook = (value) => {
   const i = subjectIndex++
   if (!subjectState.has(i)) subjectState.set(i, typeof value === 'function' ? value() : value)
@@ -730,7 +932,8 @@ check('添加自定义科目和题型仍不提交且显示在草稿中', subject
   && JSON.stringify(subjectsBoot) === originalSubjects)
 failSave = true
 await subjectButton('保存').props.onClick()
-check('保存失败保留草稿并显示错误', subjectSaves.length === 0 && subjectNodes().some((n) => n.props.role === 'alert' && textOf(n).includes('模拟保存失败'))
+check('保存失败保留草稿并发出错误横幅', subjectSaves.length === 0 && subjectNotices.at(-1)?.message === '模拟保存失败'
+  && subjectNotices.at(-1)?.tone === 'bad'
   && subjectState.get(0).customSubjects[0].name === '专业课')
 failSave = false
 await subjectButton('保存').props.onClick()
@@ -743,9 +946,10 @@ subjectNodes().find((n) => n.props.placeholder === '自定义题型，例如：�
 const beforeMissingName = subjectSaves.length
 await subjectButton('保存').props.onClick()
 check('选择 408 且缺少科目名称时，只提示补填科目名称', subjectSaves.length === beforeMissingName
-  && subjectNodes().some((n) => n.props.role === 'alert' && textOf(n) === '添加自定义科目前，请填写科目名称。'))
+  && subjectNotices.at(-1)?.message === '添加自定义科目前，请填写科目名称。')
+const noticesBeforeName = subjectNotices.length
 subjectNodes().find((n) => n.props.placeholder === '例如：数据结构（自命题）').props.onChange({ target: { value: '待添加科目' } })
-check('补填名称后立即清除提示', !subjectNodes().some((n) => n.props.role === 'alert'))
+check('补填名称不会触发额外提示', subjectNotices.length === noticesBeforeName)
 await subjectButton('保存').props.onClick()
 check('完成同时保存未点击添加的有效自定义输入', subjectSaves.at(-1).customSubjects[0].name === '待添加科目'
   && subjectSaves.at(-1).customSubjects[0].types[0] === '简答')
@@ -918,8 +1122,8 @@ for (const clientX of [400, 1100]) separator.props.onPointerMove({ pointerId: 1,
 } })
 check('拖动分隔线使用主区域宽度并限制比例', JSON.stringify(widths.slice(-2)) === JSON.stringify([55, 20]))
 stateHook = useState
-const openingSuggestions = ['为什么要先处理这一步？', '这道题有哪些易错点？']
-const nextSuggestions = ['刚才的结论怎么检验？', '能用另一种方法复核吗？']
+const openingSuggestions = ['计算 $\\int e^x\\sin x\\,dx$ 时，可以怎样分部积分？', '这道题有哪些易错点？']
+const nextSuggestions = ['如何用 $$x^2$$ 验证刚才的结论？', '[概念](https://example.test) ![配图](https://example.test/example.png)怎么用？']
 const sentSuggestions = []
 for (const messages of [[], [{ id: 'reply', role: 'assistant', text: '这是回复。' }]]) {
   const suggestionButtons = []
@@ -929,7 +1133,15 @@ for (const messages of [[], [{ id: 'reply', role: 'assistant', text: '这是回�
     if (n.props.className?.split(' ').includes('kd-thread-suggestion')) suggestionButtons.push(n)
   })
   const expected = messages.length ? nextSuggestions : openingSuggestions
-  check('追问根据对话状态切换建议', JSON.stringify(suggestionButtons.map(textOf)) === JSON.stringify(expected))
+  const expectedTex = messages.length ? 'x^2' : '\\int e^x\\sin x\\,dx'
+  const firstSuggestion = resolve(suggestionButtons[0])
+  const nodes = []
+  walk(suggestionButtons.map(resolve), (node) => nodes.push(node))
+  check('追问根据对话状态切换建议，并行内渲染数学公式', suggestionButtons.length === 2
+    && nodes.some((node) => node.props.className === 'kd-math-pending' && textOf(node) === expectedTex)
+    && !textOf(firstSuggestion).includes('$'))
+  check('追问按钮内使用行内容器和安全文本', firstSuggestion.children[0].type === 'span'
+    && !nodes.some((node) => ['a', 'img'].includes(node.type) || node.props.className === 'kd-mathblock'))
   await suggestionButtons[0].props.onClick()
   check('点击建议直接发送且携带消息 ID', sentSuggestions.at(-1).value === expected[0] && Boolean(sentSuggestions.at(-1).id))
 }
@@ -1012,12 +1224,14 @@ check('关闭页面清理更新检查定时器与事件',cleared&&focusListener=
 
 let notificationClock = 0
 mockWindow.performance = { now: () => notificationClock }
+const notificationBody = (node) => node?.children[0]?.children[0]
 for (const action of ['auto', 'close', 'undo']) {
-  let phase, bannerEffect, undone = false
+  let phase, bannerEffect, dismissed, undone = false
   stateHook = (initial) => initial === 'visible' ? [phase ?? initial, (value) => { phase = value }] : useState(initial)
   effectHook = (fn) => { bannerEffect = fn }
-  const banner = () => resolve(components.NotificationBanner({ message: '测试通知',
-    tone: action === 'close' ? 'bad' : 'ok', onUndo: action === 'undo' ? () => { undone = true } : undefined }))
+  const banner = () => resolve(components.NotificationBanner({ id: action, message: '测试通知',
+    tone: action === 'close' ? 'bad' : 'ok', onUndo: action === 'undo' ? () => { undone = true } : undefined,
+    onDismiss: (id) => { dismissed = id } }))
   const nodes = []
   walk(banner(), (node) => nodes.push(node))
   const closeButton = nodes.find((node) => node.props['aria-label'] === '关闭通知')
@@ -1032,12 +1246,12 @@ for (const action of ['auto', 'close', 'undo']) {
   } else if (action === 'close') closeButton.props.onClick()
   else show.fn()
   stopDisplay()
-  check('手动或自动关闭都会进入收回动画', banner().children[0].props.className.includes('is-leaving') && !timers.has(showTimer))
+  check('手动或自动关闭都会进入收回动画', notificationBody(banner()).props.className.includes('is-leaving') && !timers.has(showTimer))
   const stopExit = bannerEffect()
   const [exit] = timers.values()
   exit.fn()
   stopExit()
-  check('收回动画结束后移除横幅', exit.delay === 180 && banner() === null && timers.size === 0)
+  check('收回动画结束后移除横幅', exit.delay === 180 && dismissed === action && banner() === null && timers.size === 0)
 }
 
 {
@@ -1049,9 +1263,9 @@ for (const action of ['auto', 'close', 'undo']) {
   effectHook = (fn) => { bannerEffect = fn }
   const refresh = () => {
     cleanup?.()
-    const banner = resolve(components.NotificationBanner({ message: '悬停测试', floating: true }))
+    const banner = resolve(components.NotificationBanner({ message: '悬停测试' }))
     cleanup = bannerEffect()
-    return banner?.children[0].props
+    return notificationBody(banner)?.props
   }
   let controls = refresh()
   notificationClock += 900
@@ -1076,6 +1290,45 @@ for (const action of ['auto', 'close', 'undo']) {
   check('累计两秒后开始收回，退出动画不会再暂停', controls.className.includes('is-leaving') && !controls.onMouseEnter
     && [...timers.values()][0].delay === 180)
   cleanup?.()
+}
+
+{
+  const mountBanner = (id) => {
+    let phase = 'visible', hovering = false, effect, cleanup
+    const remaining = { current: 2000 }
+    const update = () => {
+      cleanup?.()
+      stateHook = (initial) => initial === 'visible' ? [phase, (value) => { phase = value }] : [hovering, (value) => { hovering = value }]
+      refHook = () => remaining
+      effectHook = (fn) => { effect = fn }
+      const body = notificationBody(resolve(components.NotificationBanner({ id, message: id })))
+      cleanup = effect()
+      return body?.props
+    }
+    return { update, get phase() { return phase }, unmount: () => cleanup?.() }
+  }
+  const first = mountBanner('较早通知')
+  let firstControls = first.update()
+  notificationClock += 500
+  const second = mountBanner('较晚通知')
+  second.update()
+  check('新通知加入后两条横幅仍有各自的计时器', timers.size === 2)
+  firstControls.onMouseEnter()
+  firstControls = first.update()
+  notificationClock += 2000
+  const [latestExpiry] = timers.values()
+  latestExpiry.fn()
+  second.update()
+  const [exit] = timers.values()
+  notificationClock += 180
+  exit.fn()
+  second.update()
+  check('悬停旧通知时，新通知独立超时并移除', first.phase === 'visible' && second.phase === 'hidden' && timers.size === 0)
+  firstControls.onMouseLeave()
+  first.update()
+  check('移出旧通知只补足其剩余时间', [...timers.values()][0]?.delay === 1500)
+  first.unmount()
+  second.unmount()
 }
 
 console.log(failures === 0 ? '全部通过' : `${failures} 项失败`)

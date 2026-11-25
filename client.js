@@ -223,6 +223,17 @@ var DailyQuestionClient = (() => {
 .kd-memory-analysis-panel { background:color-mix(in srgb,var(--kd-brand-primary) 4%,var(--kd-surface)); }
 .kd-memory-panel h3 { margin:0; font-size:15px; }
 .kd-memory-panel .kd-stats-section-head .kd-actions { margin-top:0; }
+.kd-memory-topics-summary { font-size:15px; font-weight:600; cursor:pointer; }
+.kd-memory-topics-summary .kd-meta { margin-inline-start:8px; font-weight:400; }
+.kd-memory-merge { margin-block:12px; padding:12px; border:1px solid var(--kd-border-l1); border-radius:10px; }
+.kd-memory-merge h3 { margin:0; }
+.kd-memory-merge-options { list-style:none; margin:8px 0 12px; padding:0; }
+.kd-memory-merge-options label { display:flex; align-items:flex-start; gap:8px; padding:8px 0; overflow-wrap:anywhere; }
+.kd-memory-merge-options label > span > span { display:block; }
+.kd-memory-topic-controls { justify-content:space-between; margin-top:12px; }
+.kd-memory-topic-filters { min-width:0; }
+.kd-memory-topic-filters > :is(.kd-input, .kd-select) { height:36px; max-width:100%; }
+.kd-memory-topic-pages { justify-content:flex-end; margin-top:10px; }
 .kd-memory-topic { border-top:1px solid var(--kd-border-l1); }
 .kd-memory-topic summary { padding:8px 0; cursor:pointer; overflow-wrap:anywhere; }
 .kd-memory-topic-title { display:inline-flex; align-items:baseline; flex-wrap:wrap; gap:4px 10px; }
@@ -302,6 +313,7 @@ var DailyQuestionClient = (() => {
 .kd-thread-suggestions { display:grid; gap:6px; justify-items:start; min-width:0; }
 .kd-thread-suggestions .kd-thread-suggestion { min-height:32px; max-width:100%; padding:5px 9px;
   font-size:12px; font-weight:400; line-height:1.5; text-align:left; white-space:normal; overflow-wrap:anywhere; }
+.kd-thread-suggestion > .kd-md { min-width:0; line-height:inherit; }
 .kd-msg { max-width:100%; border-radius:12px; padding:10px 12px; font-size:13px; line-height:1.72; }
 .kd-msg-user { align-self:flex-end; background:color-mix(in srgb, var(--kd-brand-primary) 9%, transparent);
   border:1px solid color-mix(in srgb, var(--kd-brand-primary) 26%, transparent); }
@@ -393,7 +405,7 @@ var DailyQuestionClient = (() => {
 .kd-options { display:flex; flex-direction:column; gap:8px; margin:0 0 4px; }
 .kd-option { display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:12px;
   border:1px solid var(--kd-border-l1); background:var(--kd-bg-base); cursor:pointer;
-  text-align:left; color:var(--kd-label-primary); font:inherit; font-size:14px;
+  text-align:left; color:var(--kd-label-primary); font:inherit; font-size:16px;
   transition:background-color .15s, border-color .15s; }
 .kd-option:hover:not(:disabled) { border-color:var(--kd-border-l2);
   background:var(--kd-bg-layer-2); }
@@ -439,6 +451,7 @@ var DailyQuestionClient = (() => {
   background:color-mix(in srgb, var(--kd-brand-primary) 5%, var(--kd-surface)); font-size:13px; font-weight:600; }
 .kd-answer-panel-head .kd-tag { background:var(--kd-bg-layer-1); font-weight:400; }
 .kd-answer-panel-body { padding:18px; }
+.kd-answer-copy { font-size:16px; }
 .kd-answer-block + .kd-answer-block { margin-top:18px; padding-top:16px;
   border-top:1px solid var(--kd-border-l1); }
 .kd-answer-label { font-size:10.5px; letter-spacing:.1em; color:var(--kd-label-secondary);
@@ -447,6 +460,8 @@ var DailyQuestionClient = (() => {
   border:1px solid var(--kd-border-l1); background:var(--kd-bg-layer-2);
   color:var(--kd-label-secondary); }
 .kd-verify ul { margin:6px 0 0; padding-left:18px; }
+.kd-verify-copy { display:contents; }
+.kd-verify-copy > .kd-p:only-child { display:inline; }
 .kd-list-row { display:flex; gap:14px; align-items:flex-start; width:100%; text-align:left;
   padding:14px 16px; border-radius:12px; border:1px solid var(--kd-border-l1);
   background:var(--kd-bg-layer-1); color:var(--kd-label-primary);
@@ -519,8 +534,12 @@ var DailyQuestionClient = (() => {
   border-radius:8px; background:var(--kd-bg-layer-1); white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; }
 .kd-warn-text { color:var(--kd-state-warn-primary); font-size:12px; line-height:1.7; }
 .kd-error-text { color:var(--kd-state-error-primary); font-size:12px; line-height:1.7; }
-.kd-notification-slot { flex:none; overflow:hidden; }
-.kd-notification-slot.is-floating { position:absolute; inset-inline:0; bottom:0; z-index:60; pointer-events:none; }
+.kd-notification-stack { position:absolute; inset-inline:0; bottom:0; z-index:70; pointer-events:none;
+  display:flex; flex-direction:column; justify-content:flex-end; max-height:100%; overflow:hidden; }
+.kd-notification-slot { flex:none; display:grid; grid-template-rows:1fr;
+  animation:kd-notification-expand .18s var(--kd-motion-out) both; }
+.kd-notification-slot.is-leaving { animation:kd-notification-collapse .18s var(--kd-motion-in) both; }
+.kd-notification-clip { min-height:0; overflow:hidden; }
 .kd-notification { --kd-notification-color:var(--kd-state-success-primary); display:flex; align-items:center;
   justify-content:space-between; gap:12px; padding:6px 16px; min-height:42px; pointer-events:auto;
   color:var(--kd-notification-color); background:color-mix(in srgb, var(--kd-notification-color) 10%, var(--kd-bg-overlay));
@@ -534,6 +553,8 @@ var DailyQuestionClient = (() => {
 .kd-notification.is-leaving { pointer-events:none; animation:kd-notification-slide-out .18s var(--kd-motion-in) both; }
 @keyframes kd-notification-slide { from { transform:translateY(100%); } to { transform:translateY(0); } }
 @keyframes kd-notification-slide-out { from { transform:translateY(0); } to { transform:translateY(100%); } }
+@keyframes kd-notification-expand { from { grid-template-rows:0fr; } to { grid-template-rows:1fr; } }
+@keyframes kd-notification-collapse { from { grid-template-rows:1fr; } to { grid-template-rows:0fr; } }
 .kd-loading { padding:48px 0; text-align:center; color:var(--kd-label-secondary); font-size:13px; }
 .kd-spinner { display:inline-block; width:14px; height:14px; border-radius:50%; vertical-align:-2px;
   border:2px solid var(--kd-border-l2); border-top-color:var(--kd-brand-primary);
@@ -566,6 +587,7 @@ var DailyQuestionClient = (() => {
   border-bottom:1px solid var(--kd-border-l1); }
 .kd-code { margin:0; padding:10px 12px; overflow:auto;
   font-size:12.5px; line-height:1.6; white-space:pre; tab-size:2; }
+:where(.kd-stem, .kd-option-text, .kd-answer-copy) .kd-code { font-size:13.5px; }
 .kd-code code { font:inherit; }
 .kd-code .token:is(.comment,.prolog,.doctype) { color:var(--kd-label-secondary); }
 .kd-code .token:is(.keyword,.atrule,.important) { color:light-dark(#7a259e,#d8a4f1); }
@@ -736,7 +758,7 @@ var DailyQuestionClient = (() => {
 @supports (backdrop-filter:blur(1px)) {
   .kd-modal { background:var(--kd-glass); backdrop-filter:blur(20px) saturate(1.2); }
   .kd-modal-body { background:color-mix(in srgb,var(--kd-surface) 82%,transparent); }
-  .kd-notification-slot.is-floating .kd-notification {
+  .kd-notification-stack .kd-notification {
     background:color-mix(in srgb,var(--kd-notification-color) 8%,var(--kd-glass));
     backdrop-filter:blur(14px) saturate(1.15);
   }
@@ -9482,6 +9504,34 @@ var DailyQuestionClient = (() => {
     return lines;
   }
   __name(markdownLines, "markdownLines");
+  var BARE_MATH_START = /[A-Za-z0-9\\({+\-\p{Script=Greek}∂∫∑√]/u;
+  var BARE_MATH_BOUNDARY = /[\s\p{Script=Han}\u3000-\u303f\uff01-\uff65:;,!?]/u;
+  var BARE_MATH_RUN = /(?:[A-Za-z0-9 \t\\{}()[\]^_+\-=−/,|<>'\p{Script=Greek}∂∫∑√∞≤≥≠±×·]|\.(?=\d))+/uy;
+  var BARE_MATH_SIGNAL = /\\(?:[dtc]?frac(?=\s*\{)|sqrt(?=\s*[\[{])|(?:i{0,2}int|oint|sum|prod|lim|sin|cos|tan|log|ln|leq?|geq?|neq?|infty|pi|theta|alpha|beta|gamma|nabla|partial|times|cdot|pm)(?![A-Za-z]))|[A-Za-z0-9)}\]]\^(?=[\w{\\+\-\p{Script=Greek}])|[∂∫∑√≤≥≠]|[A-Za-z]_\{|\bO\(\s*[\w(]/u;
+  var BARE_MATH_FUNCTION = /(?<![\\A-Za-z])(?:sin|cos|tan|cot|ln|log)(?=\s+(?:[A-Za-z](?![A-Za-z])|[\p{Script=Greek}\d(]))/gu;
+  var MATH_WORDS = /* @__PURE__ */ new Set(["sin", "cos", "tan", "cot", "lim", "log", "ln", "exp", "det", "dim", "min", "max", "Cov", "Var"]);
+  var BARE_CODE_ACCESS = /[A-Za-z_]\w*(?:(?:->(?=[A-Za-z_]\w)|::)[A-Za-z_]\w*)+/y;
+  function hasBareMath(text) {
+    return BARE_MATH_SIGNAL.test(text) || text.search(BARE_MATH_FUNCTION) !== -1;
+  }
+  __name(hasBareMath, "hasBareMath");
+  function bareMathAt(text, index) {
+    if (!BARE_MATH_START.test(text[index]) || index > 0 && !BARE_MATH_BOUNDARY.test(text[index - 1])) return "";
+    if (text[index] === "\\" && /[A-Za-z]:$/.test(text.slice(Math.max(0, index - 2), index))) return "";
+    BARE_MATH_RUN.lastIndex = index;
+    const run = BARE_MATH_RUN.exec(text)?.[0] || "";
+    const candidate = run.split(/\\[([]|\[[^\]]*\]\(|__/, 1)[0].trimEnd().replace(/(?<!\\),$/, "").trimEnd();
+    if (!hasBareMath(candidate)) return "";
+    let braces = 0;
+    for (const [token] of candidate.matchAll(/\\[A-Za-z]+|\\.|[A-Za-z]+|[{}]/g)) {
+      if (token === "{") braces++;
+      else if (token === "}") {
+        if (--braces < 0) return "";
+      } else if (/^[A-Za-z]{3,}$/.test(token) && !MATH_WORDS.has(token)) return "";
+    }
+    return braces === 0 ? candidate : "";
+  }
+  __name(bareMathAt, "bareMathAt");
   function createMarkdown(React, { window = globalThis.window } = {}) {
     const { createElement: h2, useState, useEffect, useMemo } = React;
     let uid = 0;
@@ -9700,10 +9750,12 @@ var DailyQuestionClient = (() => {
       '"',
       "'"
     ]);
-    function inlineNodes(text) {
+    function inlineNodes(text, options = {}) {
       const out = [];
       let buffer = "";
       let index = 0;
+      const { allowBareMath, allowBareCode, inline } = options;
+      const recoverFormulas = allowBareMath && hasBareMath(text);
       const flush = /* @__PURE__ */ __name(() => {
         if (buffer) {
           out.push(buffer);
@@ -9712,13 +9764,30 @@ var DailyQuestionClient = (() => {
       }, "flush");
       while (index < text.length) {
         const c2 = text[index];
+        if (allowBareCode && (index === 0 || BARE_MATH_BOUNDARY.test(text[index - 1]))) {
+          BARE_CODE_ACCESS.lastIndex = index;
+          const code = BARE_CODE_ACCESS.exec(text)?.[0];
+          if (code) {
+            flush();
+            out.push(h2("code", { className: "kd-inline-code", key: nextKey("ic") }, code));
+            index += code.length;
+            continue;
+          }
+        }
+        const bareMath = recoverFormulas && bareMathAt(text, index);
+        if (bareMath) {
+          flush();
+          out.push(renderMath(bareMath.replace(BARE_MATH_FUNCTION, "\\$&"), false));
+          index += bareMath.length;
+          continue;
+        }
         if (c2 === "\\" && (text[index + 1] === "(" || text[index + 1] === "[")) {
           const display = text[index + 1] === "[";
           const closing = display ? "\\]" : "\\)";
           const end = text.indexOf(closing, index + 2);
           if (end > index + 2) {
             flush();
-            out.push(renderMath(text.slice(index + 2, end), display));
+            out.push(renderMath(text.slice(index + 2, end), display && !inline));
             index = end + 2;
             continue;
           }
@@ -9750,7 +9819,7 @@ var DailyQuestionClient = (() => {
           const end = text.indexOf(marker, from);
           if (end > from) {
             flush();
-            out.push(renderMath(text.slice(from, end), display));
+            out.push(renderMath(text.slice(from, end), display && !inline));
             index = end + marker.length;
             continue;
           }
@@ -9759,7 +9828,7 @@ var DailyQuestionClient = (() => {
           const link = matchLink(text, index + 1);
           if (link) {
             flush();
-            const url = markdownUrl(link.url, true);
+            const url = inline ? null : markdownUrl(link.url, true);
             out.push(url ? h2(MarkdownImage, {
               key: nextKey("img"),
               alt: link.text,
@@ -9774,8 +9843,8 @@ var DailyQuestionClient = (() => {
           const link = matchLink(text, index);
           if (link) {
             flush();
-            const url = markdownUrl(link.url);
-            const label = inlineNodes(link.text);
+            const url = inline ? null : markdownUrl(link.url);
+            const label = inlineNodes(link.text, options);
             if (url) out.push(h2("a", {
               className: "kd-link",
               key: nextKey("a"),
@@ -9793,7 +9862,7 @@ var DailyQuestionClient = (() => {
           const end = text.indexOf(marker, index + 2);
           if (end > index + 2) {
             flush();
-            out.push(h2("strong", { key: nextKey("b") }, inlineNodes(text.slice(index + 2, end))));
+            out.push(h2("strong", { key: nextKey("b") }, inlineNodes(text.slice(index + 2, end), options)));
             index = end + 2;
             continue;
           }
@@ -9802,7 +9871,7 @@ var DailyQuestionClient = (() => {
           const end = text.indexOf("~~", index + 2);
           if (end > index + 2) {
             flush();
-            out.push(h2("del", { key: nextKey("del") }, inlineNodes(text.slice(index + 2, end))));
+            out.push(h2("del", { key: nextKey("del") }, inlineNodes(text.slice(index + 2, end), options)));
             index = end + 2;
             continue;
           }
@@ -9814,7 +9883,7 @@ var DailyQuestionClient = (() => {
             const end = text.indexOf(c2, index + 1);
             if (end > index + 1 && text[end + 1] !== c2) {
               flush();
-              out.push(h2("em", { key: nextKey("em") }, inlineNodes(text.slice(index + 1, end))));
+              out.push(h2("em", { key: nextKey("em") }, inlineNodes(text.slice(index + 1, end), options)));
               index = end + 1;
               continue;
             }
@@ -9841,9 +9910,9 @@ var DailyQuestionClient = (() => {
       return isFence(line) || /^\s{0,3}#{1,6}\s+/.test(line) || QUOTE_PREFIX.test(line) || /^\s{0,3}(-{3,}|\*{3,}|_{3,})\s*$/.test(line) || /^\s{0,3}([-*+]|\d{1,3}[.)])\s+/.test(line) || /^\s{0,3}\|/.test(line);
     }
     __name(isBlockStart, "isBlockStart");
-    function renderTable(rows) {
-      const header = rows[0].map((cell) => inlineNodes(cell));
-      const body = rows.slice(1).map((row) => row.map((cell) => inlineNodes(cell)));
+    function renderTable(rows, options) {
+      const header = rows[0].map((cell) => inlineNodes(cell, options));
+      const body = rows.slice(1).map((row) => row.map((cell) => inlineNodes(cell, options)));
       return h2(
         "div",
         { className: "kd-table-wrap", key: nextKey("tb") },
@@ -9881,7 +9950,7 @@ var DailyQuestionClient = (() => {
       }
     }
     __name(highlightCode, "highlightCode");
-    function renderBlocks(source) {
+    function renderBlocks(source, options) {
       const lines = markdownLines(source);
       const out = [];
       let index = 0;
@@ -9929,7 +9998,7 @@ ${lines[index]}`;
           out.push(h2(
             `h${level}`,
             { className: `kd-h kd-h${heading[1].length}`, key: nextKey("hd") },
-            inlineNodes(heading[2].trim())
+            inlineNodes(heading[2].trim(), options)
           ));
           index += 1;
           continue;
@@ -9945,7 +10014,7 @@ ${lines[index]}`;
             body.push(lines[index].replace(QUOTE_PREFIX, ""));
             index += 1;
           }
-          out.push(h2("blockquote", { className: "kd-quote", key: nextKey("q") }, renderBlocks(body.join("\n"))));
+          out.push(h2("blockquote", { className: "kd-quote", key: nextKey("q") }, renderBlocks(body.join("\n"), options)));
           continue;
         }
         if (/^\s{0,3}\|/.test(line) && index + 1 < lines.length && /^\s{0,3}\|?[\s:|-]*-[\s:|-]*$/.test(lines[index + 1]) && lines[index + 1].includes("-")) {
@@ -9955,7 +10024,7 @@ ${lines[index]}`;
             rows.push(splitRow(lines[index]));
             index += 1;
           }
-          out.push(renderTable(rows));
+          out.push(renderTable(rows, options));
           continue;
         }
         const listItem = /^(\s{0,3})([-*+]|\d{1,3}[.)])\s+(.*)$/.exec(line);
@@ -9971,7 +10040,7 @@ ${lines[index]}`;
               parts.push(lines[index].trim());
               index += 1;
             }
-            items.push(h2("li", { key: nextKey("li") }, inlineNodes(parts.join("\n"))));
+            items.push(h2("li", { key: nextKey("li") }, inlineNodes(parts.join("\n"), options)));
           }
           out.push(h2(ordered ? "ol" : "ul", { className: "kd-list", key: nextKey("ls") }, items));
           continue;
@@ -9985,21 +10054,22 @@ ${lines[index]}`;
           index += 1;
           continue;
         }
-        out.push(h2("p", { className: "kd-p", key: nextKey("p") }, inlineNodes(paragraph.join("\n"))));
+        out.push(h2("p", { className: "kd-p", key: nextKey("p") }, inlineNodes(paragraph.join("\n"), options)));
       }
       return out;
     }
     __name(renderBlocks, "renderBlocks");
-    function Markdown({ text, className }) {
+    function Markdown({ text, className, allowBareMath = false, allowBareCode = false, inline = false }) {
       const mathStatus = useMathJaxStatus();
       const nodes = useMemo(() => {
         try {
-          return renderBlocks(text);
+          const options = { allowBareMath, allowBareCode, inline };
+          return inline ? inlineNodes(String(text || ""), options) : renderBlocks(text, options);
         } catch (error) {
-          return [h2("pre", { className: "kd-code", key: "raw" }, String(text || ""))];
+          return inline ? String(text || "") : [h2("pre", { className: "kd-code", key: "raw" }, String(text || ""))];
         }
-      }, [text, mathStatus]);
-      return h2("div", { className: `kd-md ${className || ""}` }, nodes);
+      }, [text, mathStatus, allowBareMath, allowBareCode, inline]);
+      return h2(inline ? "span" : "div", { className: `kd-md ${className || ""}` }, nodes);
     }
     __name(Markdown, "Markdown");
     return { Markdown, useMathJaxStatus, inlineNodes, renderBlocks, MathFormula, ensureMathJax, mathState };
@@ -10251,7 +10321,7 @@ ${lines[index]}`;
       );
     }
     __name(Presence, "Presence");
-    function NotificationBanner({ message, tone = "ok", floating = false, onUndo }) {
+    function NotificationBanner({ id, message, tone = "ok", onUndo, onDismiss }) {
       const [phase, setPhase] = useState("visible");
       const [hovering, setHovering] = useState(false);
       const remaining = useRef(2e3);
@@ -10259,40 +10329,48 @@ ${lines[index]}`;
         if (phase === "hidden" || phase === "visible" && hovering) return void 0;
         const started = window.performance.now();
         const timeout = window.setTimeout(() => {
-          setPhase(phase === "visible" ? "leaving" : "hidden");
+          if (phase === "visible") setPhase("leaving");
+          else {
+            setPhase("hidden");
+            onDismiss?.(id);
+          }
         }, phase === "visible" ? remaining.current : 180);
         return () => {
           window.clearTimeout(timeout);
           if (phase === "visible") remaining.current = Math.max(0, remaining.current - (window.performance.now() - started));
         };
-      }, [phase, hovering]);
+      }, [phase, hovering, onDismiss, id]);
       if (phase === "hidden") return null;
       return h2(
         "div",
-        { className: "kd-notification-slot" + (floating ? " is-floating" : "") },
+        { className: "kd-notification-slot" + (phase === "leaving" ? " is-leaving" : "") },
         h2(
           "div",
-          {
-            className: `kd-notification kd-notification-${tone}${phase === "leaving" ? " is-leaving" : ""}`,
-            onMouseEnter: phase === "visible" ? () => setHovering(true) : void 0,
-            onMouseLeave: phase === "visible" ? () => setHovering(false) : void 0
-          },
-          h2("span", { role: tone === "bad" ? "alert" : "status" }, message),
-          onUndo ? h2(Btn, { small: true, disabled: phase === "leaving", onClick: /* @__PURE__ */ __name(() => {
-            setPhase("leaving");
-            onUndo();
-          }, "onClick") }, "撤销") : h2("button", {
-            type: "button",
-            className: "kd-iconbtn",
-            "aria-label": "关闭通知",
-            disabled: phase === "leaving",
-            onClick: /* @__PURE__ */ __name(() => setPhase("leaving"), "onClick")
-          }, h2(Icon, { name: "close" }))
+          { className: "kd-notification-clip" },
+          h2(
+            "div",
+            {
+              className: `kd-notification kd-notification-${tone}${phase === "leaving" ? " is-leaving" : ""}`,
+              onMouseEnter: phase === "visible" ? () => setHovering(true) : void 0,
+              onMouseLeave: phase === "visible" ? () => setHovering(false) : void 0
+            },
+            h2("span", { role: tone === "bad" ? "alert" : "status" }, message),
+            onUndo ? h2(Btn, { small: true, disabled: phase === "leaving", onClick: /* @__PURE__ */ __name(() => {
+              setPhase("leaving");
+              onUndo();
+            }, "onClick") }, "撤销") : h2("button", {
+              type: "button",
+              className: "kd-iconbtn",
+              "aria-label": "关闭通知",
+              disabled: phase === "leaving",
+              onClick: /* @__PURE__ */ __name(() => setPhase("leaving"), "onClick")
+            }, h2(Icon, { name: "close" }))
+          )
         )
       );
     }
     __name(NotificationBanner, "NotificationBanner");
-    function Modal({ title, children, footer, headerActions, dialog, notification, onClose, wide, embedded = false, locked = false, explicitClose = false }) {
+    function Modal({ title, children, footer, headerActions, dialog, onClose, wide, embedded = false, locked = false, explicitClose = false }) {
       useEffect(() => {
         if (embedded || explicitClose || locked || dialog) return void 0;
         const onKey = /* @__PURE__ */ __name((event) => {
@@ -10314,7 +10392,6 @@ ${lines[index]}`;
         ),
         body,
         actions,
-        notification,
         dialog
       );
       return h2("div", {
@@ -10338,7 +10415,6 @@ ${lines[index]}`;
         ),
         body,
         actions,
-        notification,
         dialog
       ));
     }
@@ -10361,7 +10437,7 @@ ${lines[index]}`;
     function CountdownLines({ countdown }) {
       const { year, days, approx, lines = {} } = countdown || {};
       const showDays = Number.isInteger(days) && days >= 0;
-      const duration = days === 0 ? "今日开考" : lines.secondary;
+      const duration = days === 0 ? approx ? "预计今日开考" : "今日开考" : lines.secondary;
       const spaceDigits = /* @__PURE__ */ __name((line = "") => line.replace(/\p{Script=Han}(?=\d)|\d(?=\p{Script=Han})/gu, "$& "), "spaceDigits");
       return h2(
         "div",
@@ -10375,11 +10451,9 @@ ${lines[index]}`;
     __name(CountdownLines, "CountdownLines");
     function ExamStrip({ boot, busy, onRefresh, onYearChange }) {
       const cd = boot.countdown || {};
-      const basis = cd.basis;
       const statusTone = cd.status === "official" ? "ok" : cd.status === "estimated" ? "warn" : "bad";
       const statusText = cd.status === "official" ? "官方公布" : cd.status === "estimated" ? "官方未公布 · 估算" : "尚未核实";
-      const sourceUrl = cd.sourceUrl || basis && basis.sourceUrl || "";
-      const sourceLabel = cd.status === "official" ? `来源 ${hostOf(sourceUrl) || "官方"}` : basis ? `依据 ${basis.year} 官方（${hostOf(basis.sourceUrl) || "官方"}）` : "无来源记录";
+      const sourceUrl = cd.status === "official" ? cd.sourceUrl : "";
       return h2(
         "div",
         { className: "kd-exam-strip" },
@@ -10394,12 +10468,16 @@ ${lines[index]}`;
           }, (boot.yearOptions || []).map((year) => h2("option", { key: year, value: year }, `${year} 考研`)))
         ),
         h2("span", { className: "kd-strip-item" }, h2(Badge, { tone: statusTone }, statusText)),
-        h2("span", {
-          className: "kd-strip-item",
-          title: cd.source ? `${cd.source}${sourceUrl ? `
-${sourceUrl}` : ""}` : ""
-        }, sourceUrl ? h2("a", { className: "kd-link", href: sourceUrl, target: "_blank", rel: "noreferrer noopener" }, sourceLabel) : h2("span", null, sourceLabel)),
-        cd.verifiedAt ? h2(
+        sourceUrl ? h2(
+          "span",
+          { className: "kd-strip-item", title: cd.source || sourceUrl },
+          h2(
+            "a",
+            { className: "kd-link", href: sourceUrl, target: "_blank", rel: "noreferrer noopener" },
+            `来源 ${hostOf(sourceUrl) || "官方"}`
+          )
+        ) : null,
+        cd.status === "official" && cd.verifiedAt ? h2(
           "span",
           { className: "kd-strip-item", title: formatDateTime(cd.verifiedAt) },
           `核验成功 ${formatShort(cd.verifiedAt)}`
@@ -10676,6 +10754,14 @@ ${sourceUrl}` : ""}` : ""
       );
     }
     __name(AttemptHistory, "AttemptHistory");
+    function AnswerMarkdown({ text }) {
+      return h2(Markdown, { text, allowBareMath: true });
+    }
+    __name(AnswerMarkdown, "AnswerMarkdown");
+    function VerificationMarkdown({ text }) {
+      return text ? h2(Markdown, { text, allowBareMath: true, allowBareCode: true, className: "kd-verify-copy" }) : null;
+    }
+    __name(VerificationMarkdown, "VerificationMarkdown");
     function AnswerBlock({ question, focused, onRevise, revising, onRemoveWrong, onInspect }) {
       const answer = question.answer;
       if (!answer) {
@@ -10712,13 +10798,13 @@ ${sourceUrl}` : ""}` : ""
               "div",
               { className: "kd-answer-block kd-answer-copy" },
               h2("div", { className: "kd-answer-label" }, T.answer),
-              h2(Markdown, { text: answer.answer || "（题库未提供参考答案）" })
+              h2(AnswerMarkdown, { text: answer.answer || "（题库未提供参考答案）" })
             ),
             h2(
               "div",
               { className: "kd-answer-block kd-answer-copy" },
               h2("div", { className: "kd-answer-label" }, T.explanation),
-              h2(Markdown, { text: answer.explanation || "（题库未提供解析）" })
+              h2(AnswerMarkdown, { text: answer.explanation || "（题库未提供解析）" })
             ),
             focused ? null : h2(
               "div",
@@ -10760,7 +10846,13 @@ ${sourceUrl}` : ""}` : ""
                   onClick: onRevise
                 }, revising ? h2("span", { className: "kd-spinner" }) : null, T.revision)
               ),
-              answer.verification?.summary ? h2("div", null, `校验：${answer.verification.summary}（${methodLabel(answer.verification.method)}${answer.verification.at ? `，${formatDateTime(answer.verification.at)}` : ""}）`) : null,
+              answer.verification?.summary ? h2(
+                "div",
+                null,
+                "校验：",
+                h2(VerificationMarkdown, { text: answer.verification.summary }),
+                `（${methodLabel(answer.verification.method)}${answer.verification.at ? `，${formatDateTime(answer.verification.at)}` : ""}）`
+              ) : null,
               (() => {
                 const trail = answer.verification?.trail;
                 if (!Array.isArray(trail)) return null;
@@ -10769,10 +10861,12 @@ ${sourceUrl}` : ""}` : ""
                 return h2("div", null, passes.map((entry, index) => h2(
                   "div",
                   { key: index },
-                  `校验视角独立求解：${entry.independentAnswer}${entry.attempt ? `（第 ${entry.attempt} 次命题）` : ""}`
+                  "校验视角独立求解：",
+                  h2(VerificationMarkdown, { text: entry.independentAnswer }),
+                  entry.attempt ? `（第 ${entry.attempt} 次命题）` : null
                 )));
               })(),
-              answer.verification?.issues?.length ? h2("ul", null, answer.verification.issues.map((issue, index) => h2("li", { key: index }, issue))) : null
+              answer.verification?.issues?.length ? h2("ul", null, answer.verification.issues.map((issue, index) => h2("li", { key: index }, h2(VerificationMarkdown, { text: issue })))) : null
             )
           )
         )
@@ -10943,19 +11037,7 @@ ${sourceUrl}` : ""}` : ""
             h2(Btn, { variant: "primary", disabled: busy === "judge", onClick: /* @__PURE__ */ __name(() => onJudge("correct"), "onClick") }, T.correct),
             h2(Btn, { variant: "danger", disabled: busy === "judge", onClick: /* @__PURE__ */ __name(() => onJudge("wrong"), "onClick") }, T.wrong)
           ) : null
-        ),
-        !focused && q.publishVerification ? h2(
-          "div",
-          { className: "kd-verify", style: { marginTop: "12px" } },
-          h2(
-            Badge,
-            { tone: q.publishVerification.status === "passed" ? "ok" : "warn" },
-            q.publishVerification.status === "passed" ? "试题发布前已通过独立校验" : "试题发布状态：待核验"
-          ),
-          // 校验结论里通常写着答案与关键推导，提交答案前不能展示，否则等于泄题。
-          revealed ? ` ${q.publishVerification.summary}` : " 结论在提交答案后显示",
-          `（${methodLabel(q.publishVerification.method)}${q.publishVerification.at ? `，${formatDateTime(q.publishVerification.at)}` : ""}）`
-        ) : null
+        )
       );
     }
     __name(QuestionPane, "QuestionPane");
@@ -11074,6 +11156,7 @@ ${sourceUrl}` : ""}` : ""
           "div",
           {
             key: item.id,
+            "data-question-id": item.id,
             className: "kd-list-row" + (managing && selected.includes(item.id) ? " is-selected" : ""),
             role: managing ? void 0 : "button",
             tabIndex: managing ? void 0 : 0,
@@ -11282,7 +11365,7 @@ ${sourceUrl}` : ""}` : ""
               type: "button",
               className: "kd-btn kd-btn-default kd-thread-suggestion",
               onClick: /* @__PURE__ */ __name(() => send(text, newAttemptId()), "onClick")
-            }, text))
+            }, h2(Markdown, { text, inline: true, allowBareMath: true })))
           ) : !rows.length ? h2("div", { className: "kd-empty-body" }, "还没有追问。") : null
         ),
         localError ? h2("div", { className: "kd-error-text", style: { padding: "0 14px" } }, localError) : null,
@@ -11352,7 +11435,7 @@ ${sourceUrl}` : ""}` : ""
       );
     }
     __name(ManageFileRow, "ManageFileRow");
-    function SubjectsModal({ boot, savedNotice, onClose, onDone, embedded, onBusyChange, onDirtyChange }) {
+    function SubjectsModal({ boot, onClose, onDone, embedded, onBusyChange, onDirtyChange, onNotify }) {
       const [draft, setDraft] = useState(() => ({
         subjects: [...boot.settings.subjects],
         subjectSource: { ...boot.settings.subjectSource },
@@ -11360,7 +11443,6 @@ ${sourceUrl}` : ""}` : ""
         deleteSubjectIds: []
       }));
       const [saving, setSaving] = useState(false);
-      const [saveError, setSaveError] = useState(null);
       const [name, setName] = useState("");
       const [types, setTypes] = useState([]);
       const [customTypes, setCustomTypes] = useState([]);
@@ -11476,7 +11558,6 @@ ${sourceUrl}` : ""}` : ""
         referenceSubjectId === "independent" && !referenceExamName.trim() && "填写参考考试名称"
       ].filter(Boolean);
       const canAdd = missingFields.length === 0;
-      const customInputError = hasCustomInput && !canAdd ? `添加自定义科目前，请${missingFields.join("，并")}。` : "";
       const withCustomSubject = /* @__PURE__ */ __name((current) => {
         const subject = {
           id: "custom_" + newAttemptId(),
@@ -11490,18 +11571,15 @@ ${sourceUrl}` : ""}` : ""
         };
         return { ...current, subjects: [...current.subjects, subject.id], customSubjects: [...current.customSubjects, subject] };
       }, "withCustomSubject");
-      const showSaveError = /* @__PURE__ */ __name((message, validation = false) => {
-        setSaveError((previous) => ({ id: (previous?.id || 0) + 1, message, validation }));
-      }, "showSaveError");
       const finish = /* @__PURE__ */ __name(async () => {
         if (saving || !hasChanges) return;
         if (hasCustomInput && !canAdd) {
-          showSaveError("", true);
+          onNotify?.(`添加自定义科目前，请${missingFields.join("，并")}。`, "bad");
           return;
         }
         const next = canAdd ? withCustomSubject(draft) : draft;
         if (next.customSubjects.some((s2) => s2.referenceSubjectId === "independent" && !s2.referenceExamName?.trim())) {
-          showSaveError("独立参考考试请填写准确的考试名称（院校自命题请包含院校名称）。");
+          onNotify?.("独立参考考试请填写准确的考试名称（院校自命题请包含院校名称）。", "bad");
           return;
         }
         setSaving(true);
@@ -11509,7 +11587,7 @@ ${sourceUrl}` : ""}` : ""
         try {
           await onDone(next);
         } catch (error) {
-          showSaveError(error.message || "保存失败，请重试");
+          onNotify?.(error.message || "保存失败，请重试", "bad");
         } finally {
           setSaving(false);
           onBusyChange?.(false);
@@ -11561,7 +11639,6 @@ ${sourceUrl}` : ""}` : ""
         h2(Btn, { key: "undo", onClick: /* @__PURE__ */ __name(() => setUndoDialog(true), "onClick"), disabled: saving || !hasChanges }, "撤销"),
         h2(Btn, { key: "save", variant: "primary", onClick: finish, disabled: saving || !hasChanges }, saving ? "保存中…" : "保存")
       ];
-      const errorMessage = saveError?.validation ? customInputError : saveError?.message;
       return h2(
         Modal,
         {
@@ -11571,7 +11648,6 @@ ${sourceUrl}` : ""}` : ""
           wide: true,
           headerActions: embedded ? subjectActions : null,
           footer: embedded ? null : subjectActions,
-          notification: errorMessage ? h2(NotificationBanner, { key: saveError.id, message: errorMessage, tone: "bad" }) : !saveError && savedNotice ? h2(NotificationBanner, { key: "saved", message: savedNotice }) : null,
           dialog: undoOpen ? h2(ConfirmModal, {
             title: "撤销本次更改",
             explicitClose: true,
@@ -11854,8 +11930,8 @@ ${sourceUrl}` : ""}` : ""
         open ? [
           h2(Markdown, { key: "stem", text: item.stem }),
           ...item.options.map(({ key, text }, index) => h2(Markdown, { key: index, text: `${key}. ${text}` })),
-          item.answer ? h2("div", { key: "answer" }, h2("strong", null, "参考答案"), h2(Markdown, { text: item.answer })) : null,
-          item.explanation ? h2("div", { key: "explanation" }, h2("strong", null, "解析"), h2(Markdown, { text: item.explanation })) : null
+          item.answer ? h2("div", { key: "answer" }, h2("strong", null, "参考答案"), h2(AnswerMarkdown, { text: item.answer })) : null,
+          item.explanation ? h2("div", { key: "explanation" }, h2("strong", null, "解析"), h2(AnswerMarkdown, { text: item.explanation })) : null
         ] : null
       );
     }
@@ -12240,7 +12316,7 @@ ${sourceUrl}` : ""}` : ""
       );
     }
     __name(PastPapersModal, "PastPapersModal");
-    function BackupModal({ onClose, onRestored, embedded, onBusyChange }) {
+    function BackupModal({ onClose, onRestored, embedded, onBusyChange, onNotify }) {
       const [points, setPoints] = useState(null);
       const [pointsError, setPointsError] = useState("");
       const [pending, setPending] = useState(null);
@@ -12271,7 +12347,8 @@ ${sourceUrl}` : ""}` : ""
         try {
           await action();
         } catch (issue) {
-          setError(issue.message);
+          if (pending) setError(issue.message);
+          else onNotify?.(issue.message, "bad");
         } finally {
           setBusy(false);
           if (!pending) onBusyChange?.(false);
@@ -12337,8 +12414,7 @@ ${sourceUrl}` : ""}` : ""
           onClose: /* @__PURE__ */ __name(() => {
             if (!busy) onClose();
           }, "onClose"),
-          footer: embedded ? null : h2(Btn, { onClick: onClose, disabled: busy || Boolean(dialog) }, "关闭"),
-          notification: !pending && error ? h2(NotificationBanner, { message: error, tone: "bad" }) : null
+          footer: embedded ? null : h2(Btn, { onClick: onClose, disabled: busy || Boolean(dialog) }, "关闭")
         },
         h2(
           "div",
@@ -12401,8 +12477,8 @@ ${sourceUrl}` : ""}` : ""
           "div",
           { className: "kd-answer-copy" },
           answer.versionId ? h2("p", { className: "kd-meta" }, `版本 ${answer.versionId}`) : null,
-          h2(Markdown, { text: answer.answer || "（无参考答案）" }),
-          h2(Markdown, { text: answer.explanation || "（无解析）" })
+          h2(AnswerMarkdown, { text: answer.answer || "（无参考答案）" }),
+          h2(AnswerMarkdown, { text: answer.explanation || "（无解析）" })
         ) : h2("p", null, answerVersionUnknown ? "这条旧作答无法确认当时的答案版本。" : "这次作答没有可用的参考答案。")
       );
     }
@@ -12434,19 +12510,21 @@ ${sourceUrl}` : ""}` : ""
             { tone: candidate.verification?.status === "passed" ? "ok" : "warn" },
             candidate.verification?.status === "passed" ? "候选版本已通过独立校验" : "候选版本未通过校验"
           ),
-          ` ${candidate.verification?.summary || ""}（${candidate.verification?.method || ""}）`
+          " ",
+          h2(VerificationMarkdown, { text: candidate.verification?.summary }),
+          `（${candidate.verification?.method || ""}）`
         ),
         h2(
           "div",
           { className: "kd-answer-block kd-answer-copy", style: { marginTop: "14px" } },
           h2("div", { className: "kd-answer-label" }, "候选标准答案"),
-          h2(Markdown, { text: candidate.answer })
+          h2(AnswerMarkdown, { text: candidate.answer })
         ),
         h2(
           "div",
           { className: "kd-answer-block kd-answer-copy" },
           h2("div", { className: "kd-answer-label" }, "候选解析"),
-          h2(Markdown, { text: candidate.explanation })
+          h2(AnswerMarkdown, { text: candidate.explanation })
         ),
         h2("div", { className: "kd-msg-meta" }, "确认后才会替换正式版本；旧版本会保留在版本历史中。")
       );
@@ -12686,6 +12764,9 @@ ${sourceUrl}` : ""}` : ""
 
   // ui/study-memory.js
   var labels = { weak: "建议巩固", insufficient: "样本不足", observed: "继续观察" };
+  var TOPICS_PER_PAGE = 8;
+  var chapterOf = /* @__PURE__ */ __name((row) => row.chapter || "未归类", "chapterOf");
+  var searchText = /* @__PURE__ */ __name((value) => value.normalize("NFKC").trim().toLowerCase(), "searchText");
   function evidence(row) {
     return `近 30 天练过 ${row.recent} 道不同题，${row.wrong} 道最近一次作答错误 · ${row.reviewed} 道最近一次在今日复习中答对 · ${row.due} 道待复习`;
   }
@@ -12700,6 +12781,12 @@ ${sourceUrl}` : ""}` : ""
       const [status, setStatus] = useState("");
       const [analysisError, setAnalysisError] = useState("");
       const [topicDisplay, setTopicDisplay] = useState(() => ({ expanded: false, overrides: /* @__PURE__ */ new Map() }));
+      const [topicQuery, setTopicQuery] = useState("");
+      const [chapter, setChapter] = useState("");
+      const [page, setPage] = useState(1);
+      const [noteDrafts, setNoteDrafts] = useState(() => /* @__PURE__ */ new Map());
+      const [mergeProposal, setMergeProposal] = useState(null);
+      const [selectedMerges, setSelectedMerges] = useState([]);
       const setAllTopics = /* @__PURE__ */ __name((expanded) => setTopicDisplay({ expanded, overrides: /* @__PURE__ */ new Map() }), "setAllTopics");
       const onTopicToggle = /* @__PURE__ */ __name((topic, open) => setTopicDisplay((current) => {
         if ((current.overrides.get(topic) ?? current.expanded) === open) return current;
@@ -12743,15 +12830,36 @@ ${sourceUrl}` : ""}` : ""
       );
       if (!data.enabled) return h2("p", { className: "kd-meta" }, "功能已关闭，请重新打开页面以同步设置。");
       const { rows, analysis } = data;
+      const chapters = [...new Set(rows.map(chapterOf))];
+      const query = searchText(topicQuery);
+      const matches = query || chapter ? rows.filter((row) => (!chapter || chapterOf(row) === chapter) && (!query || [row.topic, chapterOf(row), ...row.aliases || []].some((label) => searchText(label).includes(query)))) : rows;
+      const pages = Math.max(1, Math.ceil(matches.length / TOPICS_PER_PAGE));
+      const currentPage = Math.min(page, pages);
+      const visible = matches.slice((currentPage - 1) * TOPICS_PER_PAGE, currentPage * TOPICS_PER_PAGE);
       const analyze = /* @__PURE__ */ __name(() => run("analysis", async () => {
         const next = await rpc("analyzeStudyMemory", { subjectId: subject.id });
         setData((current) => ({ ...current, analysis: next }));
       }), "analyze");
+      const suggestMerges = /* @__PURE__ */ __name((offset = 0) => run("suggest-merges", async () => {
+        setMergeProposal(null);
+        const next = await rpc("suggestMemoryMerges", { subjectId: subject.id, offset });
+        setMergeProposal(next);
+        setSelectedMerges(next.groups.map(({ target }) => target));
+      }), "suggestMerges");
+      const applyMerges = /* @__PURE__ */ __name(() => run("apply-merges", async () => {
+        const groups = mergeProposal.groups.filter(({ target }) => selectedMerges.includes(target));
+        const result = await rpc("applyMemoryMerges", { subjectId: subject.id, version: mergeProposal.version, groups });
+        setData((current) => ({ ...current, ...result }));
+        setMergeProposal(null);
+        setPage(1);
+        setStatus(`已应用 ${groups.length} 组标签归并`);
+      }), "applyMerges");
       const download = /* @__PURE__ */ __name(() => {
         const markdown2 = [`# ${subject.name} · 学习记忆`, ...rows.map((row) => [
           `## ${row.topic}`,
           `- ${labels[row.status]}：${evidence(row)}`,
-          ...row.note ? ["### 我的错因", row.note] : []
+          ...row.note ? ["### 我的错因", row.note] : [],
+          ...(row.sourceNotes || []).flatMap(({ topic, note }) => [`### ${topic}的原笔记`, note])
         ].join("\n")), ...analysis ? [
           `## 上次 AI 建议 · ${formatDateTime(analysis.at)}`,
           ...analysis.topics.map((item) => `- ${item.topic}（分析时 ${item.distinctQuestions} 道，${item.latestWrong} 道错）：${item.suggestion}`)
@@ -12763,6 +12871,58 @@ ${sourceUrl}` : ""}` : ""
         link.click();
         window.setTimeout(() => window.URL.revokeObjectURL(url), 1e3);
       }, "download");
+      const noteForm = /* @__PURE__ */ __name((row, topic, note, original = false) => h2(
+        "form",
+        { key: topic, onSubmit: /* @__PURE__ */ __name((event) => {
+          event.preventDefault();
+          const draft = event.currentTarget.elements.namedItem("note").value;
+          run("note", async () => {
+            const saved = await rpc("saveMemoryNote", { subjectId: subject.id, topic, note: draft });
+            setData((current) => ({ ...current, rows: current.rows.map((item) => {
+              if (item.topic !== row.topic) return item;
+              if (!original) return { ...item, note: saved.note };
+              const sourceNotes = item.sourceNotes.map((entry) => entry.topic === topic ? { ...entry, note: saved.note } : entry);
+              return { ...item, sourceNotes: sourceNotes.filter((entry) => entry.note) };
+            }) }));
+            setNoteDrafts((current) => {
+              if (current.get(topic) !== draft) return current;
+              const next = new Map(current);
+              next.delete(topic);
+              return next;
+            });
+            setStatus("已保存错因笔记");
+          });
+        }, "onSubmit") },
+        h2(
+          "label",
+          { className: "kd-field" },
+          h2("span", { className: "kd-field-label" }, original ? `${topic}的原笔记` : "错因笔记（支持 Markdown）"),
+          h2("textarea", {
+            name: "note",
+            className: "kd-textarea kd-memory-note-input",
+            "aria-label": `${topic}的错因笔记`,
+            placeholder: "例如：忘记先核对分段点的左右极限",
+            value: noteDrafts.get(topic) ?? note ?? "",
+            onChange: /* @__PURE__ */ __name((event) => {
+              const value = event.target.value;
+              setNoteDrafts((current) => {
+                const next = new Map(current);
+                if (value === (note || "")) next.delete(topic);
+                else next.set(topic, value);
+                return next;
+              });
+            }, "onChange"),
+            maxLength: 1e3
+          })
+        ),
+        h2(
+          "div",
+          { className: "kd-actions" },
+          h2(Btn, { type: "submit", disabled: Boolean(pending) }, "保存笔记"),
+          !original && row.wrongBook ? h2(Btn, { onClick: /* @__PURE__ */ __name(() => onRelated(subject.id, "wrong", row.topic), "onClick") }, "查看相关错题") : null,
+          !original && row.due ? h2(Btn, { onClick: /* @__PURE__ */ __name(() => onRelated(subject.id, "review", row.topic), "onClick") }, "复习相关错题") : null
+        )
+      ), "noteForm");
       return h2(
         React.Fragment,
         null,
@@ -12801,23 +12961,112 @@ ${sourceUrl}` : ""}` : ""
           ) : null
         ),
         h2(
-          "section",
-          { className: "kd-memory-panel", "aria-label": "知识点与错因笔记" },
+          "details",
+          { className: "kd-memory-panel kd-memory-topics", "aria-label": `${subject.name}的知识点与错因笔记` },
           h2(
-            "div",
-            { className: "kd-stats-section-head" },
-            h2("h3", null, "知识点与错因笔记"),
-            rows.length ? h2(
+            "summary",
+            { className: "kd-memory-topics-summary" },
+            "知识点与错因笔记",
+            h2("span", { className: "kd-meta" }, `${rows.length} 个知识点`)
+          ),
+          h2(
+            "section",
+            { className: "kd-memory-merge", "aria-label": "知识点归并" },
+            h2(
               "div",
-              { className: "kd-row kd-memory-topic-controls", role: "group", "aria-label": `${subject.name}知识点` },
-              h2(Btn, { onClick: /* @__PURE__ */ __name(() => setAllTopics(true), "onClick") }, "全部展开"),
-              h2(Btn, { onClick: /* @__PURE__ */ __name(() => setAllTopics(false), "onClick") }, "全部收起")
+              { className: "kd-stats-section-head" },
+              h2("h3", null, "知识点归并"),
+              h2(
+                Btn,
+                { disabled: Boolean(pending) || !data.canSuggestMerges, onClick: /* @__PURE__ */ __name(() => suggestMerges(), "onClick") },
+                pending === "suggest-merges" ? "正在生成建议…" : "AI 建议归并"
+              )
+            ),
+            h2("p", { className: "kd-meta" }, data.canSuggestMerges ? "点击后将本科标签和可用的大纲或练习范围交给 DSH 默认模型。勾选并应用后生效。" : "本科至少需要两个标签才能生成归并建议。"),
+            mergeProposal ? h2(
+              React.Fragment,
+              null,
+              mergeProposal.reviewed < mergeProposal.total ? h2(
+                "p",
+                { className: "kd-meta" },
+                `本次检查第 ${mergeProposal.start + 1}–${mergeProposal.start + mergeProposal.reviewed} 个标签，共 ${mergeProposal.total} 个。`
+              ) : null,
+              mergeProposal.groups.length ? h2(
+                React.Fragment,
+                null,
+                h2("ul", { className: "kd-memory-merge-options" }, mergeProposal.groups.map(({ target, sources, reason }) => h2("li", { key: target }, h2(
+                  "label",
+                  null,
+                  h2("input", {
+                    type: "checkbox",
+                    disabled: Boolean(pending),
+                    checked: selectedMerges.includes(target),
+                    onChange: /* @__PURE__ */ __name((event) => {
+                      const checked = event.target.checked;
+                      setSelectedMerges((current) => checked ? [...current, target] : current.filter((label) => label !== target));
+                    }, "onChange")
+                  }),
+                  h2(
+                    "span",
+                    null,
+                    h2("strong", null, target),
+                    h2("span", null, `归入：${sources.join("、")}`),
+                    reason ? h2("span", { className: "kd-meta" }, reason) : null
+                  )
+                )))),
+                h2(Btn, {
+                  variant: "primary",
+                  disabled: Boolean(pending) || !selectedMerges.length || noteDrafts.size > 0,
+                  onClick: applyMerges
+                }, pending === "apply-merges" ? "正在应用…" : "应用所选归并"),
+                noteDrafts.size ? h2("p", { className: "kd-meta" }, "请先保存正在编辑的笔记。") : null
+              ) : h2("p", { role: "status", className: "kd-meta" }, "本次没有找到可靠的归并建议。"),
+              mergeProposal.start + mergeProposal.reviewed < mergeProposal.total ? h2(Btn, { disabled: Boolean(pending), onClick: /* @__PURE__ */ __name(() => suggestMerges(mergeProposal.start + mergeProposal.reviewed), "onClick") }, "检查下一批标签") : null
             ) : null
           ),
+          rows.length ? h2(
+            "div",
+            { className: "kd-row kd-memory-topic-controls" },
+            h2(
+              "div",
+              { className: "kd-row kd-memory-topic-filters" },
+              h2("input", {
+                type: "search",
+                className: "kd-input",
+                placeholder: "搜索知识点",
+                "aria-label": "搜索知识点",
+                value: topicQuery,
+                onChange: /* @__PURE__ */ __name((event) => {
+                  setTopicQuery(event.target.value);
+                  setPage(1);
+                }, "onChange")
+              }),
+              chapters.some((name) => name !== "未归类") ? h2(
+                "select",
+                {
+                  className: "kd-select",
+                  "aria-label": "按章节筛选知识点",
+                  value: chapter,
+                  onChange: /* @__PURE__ */ __name((event) => {
+                    setChapter(event.target.value);
+                    setPage(1);
+                  }, "onChange")
+                },
+                h2("option", { value: "" }, "全部章节"),
+                chapters.map((name) => h2("option", { key: name, value: name }, name))
+              ) : null
+            ),
+            h2(
+              "div",
+              { className: "kd-row", role: "group", "aria-label": `${subject.name}知识点` },
+              h2(Btn, { onClick: /* @__PURE__ */ __name(() => setAllTopics(true), "onClick"), disabled: !visible.length }, "全部展开"),
+              h2(Btn, { onClick: /* @__PURE__ */ __name(() => setAllTopics(false), "onClick"), disabled: !visible.length }, "全部收起")
+            )
+          ) : null,
           h2("p", { className: "kd-meta" }, "每道题只统计最近一次已判定作答。展开知识点可记录 Markdown 笔记；清空并保存可删除。"),
           error ? h2("p", { role: "alert", className: "kd-error-text" }, error) : null,
           status ? h2("p", { role: "status", className: "kd-meta" }, status) : null,
-          rows.length ? rows.map((row) => h2(
+          visible.map((row) => h2(
             "details",
             {
               className: "kd-memory-topic",
@@ -12829,42 +13078,22 @@ ${sourceUrl}` : ""}` : ""
               "span",
               { className: "kd-memory-topic-title" },
               h2("strong", null, row.topic),
-              h2("span", { className: "kd-memory-topic-status" }, labels[row.status], row.note ? " · 有笔记" : "")
+              !chapter && row.chapter && row.chapter !== row.topic ? h2("span", { className: "kd-meta" }, row.chapter) : null,
+              h2("span", { className: "kd-memory-topic-status" }, labels[row.status], row.note || row.sourceNotes?.length ? " · 有笔记" : "")
             )),
             h2("p", { className: "kd-meta" }, evidence(row)),
-            h2(
-              "form",
-              { onSubmit: /* @__PURE__ */ __name((event) => {
-                event.preventDefault();
-                const note = event.currentTarget.elements.namedItem("note").value;
-                run("note", async () => {
-                  const saved = await rpc("saveMemoryNote", { subjectId: subject.id, topic: row.topic, note });
-                  setData((current) => ({ ...current, rows: current.rows.map((item) => item.topic === row.topic ? { ...item, note: saved.note } : item) }));
-                  setStatus("已保存错因笔记");
-                });
-              }, "onSubmit") },
-              h2(
-                "label",
-                { className: "kd-field" },
-                h2("span", { className: "kd-field-label" }, "错因笔记（支持 Markdown）"),
-                h2("textarea", {
-                  name: "note",
-                  className: "kd-textarea kd-memory-note-input",
-                  "aria-label": `${row.topic}的错因笔记`,
-                  placeholder: "例如：忘记先核对分段点的左右极限",
-                  defaultValue: row.note,
-                  maxLength: 1e3
-                })
-              ),
-              h2(
-                "div",
-                { className: "kd-actions" },
-                h2(Btn, { type: "submit", disabled: Boolean(pending) }, "保存笔记"),
-                row.wrongBook ? h2(Btn, { onClick: /* @__PURE__ */ __name(() => onRelated(subject.id, "wrong", row.topic), "onClick") }, "查看相关错题") : null,
-                row.due ? h2(Btn, { onClick: /* @__PURE__ */ __name(() => onRelated(subject.id, "review", row.topic), "onClick") }, "复习相关错题") : null
-              )
-            )
-          )) : h2("p", { className: "kd-meta" }, "作答后，这里会按题目的知识点标签汇总学习记录。")
+            row.aliases?.length ? h2("p", { className: "kd-meta" }, `包含标签：${row.aliases.join("、")}`) : null,
+            noteForm(row, row.topic, row.note),
+            row.sourceNotes?.map(({ topic, note }) => noteForm(row, topic, note, true))
+          )),
+          !visible.length ? h2("p", { className: "kd-meta" }, rows.length ? "没有符合条件的知识点。" : "作答后，这里会按题目的知识点汇总学习记录。") : null,
+          pages > 1 ? h2(
+            "div",
+            { className: "kd-row kd-memory-topic-pages", "aria-label": `${subject.name}知识点分页` },
+            h2(Btn, { small: true, disabled: currentPage === 1, onClick: /* @__PURE__ */ __name(() => setPage(currentPage - 1), "onClick") }, "上一页"),
+            h2("span", { className: "kd-meta" }, `第 ${currentPage} / ${pages} 页`),
+            h2(Btn, { small: true, disabled: currentPage === pages, onClick: /* @__PURE__ */ __name(() => setPage(currentPage + 1), "onClick") }, "下一页")
+          ) : null
         )
       );
     }
@@ -12954,8 +13183,11 @@ ${sourceUrl}` : ""}` : ""
   // ui/page.js
   var SETTINGS_SECTIONS = /* @__PURE__ */ new Set(["subjects", "banks", "syllabuses", "past-papers", "backup", "about"]);
   var MANAGEMENT_SECTIONS = /* @__PURE__ */ new Set(["subjects", "banks", "syllabuses", "past-papers"]);
+  var MAX_NOTIFICATIONS = 3;
+  var LIST_ROW_SELECTOR = ".kd-list-row[data-question-id]";
   function createPage(React, { window, rpc, components, styleState }) {
     const { createElement: h2, useState, useEffect, useRef, useMemo, useCallback } = React;
+    const useScrollEffect = React.useLayoutEffect ?? useEffect;
     const navigator = window?.navigator;
     const platform = navigator?.userAgentData?.platform || navigator?.platform || "";
     const codePlatform = /^win/i.test(platform) ? "windows" : /^mac/i.test(platform) ? "macos" : void 0;
@@ -13041,7 +13273,8 @@ ${sourceUrl}` : ""}` : ""
       const [selected, setSelected] = useState([]);
       const bulkLock = useRef(false);
       const [fail, setFail] = useState("");
-      const [toast, setToast] = useState(null);
+      const [toasts, setToasts] = useState([]);
+      const toastSerial = useRef(0);
       const [modal, setModal] = useState(null);
       const [choice, setChoice] = useState("");
       const [localRedo, setLocalRedo] = useState(false);
@@ -13051,6 +13284,8 @@ ${sourceUrl}` : ""}` : ""
       const attemptRef = useRef(newAttemptId());
       const mainScroll = useRef(null);
       const listScroll = useRef(0);
+      const listEntry = useRef(null);
+      const listReturn = useRef(null);
       const redoQuestions = useRef(/* @__PURE__ */ new Set());
       const dailyRequest = useRef(0);
       const lastDay = useRef(null);
@@ -13076,12 +13311,46 @@ ${sourceUrl}` : ""}` : ""
       const [managementAttempt, setManagementAttempt] = useState(0);
       const managementSection = MANAGEMENT_SECTIONS.has(modal?.kind) ? modal.kind : null;
       const questionFocused = Boolean(focusedQuestionId && view === "detail" && question?.id === focusedQuestionId && !modal && !studyPage);
-      currentView.current = { subjectId, kind, view, page: list?.page || 1, loading: busy === "list", filters };
+      currentView.current = { subjectId, kind, view, page: list?.page || 1, loading: busy === "list", filters, failures: boot?.failures };
       const skipToday = Boolean(boot?.dailyPlans?.[boot.settings.subjects[0]]?.todaySkipped);
-      useEffect(() => {
-        if (view === "list" && list && mainScroll.current) mainScroll.current.scrollTop = listScroll.current;
-        if (view === "detail" && mainScroll.current) mainScroll.current.scrollTop = 0;
-      }, [view, list]);
+      useScrollEffect(/* @__PURE__ */ __name(function restorePracticeScroll() {
+        const scroll = mainScroll.current;
+        if (!scroll) return void 0;
+        if (view === "detail") {
+          scroll.scrollTop = 0;
+          return void 0;
+        }
+        if (view !== "list" || !list || listError) return void 0;
+        const position = listReturn.current;
+        listReturn.current = null;
+        const rows = position ? [...scroll.querySelectorAll(LIST_ROW_SELECTOR)] : [];
+        const rowIndex = rows.findIndex((row2) => row2.dataset.questionId === position.qid);
+        if (rowIndex < 0) {
+          scroll.scrollTop = listScroll.current;
+          return void 0;
+        }
+        const row = rows[rowIndex];
+        const place = /* @__PURE__ */ __name(() => {
+          const offset = row.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
+          if (Math.abs(offset - position.offset) > 0.5) scroll.scrollTop += offset - position.offset;
+        }, "place");
+        place();
+        const observer = window.ResizeObserver ? new window.ResizeObserver(place) : null;
+        if (observer) {
+          if (scroll.firstElementChild) observer.observe(scroll.firstElementChild);
+          for (const preceding of rows.slice(0, rowIndex + 1)) observer.observe(preceding);
+        }
+        const animatedView = row.closest(".kd-view");
+        animatedView?.addEventListener("animationend", place, { once: true });
+        const userEvents = ["wheel", "pointerdown", "touchstart", "keydown", "focusin"];
+        const stop = /* @__PURE__ */ __name(() => {
+          observer?.disconnect();
+          animatedView?.removeEventListener("animationend", place);
+          for (const event of userEvents) scroll.removeEventListener(event, stop);
+        }, "stop");
+        for (const event of userEvents) scroll.addEventListener(event, stop, { passive: true });
+        return stop;
+      }, "restorePracticeScroll"), [view, list, listError]);
       const closeQuestionFocus = useCallback(() => {
         fullScreenRequest.current = null;
         setFocusedQuestionId(null);
@@ -13127,7 +13396,11 @@ ${sourceUrl}` : ""}` : ""
         });
       }, "toggleQuestionFocus");
       const notify = useCallback((message, tone = "ok", onUndo) => {
-        setToast((previous) => ({ id: (previous?.id || 0) + 1, message, tone, onUndo }));
+        const id = ++toastSerial.current;
+        setToasts((previous) => [...previous, { id, message, tone, onUndo }].slice(-MAX_NOTIFICATIONS));
+      }, []);
+      const dismissToast = useCallback((id) => {
+        setToasts((previous) => previous.filter((toast) => toast.id !== id));
       }, []);
       const refreshBoot = useCallback(async () => {
         const request = ++bootRequest.current;
@@ -13173,8 +13446,9 @@ ${sourceUrl}` : ""}` : ""
         setKind("today");
         setThreadOpen(false);
         setView("detail");
-        setBusy("daily");
-        setFail("");
+        const previousFailure = !manual && currentView.current.failures?.[sid]?.message;
+        setBusy(previousFailure ? "" : "daily");
+        setFail(previousFailure || "");
         setQuestion(null);
         setThread(null);
         setLocalRedo(false);
@@ -13183,15 +13457,16 @@ ${sourceUrl}` : ""}` : ""
         try {
           const result = await rpc("ensureDaily", { subjectId: sid, ...manual ? { manual: true } : {} });
           if (request === dailyRequest.current) {
+            setFail(result.status === "failed" ? result.message : "");
             setQuestion(result.question || null);
             setLocalRedo(Boolean(result.question && redoQuestions.current.has(result.question.id)));
             setThread(result.thread || null);
           }
-          await refreshBoot();
         } catch (issue) {
           if (request === dailyRequest.current) setFail(issue.message);
         } finally {
           if (request === dailyRequest.current) setBusy("");
+          await refreshBoot();
         }
       }, [refreshBoot]);
       const showSubject = useCallback((sid) => {
@@ -13224,7 +13499,7 @@ ${sourceUrl}` : ""}` : ""
         const active = currentView.current.subjectId;
         const subjects = boot.settings.subjects.filter((id) => {
           const plan = boot.dailyPlans[id];
-          return id !== active && plan && !plan.pendingStart && !plan.todaySkipped && !boot.todayMap?.[id];
+          return id !== active && plan && !plan.pendingStart && !plan.todaySkipped && !boot.todayMap?.[id] && !boot.failures?.[id];
         });
         const generate = /* @__PURE__ */ __name(async () => {
           for (const id of subjects) {
@@ -13290,6 +13565,8 @@ ${sourceUrl}` : ""}` : ""
         if (!sid) return;
         const request = ++dailyRequest.current;
         listScroll.current = 0;
+        listEntry.current = null;
+        listReturn.current = null;
         setKind(nextKind);
         setFilters(nextFilters);
         setQueryDraft(nextFilters.query || "");
@@ -13329,7 +13606,12 @@ ${sourceUrl}` : ""}` : ""
       }, [boot, subjectId, showSubject]);
       const openQuestion = useCallback(async (qid) => {
         const request = ++dailyRequest.current;
-        listScroll.current = mainScroll.current?.scrollTop || 0;
+        if (currentView.current.view === "list") {
+          const scroll = mainScroll.current;
+          const row = scroll && [...scroll.querySelectorAll(LIST_ROW_SELECTOR)].find((item) => item.dataset.questionId === qid);
+          listScroll.current = scroll?.scrollTop || 0;
+          listEntry.current = { qid, offset: row ? row.getBoundingClientRect().top - scroll.getBoundingClientRect().top : 0 };
+        }
         setBusy("question");
         try {
           await loadQuestion(qid, kind, request);
@@ -13341,14 +13623,26 @@ ${sourceUrl}` : ""}` : ""
       }, [kind, loadQuestion, notify]);
       const backToList = /* @__PURE__ */ __name(async () => {
         const request = ++dailyRequest.current;
+        const position = listEntry.current;
         setThreadOpen(false);
-        setView("list");
-        setListError("");
         try {
-          const result = await rpc("listQuestions", { subjectId, kind, page: list?.page || 1, ...filters });
-          if (request === dailyRequest.current) setList(result);
+          const result = await rpc("listQuestions", {
+            subjectId,
+            kind,
+            page: list?.page || 1,
+            ...filters,
+            ...position ? { anchorId: position.qid } : {}
+          });
+          if (request !== dailyRequest.current) return;
+          listEntry.current = null;
+          listReturn.current = position;
+          setListError("");
+          setList(result);
+          setView("list");
         } catch (issue) {
-          if (request === dailyRequest.current) setListError(issue.message);
+          if (request !== dailyRequest.current) return;
+          setListError(issue.message);
+          setView("list");
         }
       }, "backToList");
       const nextReview = /* @__PURE__ */ __name(async () => {
@@ -13393,6 +13687,9 @@ ${sourceUrl}` : ""}` : ""
           if (first && todayQuestion?.question) {
             setQuestion(todayQuestion.question);
             setThread(todayQuestion.thread || null);
+            setView("detail");
+          } else if (first && result.failures?.[first]?.message && !result.dailyPlans?.[first]?.todaySkipped) {
+            setFail(result.failures[first].message);
             setView("detail");
           } else if (first) loadToday(first);
           else setView("empty");
@@ -13623,9 +13920,9 @@ ${sourceUrl}` : ""}` : ""
           setBusy("");
         }
       }, [boot, notify, refreshBoot]);
-      const resetSubjectsEditor = /* @__PURE__ */ __name((notice) => {
+      const resetSubjectsEditor = /* @__PURE__ */ __name(() => {
         subjectsDirty.current = false;
-        setModal((current) => current?.kind === "subjects" ? { kind: "subjects", edit: (current.edit || 0) + 1, ...notice ? { notice } : {} } : current);
+        setModal((current) => current?.kind === "subjects" ? { kind: "subjects", edit: (current.edit || 0) + 1 } : current);
       }, "resetSubjectsEditor");
       const saveSubjects = /* @__PURE__ */ __name(async (draft) => {
         const preferred = draft.subjects.includes(subjectId) ? subjectId : draft.subjects[0] || null;
@@ -13638,7 +13935,8 @@ ${sourceUrl}` : ""}` : ""
           customSubjects: result.customSubjects,
           bankItemCounts: Object.fromEntries(result.subjects.map(({ id, bankItemCount }) => [id, bankItemCount]))
         } } : current);
-        resetSubjectsEditor(draft.deleteSubjectIds?.length ? "科目设置已保存，所选科目及其历史题目已删除" : "科目设置已保存");
+        resetSubjectsEditor();
+        notify(draft.deleteSubjectIds?.length ? "科目设置已保存，所选科目及其历史题目已删除" : "科目设置已保存");
         if (next !== subjectId) showSubject(next);
       }, "saveSubjects");
       const pickFile = useCallback(() => {
@@ -13862,7 +14160,7 @@ ${sourceUrl}` : ""}` : ""
               h2(Btn, {
                 key: "retry",
                 variant: "primary",
-                onClick: /* @__PURE__ */ __name(() => loadToday(subjectId, Boolean(dailyPlan?.pendingStart)), "onClick")
+                onClick: /* @__PURE__ */ __name(() => loadToday(subjectId, true), "onClick")
               }, h2(Icon, { name: "refresh", size: 13 }), T.retry),
               h2(Btn, { key: "src", onClick: /* @__PURE__ */ __name(() => setModal({ kind: "subjects" }), "onClick") }, "切换出题来源"),
               h2(Btn, { key: "bank", onClick: /* @__PURE__ */ __name(() => setModal({ kind: "banks" }), "onClick") }, T.manageBanks)
@@ -13950,7 +14248,7 @@ ${sourceUrl}` : ""}` : ""
             icon: "refresh",
             title: "题目列表加载失败",
             body: listError,
-            actions: h2(Btn, { onClick: /* @__PURE__ */ __name(() => loadList(subjectId, kind, list?.page || 1, filters), "onClick") }, "重试")
+            actions: h2(Btn, { onClick: listEntry.current ? backToList : () => loadList(subjectId, kind, list?.page || 1, filters) }, "重试")
           }) : h2(ListPane, {
             list,
             kind,
@@ -14084,10 +14382,10 @@ ${sourceUrl}` : ""}` : ""
               ...embedded,
               boot: panelBoot,
               key: modal.edit || 0,
-              savedNotice: modal.notice,
               onClose: resetSubjectsEditor,
               onDone: saveSubjects,
-              onDirtyChange: reportSubjectsDirty
+              onDirtyChange: reportSubjectsDirty,
+              onNotify: notify
             });
           case "banks":
             if (modal.deleting) {
@@ -14127,7 +14425,7 @@ ${sourceUrl}` : ""}` : ""
               onSaved: /* @__PURE__ */ __name((pastPapers) => setManagement({ section: "past-papers", data: { pastPapers } }), "onSaved")
             });
           case "backup":
-            return h2(BackupModal, { ...embedded, onRestored: /* @__PURE__ */ __name((warning) => {
+            return h2(BackupModal, { ...embedded, onNotify: notify, onRestored: /* @__PURE__ */ __name((warning) => {
               if (warning) window.alert(warning);
               window.location.reload();
             }, "onRestored") });
@@ -14315,7 +14613,7 @@ ${sourceUrl}` : ""}` : ""
               onRelated: openRelated
             }) : null
           ),
-          toast ? h2(NotificationBanner, { key: toast.id, message: toast.message, tone: toast.tone, onUndo: toast.onUndo, floating: true }) : null,
+          toasts.length ? h2("div", { className: "kd-notification-stack" }, toasts.map((toast) => h2(NotificationBanner, { key: toast.id, ...toast, onDismiss: dismissToast }))) : null,
           busy === "import" || busy === "commit" ? h2(
             "div",
             { className: "kd-loading", style: { position: "absolute", inset: "auto 0 60px 0", zIndex: 45, pointerEvents: "none" } },
@@ -14364,7 +14662,7 @@ ${sourceUrl}` : ""}` : ""
       try {
         response = await fetch("/api/daily-question/rpc", {
           method: "POST",
-          signal: AbortSignal.timeout(op === "ensureDaily" || op === "revise" || slowPdf ? 16 * 60 * 1e3 : ["followup", "analyzeStudyMemory"].includes(op) ? 6 * 60 * 1e3 : 6e4),
+          signal: AbortSignal.timeout(op === "ensureDaily" || op === "revise" || slowPdf ? 16 * 60 * 1e3 : ["followup", "analyzeStudyMemory", "suggestMemoryMerges"].includes(op) ? 6 * 60 * 1e3 : 6e4),
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ op, args: args || {} })
         });

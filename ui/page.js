@@ -6,9 +6,12 @@ import { createStudyMemoryPage } from './study-memory.js'
 
 const SETTINGS_SECTIONS = new Set(['subjects', 'banks', 'syllabuses', 'past-papers', 'backup', 'about'])
 const MANAGEMENT_SECTIONS = new Set(['subjects', 'banks', 'syllabuses', 'past-papers'])
+const MAX_NOTIFICATIONS = 3
+const LIST_ROW_SELECTOR = '.kd-list-row[data-question-id]'
 
 export function createPage(React, { window, rpc, components, styleState }) {
   const { createElement: h, useState, useEffect, useRef, useMemo, useCallback } = React
+  const useScrollEffect = React.useLayoutEffect ?? useEffect
   const navigator = window?.navigator
   const platform = navigator?.userAgentData?.platform || navigator?.platform || ''
   const codePlatform = /^win/i.test(platform) ? 'windows' : /^mac/i.test(platform) ? 'macos' : undefined
@@ -65,7 +68,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
     const [selected, setSelected] = useState([])
     const bulkLock = useRef(false)
     const [fail, setFail] = useState('')
-    const [toast, setToast] = useState(null)
+    const [toasts, setToasts] = useState([])
+    const toastSerial = useRef(0)
     const [modal, setModal] = useState(null)
     const [choice, setChoice] = useState('')
     const [localRedo, setLocalRedo] = useState(false)
@@ -75,6 +79,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
     const attemptRef = useRef(newAttemptId())
     const mainScroll = useRef(null)
     const listScroll = useRef(0)
+    const listEntry = useRef(null)
+    const listReturn = useRef(null)
     const redoQuestions = useRef(new Set())
     const dailyRequest = useRef(0)
     const lastDay = useRef(null)
@@ -101,13 +107,43 @@ export function createPage(React, { window, rpc, components, styleState }) {
     const managementSection = MANAGEMENT_SECTIONS.has(modal?.kind) ? modal.kind : null
     const questionFocused = Boolean(focusedQuestionId && view === 'detail' && question?.id === focusedQuestionId
       && !modal && !studyPage)
-    currentView.current = { subjectId, kind, view, page:list?.page||1, loading:busy==='list', filters }
+    currentView.current = { subjectId, kind, view, page:list?.page||1, loading:busy==='list', filters, failures: boot?.failures }
     const skipToday = Boolean(boot?.dailyPlans?.[boot.settings.subjects[0]]?.todaySkipped)
 
-    useEffect(() => {
-      if (view === 'list' && list && mainScroll.current) mainScroll.current.scrollTop = listScroll.current
-      if (view === 'detail' && mainScroll.current) mainScroll.current.scrollTop = 0
-    }, [view, list])
+    useScrollEffect(function restorePracticeScroll() {
+      const scroll = mainScroll.current
+      if (!scroll) return undefined
+      if (view === 'detail') { scroll.scrollTop = 0; return undefined }
+      if (view !== 'list' || !list || listError) return undefined
+      const position = listReturn.current
+      listReturn.current = null
+      const rows = position ? [...scroll.querySelectorAll(LIST_ROW_SELECTOR)] : []
+      const rowIndex = rows.findIndex((row) => row.dataset.questionId === position.qid)
+      if (rowIndex < 0) { scroll.scrollTop = listScroll.current; return undefined }
+
+      const row = rows[rowIndex]
+      const place = () => {
+        const offset = row.getBoundingClientRect().top - scroll.getBoundingClientRect().top
+        if (Math.abs(offset - position.offset) > 0.5) scroll.scrollTop += offset - position.offset
+      }
+      place()
+      // 公式和预览陆续渲染时，上方卡片的高度仍可能改变。
+      const observer = window.ResizeObserver ? new window.ResizeObserver(place) : null
+      if (observer) {
+        if (scroll.firstElementChild) observer.observe(scroll.firstElementChild)
+        for (const preceding of rows.slice(0, rowIndex + 1)) observer.observe(preceding)
+      }
+      const animatedView = row.closest('.kd-view')
+      animatedView?.addEventListener('animationend', place, { once: true })
+      const userEvents = ['wheel', 'pointerdown', 'touchstart', 'keydown', 'focusin']
+      const stop = () => {
+        observer?.disconnect()
+        animatedView?.removeEventListener('animationend', place)
+        for (const event of userEvents) scroll.removeEventListener(event, stop)
+      }
+      for (const event of userEvents) scroll.addEventListener(event, stop, { passive: true })
+      return stop
+    }, [view, list, listError])
 
     const closeQuestionFocus = useCallback(() => {
       fullScreenRequest.current = null
@@ -150,7 +186,11 @@ export function createPage(React, { window, rpc, components, styleState }) {
     }
 
     const notify = useCallback((message, tone = 'ok', onUndo) => {
-      setToast((previous) => ({ id: (previous?.id || 0) + 1, message, tone, onUndo }))
+      const id = ++toastSerial.current
+      setToasts((previous) => [...previous, { id, message, tone, onUndo }].slice(-MAX_NOTIFICATIONS))
+    }, [])
+    const dismissToast = useCallback((id) => {
+      setToasts((previous) => previous.filter((toast) => toast.id !== id))
     }, [])
 
     const refreshBoot = useCallback(async () => {
@@ -197,8 +237,9 @@ export function createPage(React, { window, rpc, components, styleState }) {
       setKind('today')
       setThreadOpen(false)
       setView('detail')
-      setBusy('daily')
-      setFail('')
+      const previousFailure = !manual && currentView.current.failures?.[sid]?.message
+      setBusy(previousFailure ? '' : 'daily')
+      setFail(previousFailure || '')
       setQuestion(null)
       setThread(null)
       setLocalRedo(false)
@@ -207,15 +248,16 @@ export function createPage(React, { window, rpc, components, styleState }) {
       try {
         const result = await rpc('ensureDaily', { subjectId: sid, ...(manual ? { manual: true } : {}) })
         if (request === dailyRequest.current) {
+          setFail(result.status === 'failed' ? result.message : '')
           setQuestion(result.question || null)
           setLocalRedo(Boolean(result.question && redoQuestions.current.has(result.question.id)))
           setThread(result.thread || null)
         }
-        await refreshBoot()
       } catch (issue) {
         if (request === dailyRequest.current) setFail(issue.message)
       } finally {
         if (request === dailyRequest.current) setBusy('')
+        await refreshBoot()
       }
     }, [refreshBoot])
 
@@ -247,7 +289,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
       const active = currentView.current.subjectId
       const subjects = boot.settings.subjects.filter((id) => {
         const plan = boot.dailyPlans[id]
-        return id !== active && plan && !plan.pendingStart && !plan.todaySkipped && !boot.todayMap?.[id]
+        return id !== active && plan && !plan.pendingStart && !plan.todaySkipped && !boot.todayMap?.[id] && !boot.failures?.[id]
       })
       const generate = async () => {
         for (const id of subjects) {
@@ -306,6 +348,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
       if (!sid) return
       const request = ++dailyRequest.current
       listScroll.current = 0
+      listEntry.current = null
+      listReturn.current = null
       setKind(nextKind)
       setFilters(nextFilters)
       setQueryDraft(nextFilters.query || '')
@@ -345,7 +389,12 @@ export function createPage(React, { window, rpc, components, styleState }) {
 
     const openQuestion = useCallback(async (qid) => {
       const request = ++dailyRequest.current
-      listScroll.current = mainScroll.current?.scrollTop || 0
+      if (currentView.current.view === 'list') {
+        const scroll = mainScroll.current
+        const row = scroll && [...scroll.querySelectorAll(LIST_ROW_SELECTOR)].find((item) => item.dataset.questionId === qid)
+        listScroll.current = scroll?.scrollTop || 0
+        listEntry.current = { qid, offset: row ? row.getBoundingClientRect().top - scroll.getBoundingClientRect().top : 0 }
+      }
       setBusy('question')
       try {
         await loadQuestion(qid, kind, request)
@@ -358,13 +407,22 @@ export function createPage(React, { window, rpc, components, styleState }) {
 
     const backToList = async () => {
       const request = ++dailyRequest.current
+      const position = listEntry.current
       setThreadOpen(false)
-      setView('list')
-      setListError('')
       try {
-        const result = await rpc('listQuestions', { subjectId, kind, page:list?.page||1, ...filters })
-        if (request === dailyRequest.current) setList(result)
-      } catch (issue) { if (request === dailyRequest.current) setListError(issue.message) }
+        const result = await rpc('listQuestions', { subjectId, kind, page: list?.page || 1, ...filters,
+          ...(position ? { anchorId: position.qid } : {}) })
+        if (request !== dailyRequest.current) return
+        listEntry.current = null
+        listReturn.current = position
+        setListError('')
+        setList(result)
+        setView('list')
+      } catch (issue) {
+        if (request !== dailyRequest.current) return
+        setListError(issue.message)
+        setView('list')
+      }
     }
 
     const nextReview = async () => {
@@ -406,6 +464,9 @@ export function createPage(React, { window, rpc, components, styleState }) {
         if (first && todayQuestion?.question) {
           setQuestion(todayQuestion.question)
           setThread(todayQuestion.thread || null)
+          setView('detail')
+        } else if (first && result.failures?.[first]?.message && !result.dailyPlans?.[first]?.todaySkipped) {
+          setFail(result.failures[first].message)
           setView('detail')
         } else if (first) loadToday(first)
         else setView('empty')
@@ -635,10 +696,10 @@ export function createPage(React, { window, rpc, components, styleState }) {
       }
     }, [boot, notify, refreshBoot])
 
-    const resetSubjectsEditor = (notice) => {
+    const resetSubjectsEditor = () => {
       subjectsDirty.current = false
       setModal((current) => current?.kind === 'subjects'
-        ? { kind: 'subjects', edit: (current.edit || 0) + 1, ...(notice ? { notice } : {}) } : current)
+        ? { kind: 'subjects', edit: (current.edit || 0) + 1 } : current)
     }
 
     const saveSubjects = async (draft) => {
@@ -653,7 +714,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
           customSubjects: result.customSubjects,
           bankItemCounts: Object.fromEntries(result.subjects.map(({ id, bankItemCount }) => [id, bankItemCount])),
         } } : current)
-      resetSubjectsEditor(draft.deleteSubjectIds?.length ? '科目设置已保存，所选科目及其历史题目已删除' : '科目设置已保存')
+      resetSubjectsEditor()
+      notify(draft.deleteSubjectIds?.length ? '科目设置已保存，所选科目及其历史题目已删除' : '科目设置已保存')
       if (next !== subjectId) showSubject(next)
     }
 
@@ -848,7 +910,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
             h(Btn, {
               key: 'retry',
               variant: 'primary',
-              onClick: () => loadToday(subjectId, Boolean(dailyPlan?.pendingStart)),
+              onClick: () => loadToday(subjectId, true),
             }, h(Icon, { name: 'refresh', size: 13 }), T.retry),
             h(Btn, { key: 'src', onClick: () => setModal({ kind: 'subjects' }) }, '切换出题来源'),
             h(Btn, { key: 'bank', onClick: () => setModal({ kind: 'banks' }) }, T.manageBanks),
@@ -893,7 +955,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
           h('span', { className: 'kd-meta' }, '知识点：', filters.topic),
           h(Btn, { variant: 'ghost', disabled: bulkLock.current, onClick: () => applyFilters({ topic: '' }) }, '清除知识点筛选')) : null
         return h('div', null, topicFilter, search, listError ? h(EmptyState, { icon: 'refresh', title: '题目列表加载失败', body: listError,
-          actions: h(Btn, { onClick: () => loadList(subjectId, kind, list?.page || 1, filters) }, '重试') }) : h(ListPane, {
+          actions: h(Btn, { onClick: listEntry.current ? backToList : () => loadList(subjectId, kind, list?.page || 1, filters) }, '重试') }) : h(ListPane, {
           list,
           kind,
           subjectName: currentSubject?.name || '',
@@ -1013,8 +1075,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
       }
       switch (modal.kind) {
         case 'subjects':
-          return panelBoot && h(SubjectsModal, { ...embedded, boot: panelBoot, key: modal.edit || 0, savedNotice: modal.notice,
-            onClose: resetSubjectsEditor, onDone: saveSubjects, onDirtyChange: reportSubjectsDirty })
+          return panelBoot && h(SubjectsModal, { ...embedded, boot: panelBoot, key: modal.edit || 0,
+            onClose: resetSubjectsEditor, onDone: saveSubjects, onDirtyChange: reportSubjectsDirty, onNotify: notify })
         case 'banks':
           if (modal.deleting) {
             const bank = modal.deleting
@@ -1040,7 +1102,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
           return panelBoot && h(PastPapersModal, { ...embedded, boot: panelBoot,
             onSaved: (pastPapers) => setManagement({ section: 'past-papers', data: { pastPapers } }) })
         case 'backup':
-          return h(BackupModal, { ...embedded, onRestored: (warning) => {
+          return h(BackupModal, { ...embedded, onNotify: notify, onRestored: (warning) => {
             if (warning) window.alert(warning)
             window.location.reload()
           } })
@@ -1176,7 +1238,8 @@ export function createPage(React, { window, rpc, components, styleState }) {
       studyPage === 'memory' ? h(StudyMemoryPage, { subjects: boot?.subjects || [],
         onClose: closeStudyPage, onRelated: openRelated }) : null,
       ),
-      toast ? h(NotificationBanner, { key: toast.id, message: toast.message, tone: toast.tone, onUndo: toast.onUndo, floating: true }) : null,
+      toasts.length ? h('div', { className: 'kd-notification-stack' }, toasts.map((toast) =>
+        h(NotificationBanner, { key: toast.id, ...toast, onDismiss: dismissToast }))) : null,
       busy === 'import' || busy === 'commit'
         ? h('div', { className: 'kd-loading', style: { position: 'absolute', inset: 'auto 0 60px 0', zIndex: 45, pointerEvents: 'none' } },
           h('span', { className: 'kd-spinner' }), busy === 'import' ? '正在读取文件并让模型识别题目…' : '正在入库…')

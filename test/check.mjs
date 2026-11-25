@@ -2,7 +2,7 @@ import { fitResponse, generateWithLocalReferences as createVerifiedQuestion } fr
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { resolveExamDate, computeCountdown, calendarDiff, daysBetween, addYears, addDays, yearOptions, verifyExamDateOnline } from '../lib/exam-dates.js'
+import { resolveExamDate, computeCountdown, calendarDiff, daysBetween, addDays, yearOptions, verifyExamDateOnline } from '../lib/exam-dates.js'
 import { parseBankText } from '../lib/bank.js'
 import { emptyData, Store } from '../lib/store.js'
 import { CHOICE_TYPES, findSubject, subjectTypes, SUBJECT_CATALOG, REFERENCE_EXAMS } from '../lib/subjects.js'
@@ -17,16 +17,39 @@ function check(name, condition, detail = '') {
 
 // ---- 考试日期 ----
 const y2027 = resolveExamDate(2027)
-check('2027 官方日期', y2027.status === 'official' && y2027.date === '2026-12-19', JSON.stringify(y2027))
-const y2028 = resolveExamDate(2028)
-check('2028 估算日期 +1 年', y2028.status === 'estimated' && y2028.date === '2027-12-19', JSON.stringify(y2028))
+check('2027 内置官方日期采用研招网公告', y2027.status === 'official' && y2027.date === '2026-12-19'
+  && new URL(y2027.sourceUrl).hostname === 'yz.chsi.com.cn', JSON.stringify(y2027))
+const estimateToday = '2026-11-03'
+const y2028 = resolveExamDate(2028, {}, estimateToday)
+for (const [year, start, end] of [
+  [2028, '2027-12-18', '2027-12-19'], // 12 月 31 日为周五
+  [2029, '2028-12-23', '2028-12-24'], // 12 月 31 日为周日
+  [2034, '2033-12-24', '2033-12-25'], // 12 月 31 日为周六，计入倒数
+]) {
+  const estimated = resolveExamDate(year, {}, estimateToday)
+  check(`${year} 估算为 12 月倒数第二个周六及次日`,
+    estimated.status === 'estimated' && estimated.date === start && estimated.endDate === end, JSON.stringify(estimated))
+}
+const officialOverride = { date: '2027-12-25', endDate: '2027-12-27', status: 'official', sourceUrl: 'https://www.moe.gov.cn/notice' }
+const overridden = resolveExamDate(2028, { 2028: officialOverride }, estimateToday)
+check('同一届次的核验日期优先于周末估算',
+  overridden.status === 'official' && overridden.date === officialOverride.date && overridden.endDate === officialOverride.endDate
+  && overridden.sourceUrl === officialOverride.sourceUrl)
+const recalculated = resolveExamDate(2028, {
+  2027: { date: '2026-12-26', endDate: '2026-12-27', status: 'official', sourceUrl: 'https://www.moe.gov.cn/last-year' },
+  2028: { date: '2027-12-26', endDate: '2027-12-27', status: 'estimated' },
+}, estimateToday)
+check('旧估算重新计算，其他届次的日期和来源不参与',
+  recalculated.date === y2028.date && recalculated.endDate === y2028.endDate && !recalculated.sourceUrl && !recalculated.verifiedAt)
 
 const cd = computeCountdown(2028, y2028, '2026-11-03')
 console.log('   countdown:', JSON.stringify(cd.lines), 'days=', cd.days, 'calendar=', cd.calendar)
-check('倒计时天数 411', cd.days === 411, String(cd.days))
+check('倒计时天数 410', cd.days === 410, String(cd.days))
 check('三行都带“约”', cd.lines.primary.includes('约') && cd.lines.secondary.includes('约') && cd.lines.target.includes('约'))
-check('日历差 1年1个月16天', cd.calendar.years === 1 && cd.calendar.months === 1 && cd.calendar.days === 16, JSON.stringify(cd.calendar))
-check('天数与日历差一致', daysBetween('2026-11-03', '2027-11-03') + 46 === 411)
+check('日历差 1年1个月15天', cd.calendar.years === 1 && cd.calendar.months === 1 && cd.calendar.days === 15, JSON.stringify(cd.calendar))
+check('天数与日历差一致', daysBetween('2026-11-03', '2027-11-03') + 45 === cd.days)
+check('估算的第二天仍在初试期间', !computeCountdown(2028, y2028, y2028.endDate).expired
+  && computeCountdown(2028, y2028, addDays(y2028.endDate, 1)).expired)
 for (const [remaining, expected] of [[0, ''], [29, ''], [30, ''], [31, '1个月1天'], [59, '1个月29天'],
   [90, '3个月'], [113, '3个月23天'], [364, '12个月4天'], [365, '1年'], [366, '1年1天'],
   [388, '1年23天'], [395, '1年1个月'], [415, '1年1个月20天'], [730, '2年']]) {
@@ -42,6 +65,9 @@ check('初试前：今年+1 起三年', JSON.stringify(yearOptions('2026-11-04')
 check('初试当天仍保留当前场次', yearOptions('2026-12-19')[0] === 2027, JSON.stringify(yearOptions('2026-12-19')))
 check('初试最后一天仍保留当前场次', yearOptions('2026-12-20')[0] === 2027)
 check('初试结束次日整体后移一年', yearOptions('2026-12-21')[0] === 2028)
+check('未公布时按估算周日结束后切换届次',
+  yearOptions('2027-12-19')[0] === 2028 && yearOptions('2027-12-20')[0] === 2029
+  && yearOptions('2033-12-25')[0] === 2034 && yearOptions('2033-12-26')[0] === 2035)
 const verifiedDates = { 2027: { date: '2026-12-26', endDate: '2026-12-27', status: 'official' } }
 check('年份窗口使用核验后的结束日期', yearOptions('2026-12-27', verifiedDates)[0] === 2027
   && yearOptions('2026-12-28', verifiedDates)[0] === 2028)
@@ -49,8 +75,8 @@ check('跨年后窗口连续', JSON.stringify(yearOptions('2027-01-05')) === JSO
   JSON.stringify(yearOptions('2027-01-05')))
 check('任何时刻都只有 3 个选项', yearOptions('2027-06-01').length === 3 && yearOptions('2030-12-25').length === 3)
 check('窗口内每个年份的初试都还没结束', yearOptions('2026-11-04')
-  .every((year) => daysBetween('2026-11-04', resolveExamDate(year).date) >= 0),
-  JSON.stringify(yearOptions('2026-11-04').map((year) => [year, resolveExamDate(year).date])))
+  .every((year) => daysBetween('2026-11-04', resolveExamDate(year, {}, '2026-11-04').date) >= 0),
+  JSON.stringify(yearOptions('2026-11-04').map((year) => [year, resolveExamDate(year, {}, '2026-11-04').date])))
 
 const SystemDate = Date
 for (const [day, expected] of [[1, 2027], [20, 2027], [21, 2028]]) {
@@ -75,7 +101,6 @@ check('无依据时标记未核实', unverified.status === 'unverified', JSON.st
 
 check('跨月借位', JSON.stringify(calendarDiff('2026-01-31', '2026-03-01')) === JSON.stringify({ years: 0, months: 1, days: 1 }), JSON.stringify(calendarDiff('2026-01-31', '2026-03-01')))
 check('跨年借位', JSON.stringify(calendarDiff('2026-12-31', '2027-01-01')) === JSON.stringify({ years: 0, months: 0, days: 1 }), JSON.stringify(calendarDiff('2026-12-31', '2027-01-01')))
-check('闰年 2/29 退化', addYears('2024-02-29', 1) === '2025-02-28')
 
 // ---- 联网核验：搜索结果只用于定位公告，日期必须来自公告正文 ----
 const examPage = 'https://www.moe.gov.cn/notice'
@@ -90,11 +115,12 @@ for (const [year, body, start, end] of [
 ]) {
   const queries = []
   const result = await verifyExamDateOnline({ year, web: {
-    async search({ query }) { queries.push(query); return { sources: [searchResult(examPage)] } },
+    async search({ query }) { queries.push(query); return { sources: [searchResult(examPage), searchResult(mirrorPage)] } },
     async fetch({ url }) { return { url, body: { kind: 'html', content: notice(year, body) } } },
   } })
   check(`${year} 届同时按届次和实际考试年份检索，并取正文的起止日`,
-    queries.length === 1 && queries[0].includes(examTitle(year)) && queries[0].includes(`${year - 1}年12月`)
+    queries.length === 1 && queries[0].startsWith('site:yz.chsi.com.cn ') && queries[0].includes(examTitle(year)) && queries[0].includes(`${year - 1}年12月`)
+    && result.checked.join() === mirrorPage && result.record?.sourceUrl === mirrorPage
     && result.record?.date === start && result.record?.endDate === end && result.record?.method === 'online-search')
 }
 for (const [label, content, url = examPage] of [
@@ -122,18 +148,18 @@ for (const [label, content, url = examPage] of [
 const visitedPages = []
 const mirrored = await verifyExamDateOnline({ year: 2026, web: {
   async search({ query }) {
-    return { sources: (query.startsWith('site:moe.gov.cn')
-      ? ['https://www.moe.gov.cn.example.com/notice', examPage + '#1', examPage + '#2']
-      : [mirrorPage]).map(searchResult) }
+    return { sources: (query.startsWith('site:yz.chsi.com.cn ')
+      ? [examPage, 'https://yz.chsi.com.cn.example.com/notice', mirrorPage + '#1', mirrorPage + '#2']
+      : []).map(searchResult) }
   },
   async fetch({ url }) {
     visitedPages.push(url)
-    if (url === examPage) throw new Error('官方页面跳转被宿主阻止')
+    if (url === mirrorPage) throw new Error('研招网页面不可读取')
     return { url, body: { kind: 'text', content: '2026年全国硕士研究生招生考试初试时间为2025年12月20日至21日。' } }
   },
 } })
 check('首选站点不可读时改查官方备用站点，过滤仿冒域名及重复链接',
-  visitedPages.join() === [examPage, mirrorPage].join() && mirrored.record?.sourceUrl === mirrorPage)
+  visitedPages.join() === [mirrorPage, examPage].join() && mirrored.record?.sourceUrl === examPage)
 
 // ---- 题库解析 ----
 const md = `# 数学一 每日一题题库

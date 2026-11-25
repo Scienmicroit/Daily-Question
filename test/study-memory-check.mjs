@@ -32,7 +32,19 @@ const service = new DailyQuestionService({ get(name) {
     const prompt = options.messages[0].content[0].text
     const system = options.system
     let role, response
-    if (system.includes('学习教练')) {
+    if (system.includes('整理一个科目的学习标签')) {
+      role = 'merge'
+      const { subject } = JSON.parse(prompt)
+      response = subject === '408 测试' ? { groups: [
+        { target: '不在大纲中的标签', sources: ['二叉树遍历', '树的遍历'] },
+        { target: '树的遍历与应用', sources: ['二叉树遍历', '树的遍历'], reason: '同一考点' },
+        { target: '树的遍历与应用', sources: ['图的遍历'] },
+        { target: '图的遍历', sources: ['另一科的标签'] },
+      ] } : { groups: [
+        { target: '新标签', sources: ['函数可导性', '可微性'] },
+        { target: '函数可导性', sources: ['可微性'], reason: '本科一元函数中的同义标签' },
+      ] }
+    } else if (system.includes('学习教练')) {
       role = 'analysis'
       signalAnalysis?.()
       await waitAnalysis
@@ -77,6 +89,20 @@ try {
     for (const tag of [topic, nextTopic, otherTopic]) seed('math1', tag, ['wrong', 'wrong', 'correct'])
     seed('math1', '未判定知识点', ['pending', 'wrong'])
     seed('memory-test', topic, ['wrong', 'wrong', 'correct'])
+    for (const [chapter, name] of [['线性代数', '矩阵的秩'], ['高等数学', '分部积分']]) {
+      const id = 'group:' + chapter
+      draft.questions[id] = { id, subjectId: 'math1', stem: '按本科相关定义计算并说明理由。',
+        coverageTopic: chapter, knowledge: [name, '综合计算'] }
+      draft.attempts.push({ id: id + '-attempt', questionId: id, practiceDate: addDays(start, -3), result: 'correct' })
+    }
+    seed('math1', '幂级数', ['correct'])
+    seed('memory-test', '傅里叶级数', ['correct'])
+    draft.questions['series-aliases'] = { id: 'series-aliases', subjectId: 'math1', type: 'single',
+      stem: '请判断给出的级数是否收敛。', coverageTopic: '傅里叶级数', knowledge: ['级数', '傅里叶级数', '余弦级数'] }
+    for (const [offset, result] of [[-5, 'correct'], [-4, 'wrong']]) {
+      draft.attempts.push({ id: 'series-' + offset, questionId: 'series-aliases', practiceDate: addDays(start, offset), result })
+    }
+    draft.studyMemory.math1 = { notes: { 级数: '总笔记', 傅里叶级数: '核对展开区间', 余弦级数: '检查偶延拓' } }
     draft.banks = [{ id: 'memory-test-bank', name: '练习库', subjectId: 'math1',
       items: [topic, nextTopic, otherTopic, '普通主题'].map((tag, index) => ({
         id: String(index), type: 'single', stem: `以下哪一项符合相关定义：${tag}？`, knowledge: [tag],
@@ -92,6 +118,24 @@ try {
   const row = first.rows.find((row) => row.topic === topic)
   assert.deepEqual([row.recent, row.wrong, row.due, row.status], [3, 2, 2, 'weak'])
   assert.equal(first.rows.find((row) => row.topic === '未判定知识点').status, 'insufficient')
+  assert.equal(first.rows.find((row) => row.topic === '矩阵的秩').chapter, '线性代数')
+  assert.equal(first.rows.find((row) => row.topic === '分部积分').chapter, '高等数学')
+  assert.equal(first.rows.find((row) => row.topic === '综合计算').chapter, '', '同名标签跨章节时不猜测归属')
+  const series = first.rows.find((row) => row.topic === '级数')
+  assert.deepEqual([series.chapter, series.recent, series.wrong, series.due, series.wrongBook, series.note],
+    ['高等数学', 2, 1, 1, 1, '总笔记'])
+  assert.deepEqual(new Set(series.aliases), new Set(['幂级数', '傅里叶级数', '余弦级数']))
+  assert.deepEqual(series.sourceNotes, [{ topic: '傅里叶级数', note: '核对展开区间' }, { topic: '余弦级数', note: '检查偶延拓' }])
+  assert(!first.rows.some((item) => series.aliases.includes(item.topic)), '别名不再生成独立统计行')
+  for (const label of ['级数', '余弦级数']) {
+    assert.deepEqual((await service.listQuestions({ subjectId: 'math1', kind: 'review', topic: label, idsOnly: true })).ids,
+      ['series-aliases'])
+  }
+  await service.saveMemoryNote({ subjectId: 'math1', topic: '余弦级数', note: '检查偶延拓与区间' })
+  const customRows = (await service.getStudyMemory({ subjectId: 'memory-test' })).rows
+  assert.equal(customRows[0].chapter, '',
+    '独立自定义科目不继承其他科目的章节')
+  assert(customRows.some((item) => item.topic === '傅里叶级数'), '数学归并规则只应用于对应数学科目')
   const related = await service.listQuestions({ subjectId: 'math1', kind: 'review', topic, idsOnly: true })
   assert.equal(related.total, 2)
   assert(related.ids.every((id) => id.includes(topic)))
@@ -117,10 +161,16 @@ try {
   waitAnalysis = null
   const backup = await service.exportBackup()
   assert.equal(backup.data.studyMemory.math1.notes[topic], note)
+  assert.equal(backup.data.studyMemory.math1.notes['余弦级数'], '检查偶延拓与区间')
+  assert.equal(backup.data.studyMemory.math1.notes['傅里叶级数'], '核对展开区间')
+  assert.equal(backup.data.studyMemory.math1.notes['级数'], '总笔记')
   assert.deepEqual(backup.data.studyMemory.math1.analysis, advice)
   await service.restoreBackup({ data: backup.data, confirmed: true })
   await service.saveMemoryPreferences({ enabled: true, reinforce: true })
   assert.equal((await memory()).rows.find((row) => row.topic === topic).note, note)
+  assert.deepEqual((await memory()).rows.find((item) => item.topic === '级数').sourceNotes, [
+    { topic: '傅里叶级数', note: '核对展开区间' }, { topic: '余弦级数', note: '检查偶延拓与区间' },
+  ])
 
   for (let day = 0; day <= 2; day++) {
     moves(day)
@@ -157,6 +207,45 @@ try {
   assert.equal(after.daily[date + '|memory-test'].reinforcementTopic, undefined, '指定知识点未通过独立校验后回退常规出题')
   assert.equal(calls.filter((call) => call.role === 'scope').length, 3)
   assert(!calls.filter((call) => call.role === 'writer').at(-1).prompt.includes(note))
+
+  const groupSubject = 'custom-408'
+  await service.store.update((draft) => {
+    draft.customSubjects.push({ id: groupSubject, name: '408 测试', types: ['single'], referenceSubjectId: 'cs408' })
+    draft.syllabuses[groupSubject] = { text: '大纲原件中无需发送的内容', scopeText: '数据结构：树的遍历与应用、图的遍历' }
+    draft.studyMemory[groupSubject] = { notes: { 二叉树遍历: '私密旧笔记甲', 树的遍历: '私密旧笔记乙' } }
+    draft.studyMemory['memory-test'].notes = { ...draft.studyMemory['memory-test'].notes, 函数可导性: '原笔记甲', 可微性: '原笔记乙' }
+    for (const [id, knowledge] of [['tree', ['二叉树遍历', '树的遍历']], ['graph', ['图的遍历']]]) {
+      draft.questions[id] = { id, subjectId: groupSubject, stem: '敏感原题', type: 'single', knowledge }
+      draft.attempts.push({ id: id + '-wrong', questionId: id, practiceDate: addDays(date, -3), result: 'wrong' })
+    }
+  })
+  const propose = async (id) => service.suggestMemoryMerges({ subjectId: id })
+  const reviewMemory = async () => service.getStudyMemory({ subjectId: groupSubject })
+  const proposal = await propose(groupSubject)
+  const supplied = JSON.parse(calls.at(-1).prompt)
+  assert.deepEqual(supplied, { subject: '408 测试', labels: ['二叉树遍历', '树的遍历', '图的遍历'],
+    scope: '数据结构：树的遍历与应用、图的遍历' }, '仅发送本科标签和识别过的大纲范围')
+  assert.equal(proposal.groups.length, 1)
+  assert.equal(proposal.groups[0].target, '树的遍历与应用')
+  assert.equal((await reviewMemory()).rows.length, 3, '预览前后未归并')
+  await assert.rejects(service.applyMemoryMerges({ ...proposal, subjectId: 'memory-test' }), /已失效/)
+  const applied = await service.applyMemoryMerges({ ...proposal, subjectId: groupSubject })
+  const merged = applied.rows.find((item) => item.topic === '树的遍历与应用')
+  assert.equal(applied.rows.length, 2)
+  assert.deepEqual([merged.recent, merged.wrong, merged.due, merged.wrongBook], [1, 1, 1, 1], '同题有两个归并标签也只计一次')
+  assert.deepEqual(merged.sourceNotes.map(({ note }) => note), ['私密旧笔记甲', '私密旧笔记乙'])
+  assert.deepEqual((await service.listQuestions({ subjectId: groupSubject, kind: 'wrong', topic: '树的遍历与应用', idsOnly: true })).ids, ['tree'])
+  await assert.rejects(service.applyMemoryMerges({ ...proposal, subjectId: groupSubject }), /已失效/)
+  const custom = await propose('memory-test')
+  assert.equal(JSON.parse(calls.at(-1).prompt).scope, '')
+  assert.deepEqual(custom.groups.map(({ target }) => target), ['函数可导性'])
+  await service.applyMemoryMerges({ ...custom, subjectId: 'memory-test' })
+  const mergedBackup = await service.exportBackup()
+  assert.deepEqual(mergedBackup.data.studyMemory[groupSubject].topicAliases,
+    { 二叉树遍历: '树的遍历与应用', 树的遍历: '树的遍历与应用' })
+  assert.deepEqual(mergedBackup.data.questions.tree.knowledge, ['二叉树遍历', '树的遍历'])
+  await service.restoreBackup({ data: mergedBackup.data, confirmed: true })
+  assert.deepEqual((await reviewMemory()).rows.find((item) => item.topic === merged.topic), merged)
 } finally {
   service.dispose()
   globalThis.Date = RealDate

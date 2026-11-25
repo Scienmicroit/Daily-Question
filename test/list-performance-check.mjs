@@ -37,6 +37,13 @@ try {
   assert.equal(summaries,100);assert.equal(scans,1,'同一数据快照只扫描一次全部作答')
   assert(!first.items.some(item=>second.items.some(other=>item.id===other.id)))
   assert.equal(JSON.stringify(first).length<JSON.stringify(snapshot.questions).length/20,true,'响应不再下发全部题干')
+  const anchorId = second.items.at(-1).id
+  const located = await service.listQuestions({ subjectId: 'math1', page: 1, anchorId, query: '带公式', type: 'single' })
+  assert.equal(located.page, 2, '依据题目定位到当前结果页')
+  assert(located.items.some((item) => item.id === anchorId))
+  const removed = await service.listQuestions({ subjectId: 'math1', kind: 'favorite', page: 3, anchorId: 'q1' })
+  assert.equal(removed.page, 3, '题目退出收藏时保留原来的页码')
+  assert(!removed.items.some((item) => item.id === 'q1'))
   const ids=await service.listQuestions({subjectId:'math1',kind:'favorite',idsOnly:true})
   assert.equal(ids.ids.length,2500);assert(!('items'in ids))
   assert.equal((await service.listQuestions({subjectId:'math1',kind:'wrong'})).total,1000)
