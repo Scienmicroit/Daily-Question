@@ -3,6 +3,7 @@ import { mkdtemp,rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DailyQuestionService } from '../lib/service.js'
+import { displayKey, displayChoice, optionReferences } from '../ui/option-labels.js'
 import { Store } from '../lib/store.js'
 
 const root=await mkdtemp(join(tmpdir(),'dq-attempt-binding-'))
@@ -23,7 +24,7 @@ try {
     draft.questions.choice = { id: 'choice', type: 'single', stem: '测试选项提交',
       options: [{ key: 'A', text: '甲' }, { key: 'B', text: '乙' }], currentAnswer: { answer: 'A', answerKey: 'A' } }
   })
-  const original = { qid: 'choice', choice: 'A', attemptId: 'lost-response' }
+  const original = { qid: 'choice', choice: 'A', optionOrder: 'BA', positionalLabels: true, attemptId: 'lost-response' }
   await service.reveal(original)
   await service.reveal({ ...original, choice: 'B', attemptId: 'other-tab' })
   assert((await service.reveal(original)).duplicated)
@@ -32,6 +33,14 @@ try {
   const readback = (await service.getQuestion(original)).question
   assert.equal(readback.lastAttempt.id, original.attemptId)
   assert.equal(readback.lastAttempt.choice, 'A')
+  assert.equal(readback.lastAttempt.optionOrder, 'BA')
+  assert.equal(readback.lastAttempt.displayOrder, 'BA')
+  assert.equal(readback.attempts.find(a => a.id === original.attemptId).displayOrder, 'BA')
+  assert.equal(displayKey('B', 'BA'), 'A')
+  assert.equal(displayChoice('AC', 'CAB'), 'AB')
+  assert.equal(optionReferences('选项A正确，B项错误；矩阵 $A$。', 'BA'), '选项B正确，A项错误；矩阵 $A$。')
+  assert.equal(optionReferences('AC', 'CAB'), 'AB')
+  assert.equal(readback.lastAttempt.result, 'correct')
   assert.equal(readback.attemptCount, 2)
   assert.equal((await service.getQuestion({ ...original, attemptId: 'unknown' })).question.lastAttempt, null)
   const oldVersion = readback.answer.versionId

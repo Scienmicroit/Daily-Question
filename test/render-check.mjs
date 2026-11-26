@@ -553,9 +553,9 @@ walk(components.MobileBar({ boot: archivedBoot, subjectId:'math2' }), (node) => 
 check('桌面和窄屏只显示启用科目，省去分组标题',
   navLabels.length === 0 && navNames.join() === '数学一' && mobileOptions.join() === 'math1')
 for (const component of [components.SubjectNav, components.MobileBar]) {
-  const nav = textOf(component({ boot: archivedBoot }))
+  const nav = textOf(resolve(component({ boot: archivedBoot })))
   check('桌面和窄屏各只有一个设置入口', nav.includes('设置') && !/科目管理|题库管理|检查更新|当前版本/.test(nav))
-  check('记忆与建议入口位于统计之前', /记忆与建议统计/.test(nav))
+  check('记忆与建议入口位于统计之前', nav.includes('记忆与建议测试') && nav.indexOf('记忆与建议测试') < nav.indexOf('统计'))
 }
 {
   const subjects = [
@@ -712,7 +712,23 @@ check('全屏设置标题左侧提供返回按钮', settingsHeaderButtons.length
   && settingsNav.children[0].children[0].children[0] === settingsBack && closeRequested)
 const sectionButtons = []
 walk(settingsNav, (node) => { if (node.props.className === 'kd-settings-option') sectionButtons.push(node) })
-check('设置左侧按顺序列出管理功能和关于', sectionButtons.map(textOf).join() === '科目管理,题库管理,大纲管理,真题管理,备份与恢复,关于')
+check('设置左侧按顺序列出管理功能和关于', sectionButtons.map(textOf).join() === '科目管理,题库管理,大纲管理,真题管理,作答设置测试,备份与恢复,关于')
+for (const [entry, label, expected] of [
+  [settingsNav, '作答设置', '原题字母'],
+  [resolve(components.SubjectNav({ boot: archivedBoot })), '记忆与建议', '薄弱点'],
+  [resolve(components.MobileBar({ boot: archivedBoot })), '记忆与建议', '归并建议'],
+]) {
+  let trigger, tooltip, badge
+  walk(entry, (node) => {
+    if (node.props['aria-label'] === label + '测试说明') trigger = node
+    if (node.props.role === 'tooltip') tooltip = node
+    if (node.props.className === 'kd-preview-badge') badge = node
+  })
+  check(label + '显示测试标签和独立的说明入口', textOf(badge) === '测试'
+    && trigger?.props['aria-describedby'] === tooltip?.props.id
+    && typeof trigger?.props.onMouseEnter === 'function'
+    && textOf(tooltip).includes('仍在开发中') && textOf(tooltip).includes(expected))
+}
 sectionButtons.at(-1)?.props.onClick()
 check('设置项切换到关于', selectedSection === 'about' && sectionButtons[0]?.props['aria-current'] === 'page')
 const about = resolve(components.AboutPanel({ currentVersion: '2.2.0' }))
@@ -1144,6 +1160,50 @@ for (const messages of [[], [{ id: 'reply', role: 'assistant', text: '这是回�
     && !nodes.some((node) => ['a', 'img'].includes(node.type) || node.props.className === 'kd-mathblock'))
   await suggestionButtons[0].props.onClick()
   check('点击建议直接发送且携带消息 ID', sentSuggestions.at(-1).value === expected[0] && Boolean(sentSuggestions.at(-1).id))
+}
+
+{
+  const state = [], refs = []
+  let stateIndex, refIndex, finish, showDelta, messageId
+  stateHook = (value) => {
+    const i = stateIndex++
+    if (i >= state.length) state.push(value)
+    return [state[i], (update) => { state[i] = typeof update === 'function' ? update(state[i]) : update }]
+  }
+  refHook = (value) => refs[refIndex++] ??= { current: value }
+  const renderThread = (messages = []) => {
+    stateIndex = refIndex = 0
+    const nodes = []
+    walk(components.ThreadPane({
+      thread: { messages },
+      openingSuggestions,
+      onSend: (_text, id, onDelta) => {
+        messageId = id
+        showDelta = onDelta
+        return new Promise((resolve) => { finish = resolve })
+      },
+    }), (node) => nodes.push(node))
+    return nodes
+  }
+  const bubble = (nodes, role) => nodes.filter((node) => node.props.className?.split(' ').includes(`kd-msg-${role}`))
+  const suggestion = renderThread().find((node) => node.props.className?.includes('kd-thread-suggestion') && node.type === 'button')
+  const sending = suggestion.props.onClick()
+  check('点击追问建议后，收到模型响应前就显示用户气泡',
+    bubble(renderThread(), 'user')[0]?.children[0].props.text === openingSuggestions[0])
+  showDelta('先代入 ')
+  showDelta('$x^2$。')
+  check('回复未结束时，助手气泡用 Markdown 显示已收到的正文',
+    bubble(renderThread(), 'assistant')[0]?.children[0].props.text === '先代入 $x^2$。')
+  const saved = [
+    { id: messageId, role: 'user', status: 'sent', text: openingSuggestions[0] },
+    { id: 'reply', role: 'assistant', text: '先代入 $x^2$。' },
+  ]
+  const committed = renderThread(saved)
+  check('已保存消息替换临时气泡，避免重复显示', ['user', 'assistant'].every((role) => bubble(committed, role).length === 1))
+  finish()
+  await sending
+  stateHook = useState
+  refHook = (value) => ({ current: value })
 }
 
 const pageChanges=[]

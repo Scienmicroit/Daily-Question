@@ -137,6 +137,16 @@ export const CSS = `
 .kd-nav { width:204px; flex:0 0 204px; background:var(--kd-surface); border-right:1px solid var(--kd-border-l1);
   padding:24px 14px; overflow:auto; display:flex; flex-direction:column; gap:18px; }
 .kd-nav-group { display:flex; flex-direction:column; gap:4px; }
+.kd-preview-entry { display:flex; align-items:center; justify-content:center; gap:2px; white-space:nowrap; }
+.kd-preview-badge { display:inline-block; border-radius:4px; padding:0 4px; font-size:10px; line-height:1.6;
+  font-weight:500; color:var(--kd-label-secondary); background:var(--kd-bg-layer-2); }
+.kd-preview-notice { display:flex; flex:none; align-items:center; }
+.kd-preview-info { display:grid; place-items:center; width:24px; height:26px; padding:0;
+  border:0; border-radius:6px; background:transparent; color:var(--kd-label-secondary); cursor:help; }
+.kd-preview-info:hover, .kd-preview-info:focus-visible { color:var(--kd-brand-primary); background:var(--kd-bg-layer-2); }
+.kd-preview-tooltip { position:fixed; inset:auto; margin:0; width:max-content; max-width:min(260px,calc(100vw - 16px));
+  padding:8px 12px; border:1px solid var(--kd-border-l2); border-radius:8px; background:var(--kd-surface);
+  color:var(--kd-label-primary); box-shadow:0 4px 16px #0002; font:inherit; font-size:12px; line-height:1.55; white-space:normal; }
 .kd-nav-group-label { display:flex; justify-content:space-between; gap:6px;
   font-size:10.5px; letter-spacing:.1em; color:var(--kd-label-secondary);
   padding:0 8px 4px; }
@@ -512,6 +522,7 @@ export const CSS = `
   border:0; border-radius:8px; padding:7px 10px; background:transparent; color:var(--kd-label-secondary);
   font:inherit; text-align:left; white-space:nowrap; cursor:pointer; }
 .kd-settings-option svg { flex:none; }
+.kd-settings-nav .kd-preview-entry > .kd-settings-option { flex:1; width:auto; min-width:0; padding-inline:5px; gap:4px; }
 .kd-settings-option:hover:not(:disabled) { background:var(--kd-bg-layer-2); color:var(--kd-label-primary); }
 .kd-settings-option[aria-current="page"] { background:color-mix(in srgb, var(--kd-brand-primary) 10%, var(--kd-surface));
   color:var(--kd-brand-primary); font-weight:650; }
@@ -651,6 +662,10 @@ export const CSS = `
   .kd-settings-layout { grid-template-columns:112px minmax(0,1fr); gap:8px; padding-block:12px; }
   .kd-settings-nav { padding:10px 5px; }
   .kd-settings-option { padding-inline:6px; gap:4px; font-size:12px; }
+  .kd-settings-nav .kd-preview-entry > .kd-settings-option { padding-inline:1px; gap:3px; }
+  .kd-settings-nav .kd-preview-entry > .kd-settings-option svg { display:none; }
+  .kd-settings-nav .kd-preview-info { width:19px; }
+  .kd-settings-nav .kd-preview-badge { padding-inline:2px; }
   .kd-settings-section > .kd-modal-head,
   .kd-settings-section > .kd-modal-body, .kd-settings-section > .kd-modal-foot { padding:12px; }
 }

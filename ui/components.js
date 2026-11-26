@@ -1,7 +1,11 @@
 import { T, formatDate, formatDateTime, formatClock, methodLabel, statusLabel, isChoiceType, newAttemptId } from './common.js'
 import { STUDY_FILE_ACCEPT, readStudyFile } from './import-file.js'
 import { typeLabel } from '../lib/paper-types.js'
+import { displayChoice, displayKey, optionReferences } from './option-labels.js'
 import { fullscreen } from './fullscreen.js'
+
+const MEMORY_PREVIEW_NOTE = '此功能仍在开发中。作答记录较少时，可能无法识别薄弱点。AI 给出的分析或知识点归并建议也可能不准确。'
+const PRACTICE_PREVIEW_NOTE = '此功能仍在开发中。开启随机选项后，解析中较少见的选项引用写法可能仍显示原题字母。'
 
 export function createComponents(React, { window, rpc, Markdown, useMathJaxStatus }) {
   const { createElement: h, useState, useEffect, useRef, useMemo, useCallback, useId } = React
@@ -23,6 +27,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     papers: 'M5 5h11v13H5z M8 8h5 M8 11h5 M8 14h3 M19 8v13H8',
     backup: 'M18 8a5.5 5.5 0 0 0-9.5-2L7 8 M7 4v4h4 M4 12h16v3H4z M6 15v6h12v-6 M10 18h4',
     settings: 'M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M9 16v4',
+    warning: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z M12 7.5v5.5 M12 16h.01',
     info: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z M12 11v5 M12 8h.01',
     stats: 'M4 4v16h16 M8 16v-4m5 4V8m5 8V5',
     plus: 'M12 5v14M5 12h14',
@@ -244,26 +249,69 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         state.busy ? h('span', { className: 'kd-spinner' }) : h(Icon, { name: 'refresh' }), state.busy ? '正在检查…' : '检查更新'))
   }
 
+  function PreviewNotice({ label, message }) {
+    const id = useId()
+    const tooltip = useRef(null)
+    const show = (event) => {
+      const panel = tooltip.current
+      if (!panel || panel.matches(':popover-open')) return
+      const trigger = event.currentTarget.getBoundingClientRect()
+      panel.showPopover()
+      const { width, height } = panel.getBoundingClientRect()
+      const { innerWidth, innerHeight } = window
+      const below = trigger.bottom + 6
+      const above = trigger.top - height - 6
+      panel.style.left = Math.max(8, Math.min(trigger.left, innerWidth - width - 8)) + 'px'
+      panel.style.top = (below + height <= innerHeight - 8 ? below : Math.max(8, above)) + 'px'
+    }
+    const hide = () => tooltip.current?.hidePopover()
+    return h('span', { className: 'kd-preview-notice' },
+      h('button', {
+        className: 'kd-preview-info', type: 'button',
+        'aria-label': label + '测试说明', 'aria-describedby': id,
+        onMouseEnter: show,
+        onMouseLeave: (event) => { if (!event.currentTarget.matches(':focus-visible')) hide() },
+        onFocus: (event) => { if (event.currentTarget.matches(':focus-visible')) show(event) },
+        onBlur: hide,
+        onClick: show,
+      }, h(Icon, { name: 'warning', size: 15 })),
+      h('span', { id, ref: tooltip, className: 'kd-preview-tooltip', popover: 'auto', role: 'tooltip' }, message))
+  }
+
+  function MemoryEntry({ onClick, small }) {
+    return h('div', { className: 'kd-preview-entry' },
+      h(Btn, { variant: 'ghost', small, onClick },
+        h(Icon, { name: 'spark', size: small ? 13 : 15 }), '记忆与建议',
+        h('span', { className: 'kd-preview-badge' }, '测试')),
+      h(PreviewNotice, { label: '记忆与建议', message: MEMORY_PREVIEW_NOTE }))
+  }
+
   function SettingsModal({ active, ready, locked, dialog, onPick, onClose, children }) {
     const sections = [
       ['subjects', T.manageSubjects, 'subjects'],
       ['banks', T.manageBanks, 'book'],
       ['syllabuses', T.manageSyllabuses, 'syllabus'],
       ['past-papers', T.managePastPapers, 'papers'],
+      ['practice', '作答设置', 'settings'],
       ['backup', '备份与恢复', 'backup'],
       ['about', '关于', 'info'],
     ]
     return fullscreen(h, Icon, { title: '设置', onClose, settings: true, locked, dialog },
       h('div', { className: 'kd-settings-layout', inert: dialog ? true : undefined },
         h('nav', { className: 'kd-settings-nav', 'aria-label': '设置选项' },
-          ...sections.map(([id, label, icon]) => h('button', {
-            key: id,
-            type: 'button',
-            className: 'kd-settings-option',
-            'aria-current': active === id ? 'page' : undefined,
-            disabled: locked || (!ready && !['backup', 'about'].includes(id)),
-            onClick: () => { if (active !== id) onPick(id) },
-          }, h(Icon, { name: icon }), label))),
+          ...sections.map(([id, label, icon]) => {
+            const practice = id === 'practice'
+            const button = h('button', {
+              key: id,
+              type: 'button',
+              className: 'kd-settings-option',
+              'aria-current': active === id ? 'page' : undefined,
+              disabled: locked || (!ready && !['backup', 'about'].includes(id)),
+              onClick: () => { if (active !== id) onPick(id) },
+            }, h(Icon, { name: icon }), label, practice ? h('span', { className: 'kd-preview-badge' }, '测试') : null)
+            return practice ? h('div', { className: 'kd-preview-entry', key: id },
+              button, h(PreviewNotice, { label, message: PRACTICE_PREVIEW_NOTE })) : button
+          })),
         h('div', { className: 'kd-settings-content' }, children)))
   }
 
@@ -304,7 +352,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
           : h('div', { className: 'kd-msg-meta', style: { padding: '4px 8px' } }, '还没有启用科目')),
       h('div', { className: 'kd-nav-spacer' }),
       h('div', { className: 'kd-nav-group' },
-        h(Btn, { variant: 'ghost', onClick: onMemory }, h(Icon, { name: 'spark' }), '记忆与建议'),
+        h(MemoryEntry, { onClick: onMemory }),
         h(Btn, { variant: 'ghost', onClick: onStats }, h(Icon, { name: 'stats' }), '统计'),
         h(Btn, { variant: 'ghost', onClick: onSettings }, h(Icon, { name: 'settings' }), '设置')))
   }
@@ -346,7 +394,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         onChange: (event) => onPick(event.target.value),
       }, !active ? h('option', { value: '', disabled: true }, '选择科目') : null,
       enabled.map((subject) => h('option', { key: subject.id, value: subject.id }, subject.name))),
-      h(Btn, { small: true, variant: 'ghost', onClick: onMemory }, h(Icon, { name: 'spark', size: 13 }), '记忆与建议'),
+      h(MemoryEntry, { onClick: onMemory, small: true }),
       h(Btn, { small: true, variant: 'ghost', onClick: onStats }, h(Icon, { name: 'stats', size: 13 }), '统计'),
       h(Btn, { small: true, variant: 'ghost', onClick: onSettings }, h(Icon, { name: 'settings', size: 13 }), '设置'))
   }
@@ -369,7 +417,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       ...attempts.map((attempt, index) => h('div', { className: 'kd-row', key: attempt.id },
         h('span', { className: 'kd-meta' }, `${index + 1}. ${formatDateTime(attempt.at)} · ${statusLabel(attempt.result).text}`
           + `${attempt.mode === 'giveup' ? ' · 未能作答' : attempt.mode === 'done' ? ' · 作答完毕' : ''}`
-          + `${attempt.choice ? ` · 选择 ${attempt.choice}` : ''}`),
+          + `${attempt.choice ? ` · 选择 ${displayChoice(attempt.choice, attempt.displayOrder)}` : ''}`),
         onInspect ? h(Btn, { small: true, variant: 'ghost', onClick: () => onInspect(attempt.id) }, '查看当时答案') : null)))
   }
 
@@ -382,6 +430,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
   }
 
   function AnswerBlock({ question, focused, onRevise, revising, onRemoveWrong, onInspect }) {
+    const order = question.lastAttempt?.displayOrder
     const answer = question.answer
     if (!answer) {
       if (focused || question.answerState !== 'revealed') return null
@@ -403,10 +452,10 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
               ' 这份答案来自导入题库，尚未经过独立校验，请自行核对。'),
           h('div', { className: 'kd-answer-block kd-answer-copy' },
             h('div', { className: 'kd-answer-label' }, T.answer),
-            h(AnswerMarkdown, { text: answer.answer || '（题库未提供参考答案）' })),
+            h(AnswerMarkdown, { text: optionReferences(answer.answer, order) || '（题库未提供参考答案）' })),
           h('div', { className: 'kd-answer-block kd-answer-copy' },
             h('div', { className: 'kd-answer-label' }, T.explanation),
-            h(AnswerMarkdown, { text: answer.explanation || '（题库未提供解析）' })),
+            h(AnswerMarkdown, { text: optionReferences(answer.explanation, order) || '（题库未提供解析）' })),
           focused ? null : h('div', { className: 'kd-answer-block' },
             h(AttemptHistory, { attempts: question.attempts || [], onInspect }),
             question.wrongEver
@@ -442,7 +491,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
               const passes = trail.filter((entry) => entry && entry.independentAnswer)
               if (!passes.length) return null
               return h('div', null, passes.map((entry, index) => h('div', { key: index },
-                '校验视角独立求解：', h(VerificationMarkdown, { text: entry.independentAnswer }),
+                '校验视角独立求解：', h(VerificationMarkdown, { text: optionReferences(entry.independentAnswer, order) }),
                 entry.attempt ? `（第 ${entry.attempt} 次命题）` : null)))
             })(),
             answer.verification?.issues?.length
@@ -452,7 +501,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
   }
 
   function QuestionPane({
-    q, busy, choice, onSelect, onReveal, onJudge, onFavorite, onRedo, localRedo,
+    q, busy, choice, optionOrder, onSelect, onReveal, onJudge, onFavorite, onRedo, localRedo,
     onRevise, revising, onToggleThread, threadOpen, onRemoveWrong, favoritePending,
     onCancel, onSkip, onInspectAttempt, onNextReview, focused, onToggleFocus,
   }) {
@@ -461,6 +510,11 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     const last = q.lastAttempt
     const isChoice = typeof q.isChoice === 'boolean' ? q.isChoice : isChoiceType(q.type)
     const canSelect = isChoice && (q.canSelect ?? q.options?.length >= 2)
+    const order = revealed ? last?.optionOrder : optionOrder
+    const labels = revealed ? last?.displayOrder : optionOrder
+    const options = order && canSelect
+      ? [...q.options].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key))
+      : q.options
     const answerKey = q.answer?.answerKey || ''
     const selected = revealed ? (last?.choice || '') : choice
     const difficultyUnverified = q.examAlignment?.status === 'difficulty-unverified'
@@ -508,10 +562,10 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
             source.publisherUrl ? h('a', { className:'kd-link', href:source.publisherUrl, target:'_blank', rel:'noreferrer noopener' }, `出版社版本记录 · ISBN ${source.isbn}`) : null)),
           revealed ? h('div', null, q.examAlignment.rationale,
             ...(q.examAlignment.warnings || []).map((warning,i)=>h('div',{key:i,className:'kd-meta'},warning))) : null) : null,
-        h('div', { className: 'kd-stem' }, h(Markdown, { text: q.stem })),
+        h('div', { className: 'kd-stem' }, h(Markdown, { text: optionReferences(q.stem, labels) })),
         isChoice && !canSelect ? h('div', { className: 'kd-msg-meta' }, '本题选项不完整，可跳过或查看答案后自行判定。') : null,
         canSelect
-          ? h('div', { className: 'kd-options' }, q.options.map((option) => {
+          ? h('div', { className: 'kd-options' }, options.map((option) => {
             const isSelected = selected.split('').includes(option.key)
             const isRight = revealed && answerKey.split('').includes(option.key)
             const isWrongPick = revealed && answerKey && isSelected && !isRight
@@ -526,8 +580,8 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
               disabled: revealed || busy === 'reveal',
               onClick: () => onSelect(option.key),
             },
-            h('span', { className: 'kd-option-key' }, option.key),
-            h('div', { className: 'kd-option-text' }, h(Markdown, { text: option.text })))
+            h('span', { className: 'kd-option-key' }, displayKey(option.key, labels)),
+            h('div', { className: 'kd-option-text' }, h(Markdown, { text: optionReferences(option.text, labels) })))
           }))
           : null,
         revealed && !focused ? h(ResultBanner, { attempt: last }) : null,
@@ -705,6 +759,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     const [sending, setSending] = useState(false)
     const [localError, setLocalError] = useState('')
     const [pending, setPending] = useState(null)
+    const [liveReply, setLiveReply] = useState('')
     const scrollRef = useRef(null)
     const sendingRef = useRef(false)
     const sendingMessage = useRef(null)
@@ -714,7 +769,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
     useEffect(() => {
       const node = scrollRef.current
       if (node) node.scrollTop = node.scrollHeight
-    }, [messages.length, pending?.id, sending])
+    }, [messages.length, pending?.id, sending, liveReply])
 
     const send = useCallback(async (text, messageId) => {
       const value = String(text || '').trim()
@@ -723,23 +778,25 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
       sendingMessage.current = messageId
       setSending(true)
       setLocalError('')
+      setPending({ id: messageId, text: value })
+      setLiveReply('')
       try {
-        await onSend(value, messageId)
+        await onSend(value, messageId, (delta) => setLiveReply((current) => current + delta))
         setPending(null)
         setDraft((current) => current.trim() === value ? '' : current)
       } catch (error) {
         setLocalError(error.message)
-        setPending({ id: messageId, text: value })
       } finally {
         sendingRef.current = false
         sendingMessage.current = null
         setSending(false)
+        setLiveReply('')
       }
     }, [onSend])
 
     const rows = []
     for (const message of messages) {
-      const failed = message.status === 'failed'
+      const failed = message.status === 'failed' && !(sending && message.id === pending?.id)
       rows.push(h('div', {
         key: message.id,
         className: `kd-msg kd-msg-${message.role}${failed ? ' kd-msg-failed' : ''}`,
@@ -757,15 +814,17 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
         }, '重试')
         : null))
     }
-    if (pending) {
-      rows.push(h('div', { key: 'pending', className: 'kd-msg kd-msg-user kd-msg-failed' },
+    const savedMessage = pending && messages.find((message) => message.id === pending.id)
+    if (pending && !savedMessage) {
+      rows.push(h('div', { key: pending.id, className: 'kd-msg kd-msg-user' + (sending ? '' : ' kd-msg-failed') },
         h(Markdown, { text: pending.text }),
-        h('div', { className: 'kd-msg-meta' }, '我 · 尚未送达'),
-        h(Btn, { small: true, variant: 'ghost', disabled: sending, onClick: () => send(pending.text, pending.id) }, '重试')))
+        h('div', { className: 'kd-msg-meta' }, sending ? '我' : '我 · 回复失败'),
+        sending ? null : h(Btn, { small: true, variant: 'ghost', onClick: () => send(pending.text, pending.id) }, '重试')))
     }
-    if (sending) {
+    if (sending && savedMessage?.status !== 'sent') {
       rows.push(h('div', { key: 'sending', className: 'kd-msg kd-msg-assistant' },
-        h('span', { className: 'kd-spinner' }), T.sending))
+        liveReply ? h(Markdown, { text: liveReply }) : null,
+        h('div', { className: 'kd-msg-meta' }, h('span', { className: 'kd-spinner' }), T.sending)))
     }
 
     const resize = (value) => onRatioChange(Math.max(20, Math.min(55, value)))
@@ -1512,14 +1571,17 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
 
   function AttemptModal({ record, onClose }) {
     const { lastAttempt, answer, answerVersionUnknown } = record
+    const order = lastAttempt.displayOrder
     return h(Modal, { title: '当时的答案与解析', onClose,
       footer: h(Btn, { onClick: onClose }, '关闭') },
       h('p', { className: 'kd-meta' }, `${formatDateTime(lastAttempt.at)} · ${statusLabel(lastAttempt.result).text}`
-        + (lastAttempt.choice ? ` · 选择 ${lastAttempt.choice}` : '')),
+        + (lastAttempt.choice ? ` · 选择 ${displayChoice(lastAttempt.choice, order)}` : '')),
+      lastAttempt.optionOrder ? [...lastAttempt.optionOrder].map((key) => h('div', { key, className: 'kd-row' },
+        h('strong', null, displayKey(key, order)), h(Markdown, { text: optionReferences(record.options.find((o) => o.key === key)?.text, order) }))) : null,
       answer ? h('div', { className: 'kd-answer-copy' },
         answer.versionId ? h('p', { className: 'kd-meta' }, `版本 ${answer.versionId}`) : null,
-        h(AnswerMarkdown, { text: answer.answer || '（无参考答案）' }),
-        h(AnswerMarkdown, { text: answer.explanation || '（无解析）' }))
+        h(AnswerMarkdown, { text: optionReferences(answer.answer, order) || '（无参考答案）' }),
+        h(AnswerMarkdown, { text: optionReferences(answer.explanation, order) || '（无解析）' }))
         : h('p', null, answerVersionUnknown ? '这条旧作答无法确认当时的答案版本。' : '这次作答没有可用的参考答案。'))
   }
 
@@ -1586,7 +1648,7 @@ export function createComponents(React, { window, rpc, Markdown, useMathJaxStatu
   }
 
   return {
-    Icon, Btn, EmptyState, Presence, NotificationBanner, CountdownLines, ExamStrip, UpdateCheck, SubjectNav, TabBar, MobileBar, SettingsModal, AboutPanel,
+    Modal, Icon, Btn, EmptyState, Presence, NotificationBanner, CountdownLines, ExamStrip, UpdateCheck, SubjectNav, TabBar, MobileBar, SettingsModal, AboutPanel,
     QuestionPane, previewFadePosition, ListPane, ThreadPane, SubjectsModal, BanksModal, SyllabusesModal, PastPapersModal, BackupModal, AttemptModal, RevisionModal, ConfirmModal, PluginLogo,
   }
 }

@@ -19,7 +19,8 @@ function fixture(responder,detail=false,initialBoot,window={}) {
   const components = createClient(React, { window, fetch: async (_url, options) => {
     const {op,args}=JSON.parse(options.body)
     if (op==='bootstrap') bootRequests.push(args)
-    const result=op==='bootstrap'?boot:await responder(op,args)
+    const result=op==='bootstrap'?boot:await responder(op,args,options.headers)
+    if (result instanceof Response) return result
     return {ok:true,json:async()=>({ok:true,result})}
   } })
   function find(node,name){if(typeof name==='function'?name(node):node?.type===name||node?.type?.name===name)return node;for(const child of node?.children||[]){const found=find(child,name);if(found)return found}}
@@ -503,6 +504,34 @@ await f.props('ConfirmModal').onConfirm()
 lateThread.resolve({thread:{messages:[{role:'assistant',text:'清空前的回复'}],suggestions:['清空前的建议？']}});await sending
 assert.deepEqual(f.state.get(7).messages,[],'清空后不能被网络迟到的旧追问响应恢复')
 assert.deepEqual(f.state.get(7).suggestions, [], '清空后丢弃迟到的旧建议')
+
+{
+  const deltas = []
+  let stream
+  const encode = (event) => new TextEncoder().encode(JSON.stringify(event) + '\n')
+  const ui = fixture((op, args, headers) => {
+    assert.equal(op, 'followup')
+    assert.deepEqual(args, { qid: 'A', message: '解释', clientMessageId: 'stream' })
+    assert.equal(headers.accept, 'application/x-ndjson')
+    return new Response(new ReadableStream({ start(controller) { stream = controller } }),
+      { headers: { 'content-type': 'application/x-ndjson; charset=utf-8' } })
+  }, true)
+  ui.props('QuestionPane').onToggleThread()
+  const sending = ui.props('ThreadPane').onSend('解释', 'stream', (delta) => deltas.push(delta))
+  const first = encode({ type: 'delta', text: '先分析' })
+  const split = first.indexOf(0xe5) + 1
+  stream.enqueue(first.subarray(0, split))
+  await tick()
+  assert.deepEqual(deltas, [], '网络分片不完整时等待')
+  stream.enqueue(first.subarray(split))
+  await tick()
+  assert.deepEqual(deltas, ['先分析'], '回复未完成即可收到完整的中文分片')
+  const thread = { messages: [{ id: 'reply', text: '先分析', role: 'assistant' }], suggestions: [] }
+  stream.enqueue(encode({ type: 'result', result: { thread } }))
+  stream.close()
+  await sending
+  assert.deepEqual(ui.state.get(7), thread)
+}
 
 const cancellations=[]
 f=fixture((op,args)=>{cancellations.push({op,args});return {ok:true}},true)

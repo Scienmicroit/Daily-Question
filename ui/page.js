@@ -4,7 +4,7 @@ import { STUDY_FILE_ACCEPT, readBankFile } from './import-file.js'
 import { createStudyStatsPage } from './study-stats.js'
 import { createStudyMemoryPage } from './study-memory.js'
 
-const SETTINGS_SECTIONS = new Set(['subjects', 'banks', 'syllabuses', 'past-papers', 'backup', 'about'])
+const SETTINGS_SECTIONS = new Set(['subjects', 'banks', 'syllabuses', 'past-papers', 'practice', 'backup', 'about'])
 const MANAGEMENT_SECTIONS = new Set(['subjects', 'banks', 'syllabuses', 'past-papers'])
 const MAX_NOTIFICATIONS = 3
 const LIST_ROW_SELECTOR = '.kd-list-row[data-question-id]'
@@ -500,6 +500,18 @@ export function createPage(React, { window, rpc, components, styleState }) {
       })
     }, [notify, refreshCounts])
 
+    const optionKeys = question?.options?.map((option) => option.key).join('') || ''
+    const attemptId = attemptRef.current
+    const optionOrder = useMemo(() => {
+      if (!boot?.settings?.shuffleOptions || !['single', 'multiple'].includes(question?.type)) return ''
+      const keys = [...optionKeys]
+      for (let i = keys.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[keys[i], keys[j]] = [keys[j], keys[i]]
+      }
+      return keys.join('')
+    }, [attemptId, optionKeys, question?.type, boot?.settings?.shuffleOptions])
+
     const reveal = useCallback(async (mode) => {
       if (!question) return
       const request = dailyRequest.current
@@ -517,6 +529,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
           choice: mode === 'submit' ? choice : '',
           attemptId,
           fromReview: kind === 'review',
+          ...(optionOrder ? { optionOrder, positionalLabels: true } : {}),
         })
         if (request === dailyRequest.current) showSaved(result.question)
         showReviewRemoval(question.id, result.reviewRemovalId)
@@ -538,7 +551,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
       } finally {
         if (request === dailyRequest.current) setBusy('')
       }
-    }, [question, choice, kind, notify, refreshCounts, showReviewRemoval])
+    }, [question, choice, kind, optionOrder, notify, refreshCounts, showReviewRemoval])
 
     const judge = useCallback(async (verdict) => {
       if (!question) return
@@ -576,12 +589,15 @@ export function createPage(React, { window, rpc, components, styleState }) {
       }
     }, [question, favoritePending, notify, refreshCounts])
 
-    const sendFollowup = useCallback(async (text, messageId) => {
+    const sendFollowup = useCallback(async (text, messageId, onDelta) => {
       if (!question) throw new Error('没有打开任何题目')
       const request = dailyRequest.current
       const threadVersion = ++threadRequest.current
-      const result = await rpc('followup', { qid: question.id, message: text, clientMessageId: messageId })
-      if (request === dailyRequest.current && threadVersion === threadRequest.current) setThread(result.thread)
+      const isCurrent = () => request === dailyRequest.current && threadVersion === threadRequest.current
+      const result = await rpc('followup', { qid: question.id, message: text, clientMessageId: messageId }, (delta) => {
+        if (isCurrent()) onDelta?.(delta)
+      })
+      if (isCurrent()) setThread(result.thread)
     }, [question])
 
     const clearThread = useCallback(async () => {
@@ -972,6 +988,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
       if (view === 'detail' && question) {
         return h(QuestionPane, {
           q: question,
+          optionOrder,
           focused: questionFocused,
           onToggleFocus: toggleQuestionFocus,
           busy,
@@ -1106,6 +1123,20 @@ export function createPage(React, { window, rpc, components, styleState }) {
             if (warning) window.alert(warning)
             window.location.reload()
           } })
+        case 'practice':
+          return h(components.Modal, { title: '作答设置', embedded: true },
+            h('label', { className: 'kd-manage-card kd-row' },
+              h('input', { type: 'checkbox', checked: boot?.settings?.shuffleOptions === true, disabled: settingsBusy,
+                onChange: async (event) => {
+                  const shuffleOptions = event.target.checked
+                  setSettingsBusy(true)
+                  try {
+                    const result = await rpc('saveSettings', { shuffleOptions })
+                    setBoot((current) => ({ ...current, settings: { ...current.settings, shuffleOptions: result.settings.shuffleOptions } }))
+                  } catch (issue) { notify(issue.message, 'bad') }
+                  finally { setSettingsBusy(false) }
+                } }),
+              '随机排列单选题和多选题的选项'))
         case 'about':
           return h(AboutPanel, { currentVersion: boot?.pluginVersion })
       }
@@ -1182,6 +1213,7 @@ export function createPage(React, { window, rpc, components, styleState }) {
               h('div', { className: 'kd-view', key: `${subjectId}|${kind}|${view}|${question?.id || ''}` }, mainContent)))),
         h(Presence, null, showThread
           ? h(ThreadPane, {
+            key: question.id,
             thread,
             openingSuggestions: question.openingSuggestions,
             narrow,

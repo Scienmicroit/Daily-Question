@@ -275,6 +275,16 @@ var DailyQuestionClient = (() => {
 .kd-nav { width:204px; flex:0 0 204px; background:var(--kd-surface); border-right:1px solid var(--kd-border-l1);
   padding:24px 14px; overflow:auto; display:flex; flex-direction:column; gap:18px; }
 .kd-nav-group { display:flex; flex-direction:column; gap:4px; }
+.kd-preview-entry { display:flex; align-items:center; justify-content:center; gap:2px; white-space:nowrap; }
+.kd-preview-badge { display:inline-block; border-radius:4px; padding:0 4px; font-size:10px; line-height:1.6;
+  font-weight:500; color:var(--kd-label-secondary); background:var(--kd-bg-layer-2); }
+.kd-preview-notice { display:flex; flex:none; align-items:center; }
+.kd-preview-info { display:grid; place-items:center; width:24px; height:26px; padding:0;
+  border:0; border-radius:6px; background:transparent; color:var(--kd-label-secondary); cursor:help; }
+.kd-preview-info:hover, .kd-preview-info:focus-visible { color:var(--kd-brand-primary); background:var(--kd-bg-layer-2); }
+.kd-preview-tooltip { position:fixed; inset:auto; margin:0; width:max-content; max-width:min(260px,calc(100vw - 16px));
+  padding:8px 12px; border:1px solid var(--kd-border-l2); border-radius:8px; background:var(--kd-surface);
+  color:var(--kd-label-primary); box-shadow:0 4px 16px #0002; font:inherit; font-size:12px; line-height:1.55; white-space:normal; }
 .kd-nav-group-label { display:flex; justify-content:space-between; gap:6px;
   font-size:10.5px; letter-spacing:.1em; color:var(--kd-label-secondary);
   padding:0 8px 4px; }
@@ -650,6 +660,7 @@ var DailyQuestionClient = (() => {
   border:0; border-radius:8px; padding:7px 10px; background:transparent; color:var(--kd-label-secondary);
   font:inherit; text-align:left; white-space:nowrap; cursor:pointer; }
 .kd-settings-option svg { flex:none; }
+.kd-settings-nav .kd-preview-entry > .kd-settings-option { flex:1; width:auto; min-width:0; padding-inline:5px; gap:4px; }
 .kd-settings-option:hover:not(:disabled) { background:var(--kd-bg-layer-2); color:var(--kd-label-primary); }
 .kd-settings-option[aria-current="page"] { background:color-mix(in srgb, var(--kd-brand-primary) 10%, var(--kd-surface));
   color:var(--kd-brand-primary); font-weight:650; }
@@ -789,6 +800,10 @@ var DailyQuestionClient = (() => {
   .kd-settings-layout { grid-template-columns:112px minmax(0,1fr); gap:8px; padding-block:12px; }
   .kd-settings-nav { padding:10px 5px; }
   .kd-settings-option { padding-inline:6px; gap:4px; font-size:12px; }
+  .kd-settings-nav .kd-preview-entry > .kd-settings-option { padding-inline:1px; gap:3px; }
+  .kd-settings-nav .kd-preview-entry > .kd-settings-option svg { display:none; }
+  .kd-settings-nav .kd-preview-info { width:19px; }
+  .kd-settings-nav .kd-preview-badge { padding-inline:2px; }
   .kd-settings-section > .kd-modal-head,
   .kd-settings-section > .kd-modal-body, .kd-settings-section > .kd-modal-foot { padding:12px; }
 }
@@ -10195,6 +10210,40 @@ ${lines[index]}`;
   }
   __name(typeLabel, "typeLabel");
 
+  // ui/option-labels.js
+  function displayKey(key, order) {
+    const index = order?.indexOf(key) ?? -1;
+    return index < 0 ? key : String.fromCharCode(65 + index);
+  }
+  __name(displayKey, "displayKey");
+  function displayChoice(choice, order) {
+    if (!order || !choice) return choice;
+    return [...choice].map((key) => displayKey(key, order)).sort().join("");
+  }
+  __name(displayChoice, "displayChoice");
+  function optionReferences(text, order) {
+    if (!text || !order) return text;
+    if (/^[A-H]+$/.test(text.trim())) return displayChoice(text.trim(), order);
+    const group = "[A-H]+(?:\\s*[、，,/和与及或]\\s*[A-H]+)*";
+    const reference = new RegExp(
+      "(?<prefix>选项|答案(?:为|是)?|应选|故选|选择|排除|不选|选|故|因此选|只有|只有选项|答案是|options?)\\s*[:：]?\\s*(" + group + ")(?![a-zA-Z])|(?<![a-zA-Z0-9_])(" + group + ")(?=\\s*(?:选项|项|描述|说法|所述|中所|的说法|的表述|均|皆|正确|错误|不正确|不成立|成立|符合|不符合|是对的|是错的))|^[ \\t]*(?:\\*\\*)?(" + group + ")(?=\\s*(?:[.。．、:：)）]|(?:\\*\\*)?\\s*$))",
+      "gmi"
+    );
+    const protectedParts = /(`{3}[\s\S]*?(?:`{3}|$)|~~~[\s\S]*?(?:~~~|$)|`+[^`\n]+`+|\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|\]\([^)]+\))/g;
+    const spans = [];
+    const masked = text.replace(protectedParts, (span) => "\0" + (spans.push(span) - 1) + "\0");
+    return masked.replace(
+      reference,
+      (match, prefix, after, before, heading) => {
+        const keys = after || before || heading;
+        if (!keys || /[a-z]/.test(keys)) return match;
+        const at = after ? match.lastIndexOf(keys) : match.indexOf(keys);
+        return match.slice(0, at) + keys.replace(/[A-H]/g, (key) => displayKey(key, order)) + match.slice(at + keys.length);
+      }
+    ).replace(/\u0000(\d+)\u0000/g, (token, index) => spans[index] ?? token);
+  }
+  __name(optionReferences, "optionReferences");
+
   // ui/fullscreen.js
   function fullscreen(h2, Icon, { title, onClose, detail, settings = false, locked, dialog }, content) {
     return h2(
@@ -10235,6 +10284,8 @@ ${lines[index]}`;
   __name(fullscreen, "fullscreen");
 
   // ui/components.js
+  var MEMORY_PREVIEW_NOTE = "此功能仍在开发中。作答记录较少时，可能无法识别薄弱点。AI 给出的分析或知识点归并建议也可能不准确。";
+  var PRACTICE_PREVIEW_NOTE = "此功能仍在开发中。开启随机选项后，解析中较少见的选项引用写法可能仍显示原题字母。";
   function createComponents(React, { window, rpc, Markdown, useMathJaxStatus }) {
     const { createElement: h2, useState, useEffect, useRef, useMemo, useCallback, useId } = React;
     const ICON_PATHS = {
@@ -10254,6 +10305,7 @@ ${lines[index]}`;
       papers: "M5 5h11v13H5z M8 8h5 M8 11h5 M8 14h3 M19 8v13H8",
       backup: "M18 8a5.5 5.5 0 0 0-9.5-2L7 8 M7 4v4h4 M4 12h16v3H4z M6 15v6h12v-6 M10 18h4",
       settings: "M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M9 16v4",
+      warning: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z M12 7.5v5.5 M12 16h.01",
       info: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z M12 11v5 M12 8h.01",
       stats: "M4 4v16h16 M8 16v-4m5 4V8m5 8V5",
       plus: "M12 5v14M5 12h14",
@@ -10550,12 +10602,66 @@ ${lines[index]}`;
       );
     }
     __name(UpdateCheck, "UpdateCheck");
+    function PreviewNotice({ label, message }) {
+      const id = useId();
+      const tooltip = useRef(null);
+      const show = /* @__PURE__ */ __name((event) => {
+        const panel = tooltip.current;
+        if (!panel || panel.matches(":popover-open")) return;
+        const trigger = event.currentTarget.getBoundingClientRect();
+        panel.showPopover();
+        const { width, height } = panel.getBoundingClientRect();
+        const { innerWidth, innerHeight } = window;
+        const below = trigger.bottom + 6;
+        const above = trigger.top - height - 6;
+        panel.style.left = Math.max(8, Math.min(trigger.left, innerWidth - width - 8)) + "px";
+        panel.style.top = (below + height <= innerHeight - 8 ? below : Math.max(8, above)) + "px";
+      }, "show");
+      const hide = /* @__PURE__ */ __name(() => tooltip.current?.hidePopover(), "hide");
+      return h2(
+        "span",
+        { className: "kd-preview-notice" },
+        h2("button", {
+          className: "kd-preview-info",
+          type: "button",
+          "aria-label": label + "测试说明",
+          "aria-describedby": id,
+          onMouseEnter: show,
+          onMouseLeave: /* @__PURE__ */ __name((event) => {
+            if (!event.currentTarget.matches(":focus-visible")) hide();
+          }, "onMouseLeave"),
+          onFocus: /* @__PURE__ */ __name((event) => {
+            if (event.currentTarget.matches(":focus-visible")) show(event);
+          }, "onFocus"),
+          onBlur: hide,
+          onClick: show
+        }, h2(Icon, { name: "warning", size: 15 })),
+        h2("span", { id, ref: tooltip, className: "kd-preview-tooltip", popover: "auto", role: "tooltip" }, message)
+      );
+    }
+    __name(PreviewNotice, "PreviewNotice");
+    function MemoryEntry({ onClick, small }) {
+      return h2(
+        "div",
+        { className: "kd-preview-entry" },
+        h2(
+          Btn,
+          { variant: "ghost", small, onClick },
+          h2(Icon, { name: "spark", size: small ? 13 : 15 }),
+          "记忆与建议",
+          h2("span", { className: "kd-preview-badge" }, "测试")
+        ),
+        h2(PreviewNotice, { label: "记忆与建议", message: MEMORY_PREVIEW_NOTE })
+      );
+    }
+    __name(MemoryEntry, "MemoryEntry");
     function SettingsModal({ active, ready, locked, dialog, onPick, onClose, children }) {
       const sections = [
         ["subjects", T.manageSubjects, "subjects"],
         ["banks", T.manageBanks, "book"],
         ["syllabuses", T.manageSyllabuses, "syllabus"],
         ["past-papers", T.managePastPapers, "papers"],
+        ["practice", "作答设置", "settings"],
         ["backup", "备份与恢复", "backup"],
         ["about", "关于", "info"]
       ];
@@ -10569,16 +10675,25 @@ ${lines[index]}`;
           h2(
             "nav",
             { className: "kd-settings-nav", "aria-label": "设置选项" },
-            ...sections.map(([id, label, icon]) => h2("button", {
-              key: id,
-              type: "button",
-              className: "kd-settings-option",
-              "aria-current": active === id ? "page" : void 0,
-              disabled: locked || !ready && !["backup", "about"].includes(id),
-              onClick: /* @__PURE__ */ __name(() => {
-                if (active !== id) onPick(id);
-              }, "onClick")
-            }, h2(Icon, { name: icon }), label))
+            ...sections.map(([id, label, icon]) => {
+              const practice = id === "practice";
+              const button = h2("button", {
+                key: id,
+                type: "button",
+                className: "kd-settings-option",
+                "aria-current": active === id ? "page" : void 0,
+                disabled: locked || !ready && !["backup", "about"].includes(id),
+                onClick: /* @__PURE__ */ __name(() => {
+                  if (active !== id) onPick(id);
+                }, "onClick")
+              }, h2(Icon, { name: icon }), label, practice ? h2("span", { className: "kd-preview-badge" }, "测试") : null);
+              return practice ? h2(
+                "div",
+                { className: "kd-preview-entry", key: id },
+                button,
+                h2(PreviewNotice, { label, message: PRACTICE_PREVIEW_NOTE })
+              ) : button;
+            })
           ),
           h2("div", { className: "kd-settings-content" }, children)
         )
@@ -10654,7 +10769,7 @@ ${lines[index]}`;
         h2(
           "div",
           { className: "kd-nav-group" },
-          h2(Btn, { variant: "ghost", onClick: onMemory }, h2(Icon, { name: "spark" }), "记忆与建议"),
+          h2(MemoryEntry, { onClick: onMemory }),
           h2(Btn, { variant: "ghost", onClick: onStats }, h2(Icon, { name: "stats" }), "统计"),
           h2(Btn, { variant: "ghost", onClick: onSettings }, h2(Icon, { name: "settings" }), "设置")
         )
@@ -10722,7 +10837,7 @@ ${lines[index]}`;
           !active ? h2("option", { value: "", disabled: true }, "选择科目") : null,
           enabled.map((subject) => h2("option", { key: subject.id, value: subject.id }, subject.name))
         ),
-        h2(Btn, { small: true, variant: "ghost", onClick: onMemory }, h2(Icon, { name: "spark", size: 13 }), "记忆与建议"),
+        h2(MemoryEntry, { onClick: onMemory, small: true }),
         h2(Btn, { small: true, variant: "ghost", onClick: onStats }, h2(Icon, { name: "stats", size: 13 }), "统计"),
         h2(Btn, { small: true, variant: "ghost", onClick: onSettings }, h2(Icon, { name: "settings", size: 13 }), "设置")
       );
@@ -10748,7 +10863,7 @@ ${lines[index]}`;
         ...attempts.map((attempt, index) => h2(
           "div",
           { className: "kd-row", key: attempt.id },
-          h2("span", { className: "kd-meta" }, `${index + 1}. ${formatDateTime(attempt.at)} · ${statusLabel(attempt.result).text}${attempt.mode === "giveup" ? " · 未能作答" : attempt.mode === "done" ? " · 作答完毕" : ""}${attempt.choice ? ` · 选择 ${attempt.choice}` : ""}`),
+          h2("span", { className: "kd-meta" }, `${index + 1}. ${formatDateTime(attempt.at)} · ${statusLabel(attempt.result).text}${attempt.mode === "giveup" ? " · 未能作答" : attempt.mode === "done" ? " · 作答完毕" : ""}${attempt.choice ? ` · 选择 ${displayChoice(attempt.choice, attempt.displayOrder)}` : ""}`),
           onInspect ? h2(Btn, { small: true, variant: "ghost", onClick: /* @__PURE__ */ __name(() => onInspect(attempt.id), "onClick") }, "查看当时答案") : null
         ))
       );
@@ -10763,6 +10878,7 @@ ${lines[index]}`;
     }
     __name(VerificationMarkdown, "VerificationMarkdown");
     function AnswerBlock({ question, focused, onRevise, revising, onRemoveWrong, onInspect }) {
+      const order = question.lastAttempt?.displayOrder;
       const answer = question.answer;
       if (!answer) {
         if (focused || question.answerState !== "revealed") return null;
@@ -10798,13 +10914,13 @@ ${lines[index]}`;
               "div",
               { className: "kd-answer-block kd-answer-copy" },
               h2("div", { className: "kd-answer-label" }, T.answer),
-              h2(AnswerMarkdown, { text: answer.answer || "（题库未提供参考答案）" })
+              h2(AnswerMarkdown, { text: optionReferences(answer.answer, order) || "（题库未提供参考答案）" })
             ),
             h2(
               "div",
               { className: "kd-answer-block kd-answer-copy" },
               h2("div", { className: "kd-answer-label" }, T.explanation),
-              h2(AnswerMarkdown, { text: answer.explanation || "（题库未提供解析）" })
+              h2(AnswerMarkdown, { text: optionReferences(answer.explanation, order) || "（题库未提供解析）" })
             ),
             focused ? null : h2(
               "div",
@@ -10862,7 +10978,7 @@ ${lines[index]}`;
                   "div",
                   { key: index },
                   "校验视角独立求解：",
-                  h2(VerificationMarkdown, { text: entry.independentAnswer }),
+                  h2(VerificationMarkdown, { text: optionReferences(entry.independentAnswer, order) }),
                   entry.attempt ? `（第 ${entry.attempt} 次命题）` : null
                 )));
               })(),
@@ -10877,6 +10993,7 @@ ${lines[index]}`;
       q,
       busy,
       choice,
+      optionOrder,
       onSelect,
       onReveal,
       onJudge,
@@ -10901,6 +11018,9 @@ ${lines[index]}`;
       const last = q.lastAttempt;
       const isChoice = typeof q.isChoice === "boolean" ? q.isChoice : isChoiceType(q.type);
       const canSelect = isChoice && (q.canSelect ?? q.options?.length >= 2);
+      const order = revealed ? last?.optionOrder : optionOrder;
+      const labels2 = revealed ? last?.displayOrder : optionOrder;
+      const options = order && canSelect ? [...q.options].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key)) : q.options;
       const answerKey = q.answer?.answerKey || "";
       const selected = revealed ? last?.choice || "" : choice;
       const difficultyUnverified = q.examAlignment?.status === "difficulty-unverified";
@@ -10980,9 +11100,9 @@ ${lines[index]}`;
               ...(q.examAlignment.warnings || []).map((warning, i) => h2("div", { key: i, className: "kd-meta" }, warning))
             ) : null
           ) : null,
-          h2("div", { className: "kd-stem" }, h2(Markdown, { text: q.stem })),
+          h2("div", { className: "kd-stem" }, h2(Markdown, { text: optionReferences(q.stem, labels2) })),
           isChoice && !canSelect ? h2("div", { className: "kd-msg-meta" }, "本题选项不完整，可跳过或查看答案后自行判定。") : null,
-          canSelect ? h2("div", { className: "kd-options" }, q.options.map((option) => {
+          canSelect ? h2("div", { className: "kd-options" }, options.map((option) => {
             const isSelected = selected.split("").includes(option.key);
             const isRight = revealed && answerKey.split("").includes(option.key);
             const isWrongPick = revealed && answerKey && isSelected && !isRight;
@@ -10999,8 +11119,8 @@ ${lines[index]}`;
                 disabled: revealed || busy === "reveal",
                 onClick: /* @__PURE__ */ __name(() => onSelect(option.key), "onClick")
               },
-              h2("span", { className: "kd-option-key" }, option.key),
-              h2("div", { className: "kd-option-text" }, h2(Markdown, { text: option.text }))
+              h2("span", { className: "kd-option-key" }, displayKey(option.key, labels2)),
+              h2("div", { className: "kd-option-text" }, h2(Markdown, { text: optionReferences(option.text, labels2) }))
             );
           })) : null,
           revealed && !focused ? h2(ResultBanner, { attempt: last }) : null,
@@ -11225,6 +11345,7 @@ ${lines[index]}`;
       const [sending, setSending] = useState(false);
       const [localError, setLocalError] = useState("");
       const [pending, setPending] = useState(null);
+      const [liveReply, setLiveReply] = useState("");
       const scrollRef = useRef(null);
       const sendingRef = useRef(false);
       const sendingMessage = useRef(null);
@@ -11233,7 +11354,7 @@ ${lines[index]}`;
       useEffect(() => {
         const node = scrollRef.current;
         if (node) node.scrollTop = node.scrollHeight;
-      }, [messages2.length, pending?.id, sending]);
+      }, [messages2.length, pending?.id, sending, liveReply]);
       const send = useCallback(async (text, messageId) => {
         const value = String(text || "").trim();
         if (!value || sendingRef.current) return;
@@ -11241,22 +11362,24 @@ ${lines[index]}`;
         sendingMessage.current = messageId;
         setSending(true);
         setLocalError("");
+        setPending({ id: messageId, text: value });
+        setLiveReply("");
         try {
-          await onSend(value, messageId);
+          await onSend(value, messageId, (delta) => setLiveReply((current) => current + delta));
           setPending(null);
           setDraft((current) => current.trim() === value ? "" : current);
         } catch (error) {
           setLocalError(error.message);
-          setPending({ id: messageId, text: value });
         } finally {
           sendingRef.current = false;
           sendingMessage.current = null;
           setSending(false);
+          setLiveReply("");
         }
       }, [onSend]);
       const rows = [];
       for (const message of messages2) {
-        const failed = message.status === "failed";
+        const failed = message.status === "failed" && !(sending && message.id === pending?.id);
         rows.push(h2(
           "div",
           {
@@ -11278,21 +11401,22 @@ ${lines[index]}`;
           }, "重试") : null
         ));
       }
-      if (pending) {
+      const savedMessage = pending && messages2.find((message) => message.id === pending.id);
+      if (pending && !savedMessage) {
         rows.push(h2(
           "div",
-          { key: "pending", className: "kd-msg kd-msg-user kd-msg-failed" },
+          { key: pending.id, className: "kd-msg kd-msg-user" + (sending ? "" : " kd-msg-failed") },
           h2(Markdown, { text: pending.text }),
-          h2("div", { className: "kd-msg-meta" }, "我 · 尚未送达"),
-          h2(Btn, { small: true, variant: "ghost", disabled: sending, onClick: /* @__PURE__ */ __name(() => send(pending.text, pending.id), "onClick") }, "重试")
+          h2("div", { className: "kd-msg-meta" }, sending ? "我" : "我 · 回复失败"),
+          sending ? null : h2(Btn, { small: true, variant: "ghost", onClick: /* @__PURE__ */ __name(() => send(pending.text, pending.id), "onClick") }, "重试")
         ));
       }
-      if (sending) {
+      if (sending && savedMessage?.status !== "sent") {
         rows.push(h2(
           "div",
           { key: "sending", className: "kd-msg kd-msg-assistant" },
-          h2("span", { className: "kd-spinner" }),
-          T.sending
+          liveReply ? h2(Markdown, { text: liveReply }) : null,
+          h2("div", { className: "kd-msg-meta" }, h2("span", { className: "kd-spinner" }), T.sending)
         ));
       }
       const resize = /* @__PURE__ */ __name((value) => onRatioChange(Math.max(20, Math.min(55, value))), "resize");
@@ -12465,6 +12589,7 @@ ${lines[index]}`;
     __name(BackupModal, "BackupModal");
     function AttemptModal({ record, onClose }) {
       const { lastAttempt, answer, answerVersionUnknown } = record;
+      const order = lastAttempt.displayOrder;
       return h2(
         Modal,
         {
@@ -12472,13 +12597,19 @@ ${lines[index]}`;
           onClose,
           footer: h2(Btn, { onClick: onClose }, "关闭")
         },
-        h2("p", { className: "kd-meta" }, `${formatDateTime(lastAttempt.at)} · ${statusLabel(lastAttempt.result).text}` + (lastAttempt.choice ? ` · 选择 ${lastAttempt.choice}` : "")),
+        h2("p", { className: "kd-meta" }, `${formatDateTime(lastAttempt.at)} · ${statusLabel(lastAttempt.result).text}` + (lastAttempt.choice ? ` · 选择 ${displayChoice(lastAttempt.choice, order)}` : "")),
+        lastAttempt.optionOrder ? [...lastAttempt.optionOrder].map((key) => h2(
+          "div",
+          { key, className: "kd-row" },
+          h2("strong", null, displayKey(key, order)),
+          h2(Markdown, { text: optionReferences(record.options.find((o) => o.key === key)?.text, order) })
+        )) : null,
         answer ? h2(
           "div",
           { className: "kd-answer-copy" },
           answer.versionId ? h2("p", { className: "kd-meta" }, `版本 ${answer.versionId}`) : null,
-          h2(AnswerMarkdown, { text: answer.answer || "（无参考答案）" }),
-          h2(AnswerMarkdown, { text: answer.explanation || "（无解析）" })
+          h2(AnswerMarkdown, { text: optionReferences(answer.answer, order) || "（无参考答案）" }),
+          h2(AnswerMarkdown, { text: optionReferences(answer.explanation, order) || "（无解析）" })
         ) : h2("p", null, answerVersionUnknown ? "这条旧作答无法确认当时的答案版本。" : "这次作答没有可用的参考答案。")
       );
     }
@@ -12576,6 +12707,7 @@ ${lines[index]}`;
     }
     __name(PluginLogo, "PluginLogo");
     return {
+      Modal,
       Icon,
       Btn,
       EmptyState,
@@ -13181,7 +13313,7 @@ ${lines[index]}`;
   __name(createStudyMemoryPage, "createStudyMemoryPage");
 
   // ui/page.js
-  var SETTINGS_SECTIONS = /* @__PURE__ */ new Set(["subjects", "banks", "syllabuses", "past-papers", "backup", "about"]);
+  var SETTINGS_SECTIONS = /* @__PURE__ */ new Set(["subjects", "banks", "syllabuses", "past-papers", "practice", "backup", "about"]);
   var MANAGEMENT_SECTIONS = /* @__PURE__ */ new Set(["subjects", "banks", "syllabuses", "past-papers"]);
   var MAX_NOTIFICATIONS = 3;
   var LIST_ROW_SELECTOR = ".kd-list-row[data-question-id]";
@@ -13663,13 +13795,13 @@ ${lines[index]}`;
           if (request === dailyRequest.current) setBusy("");
         }
       }, "nextReview");
-      const inspectAttempt = /* @__PURE__ */ __name(async (attemptId) => {
+      const inspectAttempt = /* @__PURE__ */ __name(async (attemptId2) => {
         const request = dailyRequest.current;
         const history = ++historyRequest.current;
         try {
-          const result = await rpc("getQuestion", { qid: question.id, attemptId });
+          const result = await rpc("getQuestion", { qid: question.id, attemptId: attemptId2 });
           if (request !== dailyRequest.current || history !== historyRequest.current) return;
-          if (result.question.lastAttempt?.id !== attemptId) throw new Error("本次作答记录已不可用");
+          if (result.question.lastAttempt?.id !== attemptId2) throw new Error("本次作答记录已不可用");
           setModal({ kind: "attempt", record: result.question });
         } catch (issue) {
           if (request === dailyRequest.current && history === historyRequest.current) notify(issue.message, "bad");
@@ -13730,10 +13862,21 @@ ${lines[index]}`;
           }
         });
       }, [notify, refreshCounts]);
+      const optionKeys = question?.options?.map((option) => option.key).join("") || "";
+      const attemptId = attemptRef.current;
+      const optionOrder = useMemo(() => {
+        if (!boot?.settings?.shuffleOptions || !["single", "multiple"].includes(question?.type)) return "";
+        const keys = [...optionKeys];
+        for (let i = keys.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [keys[i], keys[j]] = [keys[j], keys[i]];
+        }
+        return keys.join("");
+      }, [attemptId, optionKeys, question?.type, boot?.settings?.shuffleOptions]);
       const reveal = useCallback(async (mode) => {
         if (!question) return;
         const request = dailyRequest.current;
-        const attemptId = attemptRef.current;
+        const attemptId2 = attemptRef.current;
         setBusy("reveal");
         const showSaved = /* @__PURE__ */ __name((saved) => {
           setQuestion(saved);
@@ -13745,17 +13888,18 @@ ${lines[index]}`;
             qid: question.id,
             mode,
             choice: mode === "submit" ? choice : "",
-            attemptId,
-            fromReview: kind === "review"
+            attemptId: attemptId2,
+            fromReview: kind === "review",
+            ...optionOrder ? { optionOrder, positionalLabels: true } : {}
           });
           if (request === dailyRequest.current) showSaved(result.question);
           showReviewRemoval(question.id, result.reviewRemovalId);
           refreshCounts();
         } catch (issue) {
           if (request !== dailyRequest.current) return;
-          const saved = await rpc("getQuestion", { qid: question.id, attemptId }).catch(() => null);
+          const saved = await rpc("getQuestion", { qid: question.id, attemptId: attemptId2 }).catch(() => null);
           if (request !== dailyRequest.current) return;
-          if (saved?.question?.lastAttempt?.id === attemptId) {
+          if (saved?.question?.lastAttempt?.id === attemptId2) {
             showSaved(saved.question);
             const last = saved.question.lastAttempt;
             const changed = last.mode !== mode || mode === "submit" && last.choice !== choice;
@@ -13768,7 +13912,7 @@ ${lines[index]}`;
         } finally {
           if (request === dailyRequest.current) setBusy("");
         }
-      }, [question, choice, kind, notify, refreshCounts, showReviewRemoval]);
+      }, [question, choice, kind, optionOrder, notify, refreshCounts, showReviewRemoval]);
       const judge = useCallback(async (verdict) => {
         if (!question) return;
         if (!question.lastAttempt?.id) {
@@ -13805,12 +13949,15 @@ ${lines[index]}`;
           setFavoritePending((value) => value === question.id ? null : value);
         }
       }, [question, favoritePending, notify, refreshCounts]);
-      const sendFollowup = useCallback(async (text, messageId) => {
+      const sendFollowup = useCallback(async (text, messageId, onDelta) => {
         if (!question) throw new Error("没有打开任何题目");
         const request = dailyRequest.current;
         const threadVersion = ++threadRequest.current;
-        const result = await rpc("followup", { qid: question.id, message: text, clientMessageId: messageId });
-        if (request === dailyRequest.current && threadVersion === threadRequest.current) setThread(result.thread);
+        const isCurrent = /* @__PURE__ */ __name(() => request === dailyRequest.current && threadVersion === threadRequest.current, "isCurrent");
+        const result = await rpc("followup", { qid: question.id, message: text, clientMessageId: messageId }, (delta) => {
+          if (isCurrent()) onDelta?.(delta);
+        });
+        if (isCurrent()) setThread(result.thread);
       }, [question]);
       const clearThread = useCallback(async () => {
         if (!question) return;
@@ -14271,6 +14418,7 @@ ${lines[index]}`;
         if (view === "detail" && question) {
           return h2(QuestionPane, {
             q: question,
+            optionOrder,
             focused: questionFocused,
             onToggleFocus: toggleQuestionFocus,
             busy,
@@ -14429,6 +14577,33 @@ ${lines[index]}`;
               if (warning) window.alert(warning);
               window.location.reload();
             }, "onRestored") });
+          case "practice":
+            return h2(
+              components.Modal,
+              { title: "作答设置", embedded: true },
+              h2(
+                "label",
+                { className: "kd-manage-card kd-row" },
+                h2("input", {
+                  type: "checkbox",
+                  checked: boot?.settings?.shuffleOptions === true,
+                  disabled: settingsBusy,
+                  onChange: /* @__PURE__ */ __name(async (event) => {
+                    const shuffleOptions = event.target.checked;
+                    setSettingsBusy(true);
+                    try {
+                      const result = await rpc("saveSettings", { shuffleOptions });
+                      setBoot((current) => ({ ...current, settings: { ...current.settings, shuffleOptions: result.settings.shuffleOptions } }));
+                    } catch (issue) {
+                      notify(issue.message, "bad");
+                    } finally {
+                      setSettingsBusy(false);
+                    }
+                  }, "onChange")
+                }),
+                "随机排列单选题和多选题的选项"
+              )
+            );
           case "about":
             return h2(AboutPanel, { currentVersion: boot?.pluginVersion });
         }
@@ -14550,6 +14725,7 @@ ${lines[index]}`;
               )
             ),
             h2(Presence, null, showThread ? h2(ThreadPane, {
+              key: question.id,
               thread,
               openingSuggestions: question.openingSuggestions,
               narrow,
@@ -14654,21 +14830,49 @@ ${lines[index]}`;
   __name(createPage, "createPage");
 
   // ui/app.js
+  async function readFollowupStream(response, onDelta) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) throw new Error("追问回复中断，请重试");
+        buffer += decoder.decode(value, { stream: true });
+        let end;
+        while ((end = buffer.indexOf("\n")) !== -1) {
+          const event = JSON.parse(buffer.slice(0, end));
+          buffer = buffer.slice(end + 1);
+          if (event.type === "delta") onDelta(event.text);
+          else if (event.type === "result") return event.result;
+          else if (event.type === "error") throw new Error(event.error.message);
+        }
+      }
+    } finally {
+      await reader.cancel().catch(() => {
+      });
+      reader.releaseLock();
+    }
+  }
+  __name(readFollowupStream, "readFollowupStream");
   function createClient(React, { window = globalThis.window, fetch = globalThis.fetch, styles } = {}) {
     const styleState = { injected: false };
-    async function rpc(op, args) {
+    async function rpc(op, args, onDelta) {
       let response;
       const slowPdf = op === "importBank" || op === "importSyllabus" || op === "importPastPaper";
       try {
         response = await fetch("/api/daily-question/rpc", {
           method: "POST",
           signal: AbortSignal.timeout(op === "ensureDaily" || op === "revise" || slowPdf ? 16 * 60 * 1e3 : ["followup", "analyzeStudyMemory", "suggestMemoryMerges"].includes(op) ? 6 * 60 * 1e3 : 6e4),
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...onDelta ? { accept: "application/x-ndjson" } : {} },
           body: JSON.stringify({ op, args: args || {} })
         });
       } catch (error) {
         if (error.name === "TimeoutError") throw new Error("等待服务响应超时，请重试");
         throw new Error(`无法连接插件后端（${error.message}）。请确认「考研每日一题」插件已启用。`);
+      }
+      if (onDelta && response.ok && response.headers?.get("content-type")?.startsWith("application/x-ndjson")) {
+        return readFollowupStream(response, onDelta);
       }
       let payload = null;
       try {

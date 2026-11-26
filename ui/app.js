@@ -4,21 +4,48 @@ import { createMarkdown } from './markdown.js'
 import { createComponents } from './components.js'
 import { createPage } from './page.js'
 
+async function readFollowupStream(response, onDelta) {
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) throw new Error('追问回复中断，请重试')
+      buffer += decoder.decode(value, { stream: true })
+      let end
+      while ((end = buffer.indexOf('\n')) !== -1) {
+        const event = JSON.parse(buffer.slice(0, end))
+        buffer = buffer.slice(end + 1)
+        if (event.type === 'delta') onDelta(event.text)
+        else if (event.type === 'result') return event.result
+        else if (event.type === 'error') throw new Error(event.error.message)
+      }
+    }
+  } finally {
+    await reader.cancel().catch(() => {})
+    reader.releaseLock()
+  }
+}
+
 export function createClient(React, { window = globalThis.window, fetch = globalThis.fetch, styles } = {}) {
   const styleState = { injected: false }
-  async function rpc(op, args) {
+  async function rpc(op, args, onDelta) {
     let response
     const slowPdf = op === 'importBank' || op === 'importSyllabus' || op === 'importPastPaper'
     try {
       response = await fetch('/api/daily-question/rpc', {
         method: 'POST',
         signal: AbortSignal.timeout(op === 'ensureDaily' || op === 'revise' || slowPdf ? 16*60*1000 : ['followup', 'analyzeStudyMemory', 'suggestMemoryMerges'].includes(op) ? 6*60*1000 : 60_000),
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...(onDelta ? { accept: 'application/x-ndjson' } : {}) },
         body: JSON.stringify({ op, args: args || {} }),
       })
     } catch (error) {
       if (error.name === 'TimeoutError') throw new Error('等待服务响应超时，请重试')
       throw new Error(`无法连接插件后端（${error.message}）。请确认「考研每日一题」插件已启用。`)
+    }
+    if (onDelta && response.ok && response.headers?.get('content-type')?.startsWith('application/x-ndjson')) {
+      return readFollowupStream(response, onDelta)
     }
     let payload = null
     try {
